@@ -236,6 +236,9 @@ export interface LeaveRequest {
 export type SalaryRequestStatus = 'brouillon' | 'en_attente' | 'validee' | 'rejetee' | 'annulee';
 
 /** Une ligne de la demande — traduit `SalaryLineResponse`, un enseignant payé sur la période. */
+/** Traduit `PayoutStatus` (payment-service) — état d'EXÉCUTION du versement d'une ligne, distinct du statut de la demande. `null` tant que la demande n'a pas été validée par le comptable. */
+export type PayoutStatus = 'en_attente' | 'paye' | 'echec' | 'attente_confirmation_cash';
+
 export interface SalaryRequestLine {
   teacherId: string;
   teacherNom: string;
@@ -246,6 +249,19 @@ export interface SalaryRequestLine {
   montantCalcule: number;
   payeurEtat: boolean;
   payslipId: string | null;
+  /** Choisi par le directeur à la création de la demande — cash par défaut. */
+  modePaiement: PaymentChannel;
+  /** Numéro de téléphone pour wave/orange_money — le numéro du personnel par défaut, voir `SalaryRequestsPort.create`. */
+  destinationPaiement: string | null;
+  /**
+   * Renseigné UNIQUEMENT une fois la demande validée par le comptable (hors
+   * de cette application — voir `SalaryRequestsPort`) : exécution réelle du
+   * versement de cette ligne. `null` tant que la demande est en brouillon ou
+   * en attente de validation.
+   */
+  statutVersement: PayoutStatus | null;
+  referenceTransaction: string | null;
+  motifEchecPaiement: string | null;
 }
 
 /**
@@ -421,4 +437,67 @@ export interface DirectorProfile {
 export interface AuthSession {
   director: DirectorProfile;
   school: School;
+}
+
+/**
+ * Résultat d'une recherche d'utilisateur par téléphone, à la création d'un
+ * enseignant — permet d'éviter un doublon si la personne existe déjà
+ * (potentiellement rattachée à une autre école). Traduit `UserLookupResponse`
+ * (user-service). `null` si aucun utilisateur ne porte ce numéro.
+ */
+export interface TeacherLookupResult {
+  userId: string;
+  nom: string;
+  tel: string;
+  email: string;
+  /** `true` si cette personne est déjà enseignante dans CET établissement — rattachement impossible, redondant. */
+  dejaDansCetEtablissement: boolean;
+}
+
+/** Qui porte le document personnel — distingue les types applicables (voir `PERSONAL_DOCUMENT_TYPES_BY_OWNER`). */
+export type PersonalDocumentOwnerType = 'personnel' | 'eleve';
+
+/** Traduit `PersonalDocumentType` (document-service). CNI commun aux deux profils. */
+export type PersonalDocumentType = 'cni' | 'diplome' | 'certification' | 'acte_naissance' | 'cni_parent' | 'autre';
+
+/**
+ * Document personnel d'identité/qualification (CNI, diplôme, certification
+ * pour le personnel — CNI, acte de naissance, CNI des parents pour un
+ * élève). Traduit `PersonalDocumentResponse` (document-service) — distinct
+ * des documents pédagogiques (`CourseDocument`) et des bulletins de paie
+ * (`SalarySlip`).
+ */
+export interface PersonalDocument {
+  id: string;
+  ownerId: string;
+  ownerType: PersonalDocumentOwnerType;
+  type: PersonalDocumentType;
+  titre: string;
+  description: string | null;
+  fileName: string;
+  fileSizeBytes: number;
+  downloadUrl: string;
+  deposePar: string;
+  dateDepot: string; // dd/mm/yyyy
+}
+
+/** Traduit `DocumentType` (document-service) — document pédagogique rattaché à un cours. */
+export type CourseDocumentType = 'cours' | 'exercice' | 'corrige' | 'sujet_examen' | 'ressource' | 'autre';
+
+/**
+ * Document pédagogique d'une matière (cours, exercice, corrigé, sujet
+ * d'examen, ressource) — traduit `DocumentResponse` (document-service),
+ * filtré par matière depuis cette fiche.
+ */
+export interface CourseDocument {
+  id: string;
+  subjectId: string;
+  type: CourseDocumentType;
+  titre: string;
+  description: string | null;
+  fileName: string;
+  fileSizeBytes: number;
+  downloadUrl: string;
+  deposePar: string;
+  dateDepot: string; // dd/mm/yyyy
 }

@@ -16,12 +16,18 @@ import type {
   BulletinPeriod,
   ClassEvent,
   ClassGroup,
+  CourseDocument,
+  CourseDocumentType,
   DashboardSnapshot,
   DirectorProfile,
   LeaveRequest,
   Notice,
   NoticeDestType,
+  PaymentChannel,
   PaymentConfig,
+  PersonalDocument,
+  PersonalDocumentOwnerType,
+  PersonalDocumentType,
   SalaryMode,
   SalaryRequest,
   SalarySlip,
@@ -35,6 +41,7 @@ import type {
   Subject,
   SubjectCoefficient,
   Teacher,
+  TeacherLookupResult,
   TransferRequest,
   YearResult,
 } from '@/types/domain';
@@ -149,6 +156,20 @@ export interface TeachersPort {
    * volontaire, depuis la fiche de l'enseignant.
    */
   create(input: Omit<Teacher, 'id' | 'classes' | 'statut' | 'salaryMode' | 'salaireFixe' | 'tauxJournalier' | 'tauxHoraire'>): Promise<Teacher>;
+  /**
+   * Recherche par téléphone — étape obligatoire AVANT de créer un nouvel
+   * enseignant : évite un doublon si la personne existe déjà (potentiellement
+   * rattachée à une autre école). `null` si aucun utilisateur ne porte ce
+   * numéro. Backend : `GET /api/v1/users/by-phone/{phone}` (user-service).
+   */
+  findByPhone(tel: string): Promise<TeacherLookupResult | null>;
+  /**
+   * Rattache un utilisateur EXISTANT (trouvé par téléphone) à cet
+   * établissement, sans salaire — la direction configure ensuite sa
+   * rémunération comme pour un enseignant nouvellement créé.
+   * Backend : `POST /api/v1/users/{userId}/schools` (user-service).
+   */
+  attachExisting(userId: string, matiere: string): Promise<Teacher>;
   update(teacherId: string, patch: Partial<Pick<Teacher, 'nom' | 'matiere' | 'tel' | 'email'>>): Promise<Teacher>;
   /** Backend : `DELETE /users/{id}`. */
   remove(teacherId: string): Promise<void>;
@@ -247,33 +268,86 @@ export interface LeavesPort {
  * comptable selon le circuit de l'école ; cette application ne propose que
  * le rôle directeur, qui peut donc enchaîner les quatre étapes lui-même.
  */
+/**
+ * Côté frontend/director : CRÉATION et SOUMISSION seulement — la validation
+ * (vérification du solde, choix du mode de règlement effectif, cashout
+ * mobile money, confirmation de réception cash) revient au COMPTABLE
+ * (`POST .../{id}/validate`, en attente de son propre frontend, à venir).
+ * Volontairement absent de ce port : l'exposer ici inviterait le directeur à
+ * déclencher un paiement réel sans l'écran de contrôle de solde que ce
+ * endpoint suppose désormais côté comptable.
+ */
 export interface SalaryRequestsPort {
   /** Backend : `GET /api/v1/accounting/salary-requests?schoolId&academicYearId`. */
   list(): Promise<SalaryRequest[]>;
   /**
-   * Crée une demande en statut brouillon — une ligne par enseignant choisi.
-   * Le montant de chaque ligne est calculé côté serveur à partir de son
-   * profil de salaire et, en mode "par jour", de ses absences non
-   * justifiées sur la période ; jamais saisi ici.
+   * Crée une demande en statut brouillon — une ligne par enseignant choisi,
+   * avec le mode de règlement souhaité. Le montant de chaque ligne est
+   * calculé côté serveur à partir de son profil de salaire et, en mode "par
+   * jour", de ses absences non justifiées sur la période ; jamais saisi ici.
    * Backend : `POST /api/v1/accounting/salary-requests`.
    */
   create(input: {
     periode: string;
     dateDebut: string;
     dateFin: string;
-    lignes: { teacherId: string; joursTravailles?: number; heuresTravaillees?: number }[];
+    lignes: {
+      teacherId: string;
+      joursTravailles?: number;
+      heuresTravaillees?: number;
+      /** cash par défaut si omis (voir `SalaryLineInput.paymentMethod` côté backend). */
+      modePaiement?: PaymentChannel;
+      /** Numéro de téléphone pour wave/orange_money — celui du personnel par défaut si omis. */
+      destinationPaiement?: string;
+    }[];
   }): Promise<SalaryRequest>;
   /** Backend : `POST /api/v1/accounting/salary-requests/{id}/submit`. */
   submit(requestId: string): Promise<SalaryRequest>;
-  /**
-   * Décision — approuver règle automatiquement le paiement (dépense côté
-   * école si l'établissement est privé, bulletin de paie dans tous les cas,
-   * pour chaque ligne) ; rejeter exige un motif.
-   * Backend : `POST /api/v1/accounting/salary-requests/{id}/validate`.
-   */
-  validate(requestId: string, approve: boolean, comment?: string): Promise<SalaryRequest>;
   /** Backend : `POST /api/v1/accounting/salary-requests/{id}/cancel`. Réservé aux demandes encore en brouillon. */
   cancel(requestId: string): Promise<SalaryRequest>;
+}
+
+/**
+ * Documents personnels d'identité/qualification (CNI, diplôme, certification
+ * pour le personnel — CNI, acte de naissance, CNI des parents pour un
+ * élève). Permission appliquée côté serveur : propriétaire du document ou
+ * direction de l'école — jamais un tiers (pas même un autre enseignant).
+ * Backend : `document-service`, `/api/v1/personal-documents`.
+ */
+export interface PersonalDocumentsPort {
+  list(ownerId: string, ownerType: PersonalDocumentOwnerType): Promise<PersonalDocument[]>;
+  /** Backend : `POST /api/v1/personal-documents` (multipart). */
+  upload(input: {
+    ownerId: string;
+    ownerType: PersonalDocumentOwnerType;
+    type: PersonalDocumentType;
+    titre: string;
+    description?: string;
+    file: File;
+  }): Promise<PersonalDocument>;
+  /** Backend : `DELETE /api/v1/personal-documents/{id}` — retrait logique, pas de suppression physique. */
+  remove(documentId: string): Promise<void>;
+}
+
+/**
+ * Documents pédagogiques d'une matière (cours, exercices, corrigés, sujets
+ * d'examen, ressources) — déjà pris en charge côté backend
+ * (`document-service`, `/api/v1/documents`), simplement non exposés côté
+ * frontend avant cette fiche matière.
+ */
+export interface CourseDocumentsPort {
+  /** Backend : `GET /api/v1/documents/subject/{subjectId}`. */
+  list(subjectId: string): Promise<CourseDocument[]>;
+  /** Backend : `POST /api/v1/documents` (multipart). */
+  upload(input: {
+    subjectId: string;
+    type: CourseDocumentType;
+    titre: string;
+    description?: string;
+    file: File;
+  }): Promise<CourseDocument>;
+  /** Backend : `DELETE /api/v1/documents/{id}`. */
+  remove(documentId: string): Promise<void>;
 }
 
 export interface SignaturesPort {
@@ -367,4 +441,6 @@ export interface Services {
   signatures: SignaturesPort;
   notices: NoticesPort;
   academicResults: AcademicResultsPort;
+  personalDocuments: PersonalDocumentsPort;
+  courseDocuments: CourseDocumentsPort;
 }

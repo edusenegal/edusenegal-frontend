@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { StudentEditSheet } from './StudentEditSheet';
 import styles from './StudentDetailPage.module.css';
 
@@ -83,6 +84,16 @@ export default function StudentDetailPage() {
                 <Row k="Taux de paiement" v={`${s.tauxPaiement}%`} />
               </div>
             </div>
+          </Card>
+        ) : null}
+
+        {s ? (
+          <Card style={{ marginTop: 'var(--space-md)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Pièces personnelles</h3>
+            <p className={styles.muted} style={{ fontSize: 12.5, margin: '0 0 10px' }}>
+              CNI de l’élève, acte de naissance, CNI des parents.
+            </p>
+            <PersonalDocumentsSection ownerId={s.id} ownerType="eleve" />
           </Card>
         ) : null}
       </StateView>

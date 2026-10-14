@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { SubjectCoefficient } from '@/types/domain';
+import { CourseDocumentsSection } from '@/components/documents/CourseDocumentsSection';
 import styles from './SubjectDetailPage.module.css';
 
 interface DraftRow extends SubjectCoefficient {
@@ -157,6 +158,18 @@ export default function SubjectDetailPage() {
             </table>
           </div>
         </Card>
+
+        {s ? (
+          <Card style={{ marginTop: 'var(--space-md)' }}>
+            <div className={styles.body}>
+              <div className={styles.head}>
+                <h3 className={styles.sectionTitle}>Documents pédagogiques</h3>
+              </div>
+              <p className={styles.hint}>Cours, exercices, corrigés, sujets d’examen, ressources pour cette matière.</p>
+              <CourseDocumentsSection subjectId={subjectId} />
+            </div>
+          </Card>
+        ) : null}
       </StateView>
     </div>
   );

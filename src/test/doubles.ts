@@ -42,6 +42,8 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       list: notStubbed('teachers.list'),
       get: notStubbed('teachers.get'),
       create: notStubbed('teachers.create'),
+      findByPhone: notStubbed('teachers.findByPhone'),
+      attachExisting: notStubbed('teachers.attachExisting'),
       update: notStubbed('teachers.update'),
       remove: notStubbed('teachers.remove'),
       addClass: notStubbed('teachers.addClass'),
@@ -91,7 +93,6 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       list: notStubbed('salaryRequests.list'),
       create: notStubbed('salaryRequests.create'),
       submit: notStubbed('salaryRequests.submit'),
-      validate: notStubbed('salaryRequests.validate'),
       cancel: notStubbed('salaryRequests.cancel'),
     },
     signatures: {
@@ -105,6 +106,16 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
     notices: {
       list: notStubbed('notices.list'),
       create: notStubbed('notices.create'),
+    },
+    personalDocuments: {
+      list: notStubbed('personalDocuments.list'),
+      upload: notStubbed('personalDocuments.upload'),
+      remove: notStubbed('personalDocuments.remove'),
+    },
+    courseDocuments: {
+      list: notStubbed('courseDocuments.list'),
+      upload: notStubbed('courseDocuments.upload'),
+      remove: notStubbed('courseDocuments.remove'),
     },
   } as unknown as Services;
 

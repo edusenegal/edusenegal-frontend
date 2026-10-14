@@ -23,10 +23,12 @@ import type {
   AcademicYearConfig,
   ClassEvent,
   ClassGroup,
+  CourseDocument,
   DirectorProfile,
   LeaveRequest,
   Notice,
   PaymentConfig,
+  PersonalDocument,
   PromotionResult,
   SalaryRequest,
   SalaryRequestLine,
@@ -40,6 +42,7 @@ import type {
   Subject,
   SubjectAverage,
   Teacher,
+  TeacherLookupResult,
   TransferRequest,
   YearResult,
 } from '@/types/domain';
@@ -85,6 +88,8 @@ function createInitialState() {
     salaryRequests: structuredClone(fixtures.SALARY_REQUESTS) as SalaryRequest[],
     salarySlips: structuredClone(fixtures.SALARY_SLIPS) as SalarySlip[],
     signedDocuments: structuredClone(fixtures.SIGNED_DOCUMENTS) as SignedDocument[],
+    personalDocuments: structuredClone(fixtures.PERSONAL_DOCUMENTS) as PersonalDocument[],
+    courseDocuments: structuredClone(fixtures.COURSE_DOCUMENTS) as CourseDocument[],
     notices: structuredClone(fixtures.NOTICES) as Notice[],
     transferRequests: structuredClone(fixtures.TRANSFER_REQUESTS) as TransferRequest[],
     academicConfigs: structuredClone(fixtures.buildAcademicConfigs()) as AcademicYearConfig[],
@@ -349,6 +354,40 @@ export function createMockServices(): Services {
           id: `ens-${Date.now()}`,
           classes: [],
           statut: 'actif',
+          salaryMode: null,
+          salaireFixe: null,
+          tauxJournalier: null,
+          tauxHoraire: null,
+        };
+        state.teachers.unshift(teacher);
+        return respond(teacher, 350);
+      },
+      async findByPhone(tel): Promise<TeacherLookupResult | null> {
+        const normalized = tel.trim();
+        const inThisSchool = state.teachers.find((t) => t.tel === normalized);
+        if (inThisSchool) {
+          return respond({
+            userId: inThisSchool.id,
+            nom: inThisSchool.nom,
+            tel: inThisSchool.tel,
+            email: inThisSchool.email,
+            dejaDansCetEtablissement: true,
+          });
+        }
+        const external = fixtures.EXTERNAL_USER_POOL.find((u) => u.tel === normalized);
+        return respond(external ?? null, 300);
+      },
+      async attachExisting(userId, matiere): Promise<Teacher> {
+        const external = fixtures.EXTERNAL_USER_POOL.find((u) => u.userId === userId);
+        if (!external) notFound('Utilisateur');
+        const teacher: Teacher = {
+          id: external.userId,
+          nom: external.nom,
+          matiere: matiere.trim() || '—',
+          tel: external.tel,
+          email: external.email,
+          statut: 'actif',
+          classes: [],
           salaryMode: null,
           salaireFixe: null,
           tauxJournalier: null,
@@ -659,62 +698,82 @@ export function createMockServices(): Services {
        */
       async create(input): Promise<SalaryRequest> {
         const payeurEtat = state.school.type !== 'prive';
-        const lignes: SalaryRequestLine[] = input.lignes.map(({ teacherId, joursTravailles, heuresTravaillees }) => {
-          const teacher = state.teachers.find((t) => t.id === teacherId);
-          if (!teacher) notFound('Enseignant');
-          if (!teacher.salaryMode) {
-            throw new AppError(
-              'validation',
-              `Aucun salaire configuré pour ${teacher.nom} — utilisez « Modifier le salaire » avant de créer la demande.`,
-              409,
-            );
-          }
-          if (teacher.salaryMode === 'fixe') {
-            return {
-              teacherId,
-              teacherNom: teacher.nom,
-              salaryMode: 'fixe',
-              joursTravailles: null,
-              heuresTravaillees: null,
-              joursAbsenceInjustifiee: null,
-              montantCalcule: teacher.salaireFixe ?? 0,
-              payeurEtat,
-              payslipId: null,
-            };
-          }
-          if (teacher.salaryMode === 'par_jour') {
-            if (joursTravailles == null) {
-              throw new AppError('validation', `Le nombre de jours travaillés est requis pour ${teacher.nom}.`, 422);
+        const lignes: SalaryRequestLine[] = input.lignes.map(
+          ({ teacherId, joursTravailles, heuresTravaillees, modePaiement, destinationPaiement }) => {
+            const teacher = state.teachers.find((t) => t.id === teacherId);
+            if (!teacher) notFound('Enseignant');
+            if (!teacher.salaryMode) {
+              throw new AppError(
+                'validation',
+                `Aucun salaire configuré pour ${teacher.nom} — utilisez « Modifier le salaire » avant de créer la demande.`,
+                409,
+              );
             }
-            const { joursInjustifies } = computeAbsenceSummary(teacherId, input.dateDebut, input.dateFin);
-            const joursPayables = Math.max(0, joursTravailles - joursInjustifies);
-            return {
+            // Résolution identique à `SalaryPaymentServiceImpl.buildLine` côté backend :
+            // cash par défaut, numéro du personnel par défaut pour wave/orange_money.
+            const mode = modePaiement ?? 'especes';
+            let destination: string | null = null;
+            if (mode === 'wave' || mode === 'orange_money') {
+              destination = destinationPaiement?.trim() || teacher.tel;
+              if (!destination) {
+                throw new AppError(
+                  'validation',
+                  `Aucun numéro de téléphone disponible pour le cashin ${mode} de ${teacher.nom} — renseignez un numéro.`,
+                  422,
+                );
+              }
+            }
+
+            const base = {
               teacherId,
               teacherNom: teacher.nom,
-              salaryMode: 'par_jour',
-              joursTravailles,
-              heuresTravaillees: null,
-              joursAbsenceInjustifiee: joursInjustifies,
-              montantCalcule: joursPayables * (teacher.tauxJournalier ?? 0),
               payeurEtat,
               payslipId: null,
+              modePaiement: mode,
+              destinationPaiement: destination,
+              statutVersement: null,
+              referenceTransaction: null,
+              motifEchecPaiement: null,
+            } as const;
+
+            if (teacher.salaryMode === 'fixe') {
+              return {
+                ...base,
+                salaryMode: 'fixe',
+                joursTravailles: null,
+                heuresTravaillees: null,
+                joursAbsenceInjustifiee: null,
+                montantCalcule: teacher.salaireFixe ?? 0,
+              };
+            }
+            if (teacher.salaryMode === 'par_jour') {
+              if (joursTravailles == null) {
+                throw new AppError('validation', `Le nombre de jours travaillés est requis pour ${teacher.nom}.`, 422);
+              }
+              const { joursInjustifies } = computeAbsenceSummary(teacherId, input.dateDebut, input.dateFin);
+              const joursPayables = Math.max(0, joursTravailles - joursInjustifies);
+              return {
+                ...base,
+                salaryMode: 'par_jour',
+                joursTravailles,
+                heuresTravaillees: null,
+                joursAbsenceInjustifiee: joursInjustifies,
+                montantCalcule: joursPayables * (teacher.tauxJournalier ?? 0),
+              };
+            }
+            if (heuresTravaillees == null) {
+              throw new AppError('validation', `Le nombre d’heures travaillées est requis pour ${teacher.nom}.`, 422);
+            }
+            return {
+              ...base,
+              salaryMode: 'par_heure',
+              joursTravailles: null,
+              heuresTravaillees,
+              joursAbsenceInjustifiee: null,
+              montantCalcule: Math.round(heuresTravaillees * (teacher.tauxHoraire ?? 0)),
             };
-          }
-          if (heuresTravaillees == null) {
-            throw new AppError('validation', `Le nombre d’heures travaillées est requis pour ${teacher.nom}.`, 422);
-          }
-          return {
-            teacherId,
-            teacherNom: teacher.nom,
-            salaryMode: 'par_heure',
-            joursTravailles: null,
-            heuresTravaillees,
-            joursAbsenceInjustifiee: null,
-            montantCalcule: Math.round(heuresTravaillees * (teacher.tauxHoraire ?? 0)),
-            payeurEtat,
-            payslipId: null,
-          };
-        });
+          },
+        );
 
         const request: SalaryRequest = {
           id: `sr-${Date.now()}`,
@@ -738,44 +797,6 @@ export function createMockServices(): Services {
         }
         found.statut = 'en_attente';
         return respond(found, 300);
-      },
-      /**
-       * Approuver règle automatiquement le paiement : génère un bulletin de
-       * paie par ligne, et si l'école est privée, débite la caisse (comme
-       * `SalaryPaymentServiceImpl.settleLine`, qui crée en plus une Expense
-       * VALIDATED côté réel — hors scope mock, cet écran ne reflète pas le
-       * solde de caisse). Rejeter exige un motif.
-       */
-      async validate(requestId, approve, comment): Promise<SalaryRequest> {
-        const found = state.salaryRequests.find((r) => r.id === requestId);
-        if (!found) notFound('Demande de paiement');
-        if (found.statut !== 'en_attente') {
-          throw new AppError('validation', "La demande n'est pas en attente de validation.", 409);
-        }
-        if (approve) {
-          found.statut = 'validee';
-          const generee = new Date().toLocaleDateString('fr-FR');
-          found.lignes = found.lignes.map((ligne) => {
-            const payslipId = `pay-${Date.now()}-${ligne.teacherId}`;
-            state.salarySlips.unshift({
-              id: payslipId,
-              teacherId: ligne.teacherId,
-              periode: found.periode,
-              salaryMode: ligne.salaryMode,
-              montantBrut: ligne.montantCalcule,
-              joursTravailles: ligne.joursTravailles,
-              heuresTravaillees: ligne.heuresTravaillees,
-              joursAbsenceInjustifiee: ligne.joursAbsenceInjustifiee,
-              payeurEtat: ligne.payeurEtat,
-              dateGeneration: generee,
-            });
-            return { ...ligne, payslipId };
-          });
-        } else {
-          found.statut = 'rejetee';
-          found.motifRejet = comment?.trim() || 'Rejetée sans motif renseigné.';
-        }
-        return respond(found, 400);
       },
       async cancel(requestId): Promise<SalaryRequest> {
         const found = state.salaryRequests.find((r) => r.id === requestId);
@@ -1051,6 +1072,78 @@ export function createMockServices(): Services {
       async closeResultsYear(): Promise<void> {
         state.resultsYearClosed = true;
         return respond(undefined, 400);
+      },
+    },
+
+    personalDocuments: {
+      async list(ownerId, ownerType): Promise<PersonalDocument[]> {
+        const docs = state.personalDocuments
+          .filter((d) => d.ownerId === ownerId && d.ownerType === ownerType)
+          .sort((a, b) => frToISO(b.dateDepot).localeCompare(frToISO(a.dateDepot)));
+        return respond(docs);
+      },
+      /**
+       * Même règle type/propriétaire que `PersonalDocumentServiceImpl.validateTypeForOwner`
+       * côté backend : diplôme/certification réservés au personnel, acte de
+       * naissance/CNI des parents réservés à un élève.
+       */
+      async upload(input): Promise<PersonalDocument> {
+        const staffOnly: PersonalDocument['type'][] = ['diplome', 'certification'];
+        const studentOnly: PersonalDocument['type'][] = ['acte_naissance', 'cni_parent'];
+        if (input.ownerType === 'eleve' && staffOnly.includes(input.type)) {
+          throw new AppError('validation', `${input.type} ne s'applique qu'au personnel, pas à un élève.`, 422);
+        }
+        if (input.ownerType === 'personnel' && studentOnly.includes(input.type)) {
+          throw new AppError('validation', `${input.type} ne s'applique qu'à un élève, pas au personnel.`, 422);
+        }
+        const doc: PersonalDocument = {
+          id: `pdoc-${Date.now()}`,
+          ownerId: input.ownerId,
+          ownerType: input.ownerType,
+          type: input.type,
+          titre: input.titre.trim(),
+          description: input.description?.trim() || null,
+          fileName: input.file.name,
+          fileSizeBytes: input.file.size,
+          downloadUrl: '#',
+          deposePar: `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`,
+          dateDepot: new Date().toLocaleDateString('fr-FR'),
+        };
+        state.personalDocuments.unshift(doc);
+        return respond(doc, 400);
+      },
+      async remove(documentId): Promise<void> {
+        state.personalDocuments = state.personalDocuments.filter((d) => d.id !== documentId);
+        await respond(undefined, 250);
+      },
+    },
+
+    courseDocuments: {
+      async list(subjectId): Promise<CourseDocument[]> {
+        const docs = state.courseDocuments
+          .filter((d) => d.subjectId === subjectId)
+          .sort((a, b) => frToISO(b.dateDepot).localeCompare(frToISO(a.dateDepot)));
+        return respond(docs);
+      },
+      async upload(input): Promise<CourseDocument> {
+        const doc: CourseDocument = {
+          id: `cdoc-${Date.now()}`,
+          subjectId: input.subjectId,
+          type: input.type,
+          titre: input.titre.trim(),
+          description: input.description?.trim() || null,
+          fileName: input.file.name,
+          fileSizeBytes: input.file.size,
+          downloadUrl: '#',
+          deposePar: `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`,
+          dateDepot: new Date().toLocaleDateString('fr-FR'),
+        };
+        state.courseDocuments.unshift(doc);
+        return respond(doc, 400);
+      },
+      async remove(documentId): Promise<void> {
+        state.courseDocuments = state.courseDocuments.filter((d) => d.id !== documentId);
+        await respond(undefined, 250);
       },
     },
   };

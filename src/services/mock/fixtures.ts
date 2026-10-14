@@ -25,10 +25,12 @@ import type {
   ClassEvent,
   ClassGroup,
   ClassLevel,
+  CourseDocument,
   LeaveRequest,
   Mention,
   Notice,
   PaymentConfig,
+  PersonalDocument,
   SalaryRequest,
   SalarySlip,
   ScheduleSlot,
@@ -39,6 +41,7 @@ import type {
   Subject,
   SubjectAverage,
   Teacher,
+  TeacherLookupResult,
   TransferRequest,
 } from '@/types/domain';
 
@@ -169,6 +172,32 @@ export const STAFF_ABSENCES: StaffAbsence[] = [
 export function teacherNamesForClass(className: string): string[] {
   return TEACHER_SEEDS.filter((t) => t.classes.includes(className)).map((t) => t.id);
 }
+
+/**
+ * Utilisateurs EXISTANTS mais pas encore dans CET établissement — alimente
+ * la démo du dédoublonnage à la création d'un enseignant (recherche par
+ * téléphone trouvant quelqu'un déjà connu, ex. enseignant itinérant d'une
+ * autre école). `77 520 00 01` est le seul numéro de cette liste utilisable
+ * pour la démo ; tout autre numéro non présent dans `TEACHER_SEEDS` renvoie
+ * `null` (aucun utilisateur trouvé).
+ */
+export const EXTERNAL_USER_POOL: TeacherLookupResult[] = [
+  { userId: 'usr-ext-1', nom: 'M. Alassane Ndour', tel: '77 520 00 01', email: 'a.ndour@gmail.com', dejaDansCetEtablissement: false },
+];
+
+/** Quelques pièces personnelles de démonstration — enseignant ens-1 et élève std-001. */
+export const PERSONAL_DOCUMENTS: PersonalDocument[] = [
+  { id: 'pdoc-1', ownerId: 'ens-1', ownerType: 'personnel', type: 'cni', titre: 'Carte nationale d’identité', description: null, fileName: 'cni_isarr.pdf', fileSizeBytes: 182_000, downloadUrl: '#', deposePar: 'Direction', dateDepot: '03/09/2026' },
+  { id: 'pdoc-2', ownerId: 'ens-1', ownerType: 'personnel', type: 'diplome', titre: 'Diplôme de Master — Mathématiques', description: "Université Cheikh Anta Diop, 2014", fileName: 'diplome_master_isarr.pdf', fileSizeBytes: 340_000, downloadUrl: '#', deposePar: 'Direction', dateDepot: '03/09/2026' },
+  { id: 'pdoc-3', ownerId: 'std-001', ownerType: 'eleve', type: 'cni', titre: 'Carte nationale d’identité', description: null, fileName: 'cni_eleve.pdf', fileSizeBytes: 150_000, downloadUrl: '#', deposePar: 'Direction', dateDepot: '01/09/2026' },
+  { id: 'pdoc-4', ownerId: 'std-001', ownerType: 'eleve', type: 'acte_naissance', titre: 'Acte de naissance', description: null, fileName: 'acte_naissance_eleve.pdf', fileSizeBytes: 210_000, downloadUrl: '#', deposePar: 'Direction', dateDepot: '01/09/2026' },
+];
+
+/** Quelques documents pédagogiques de démonstration, matière Mathématiques. */
+export const COURSE_DOCUMENTS: CourseDocument[] = [
+  { id: 'cdoc-1', subjectId: 'subj-math', type: 'cours', titre: 'Chapitre 3 — Suites numériques', description: null, fileName: 'chap3_suites.pdf', fileSizeBytes: 420_000, downloadUrl: '#', deposePar: 'M. Ibrahima Sarr', dateDepot: '28/09/2026' },
+  { id: 'cdoc-2', subjectId: 'subj-math', type: 'sujet_examen', titre: 'Devoir surveillé n°1', description: 'Terminale S2', fileName: 'ds1_ts2.pdf', fileSizeBytes: 95_000, downloadUrl: '#', deposePar: 'M. Ibrahima Sarr', dateDepot: '05/10/2026' },
+];
 
 /* ------------------------------------------------------------------ */
 /* Élèves — générés, seed fixe pour des données stables                */
@@ -603,9 +632,9 @@ export const SALARY_REQUESTS: SalaryRequest[] = [
     motifRejet: null,
     montantTotal: 928000,
     lignes: [
-      { teacherId: 'ens-1', teacherNom: 'M. Ibrahima Sarr', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 320000, payeurEtat: false, payslipId: 'pay-1' },
-      { teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 300000, payeurEtat: false, payslipId: 'pay-3' },
-      { teacherId: 'ens-3', teacherNom: 'M. Modou Fallou Kane', salaryMode: 'par_jour', joursTravailles: 22, heuresTravaillees: null, joursAbsenceInjustifiee: 0, montantCalcule: 308000, payeurEtat: false, payslipId: 'pay-4' },
+      { teacherId: 'ens-1', teacherNom: 'M. Ibrahima Sarr', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 320000, payeurEtat: false, payslipId: 'pay-1', modePaiement: 'virement_bancaire', destinationPaiement: null, statutVersement: 'paye', referenceTransaction: null, motifEchecPaiement: null },
+      { teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 300000, payeurEtat: false, payslipId: 'pay-3', modePaiement: 'wave', destinationPaiement: '77 502 33 21', statutVersement: 'paye', referenceTransaction: 'WAVE-SIM-7731240095', motifEchecPaiement: null },
+      { teacherId: 'ens-3', teacherNom: 'M. Modou Fallou Kane', salaryMode: 'par_jour', joursTravailles: 22, heuresTravaillees: null, joursAbsenceInjustifiee: 0, montantCalcule: 308000, payeurEtat: false, payslipId: 'pay-4', modePaiement: 'especes', destinationPaiement: null, statutVersement: 'paye', referenceTransaction: null, motifEchecPaiement: null },
     ],
   },
   {
@@ -618,8 +647,8 @@ export const SALARY_REQUESTS: SalaryRequest[] = [
     motifRejet: null,
     montantTotal: 497500,
     lignes: [
-      { teacherId: 'ens-4', teacherNom: 'Mme Khady Mbaye', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 260000, payeurEtat: false, payslipId: null },
-      { teacherId: 'ens-5', teacherNom: 'M. Pathé Gueye', salaryMode: 'par_jour', joursTravailles: 20, heuresTravaillees: null, joursAbsenceInjustifiee: 1, montantCalcule: 237500, payeurEtat: false, payslipId: null },
+      { teacherId: 'ens-4', teacherNom: 'Mme Khady Mbaye', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 260000, payeurEtat: false, payslipId: null, modePaiement: 'cheque', destinationPaiement: null, statutVersement: null, referenceTransaction: null, motifEchecPaiement: null },
+      { teacherId: 'ens-5', teacherNom: 'M. Pathé Gueye', salaryMode: 'par_jour', joursTravailles: 20, heuresTravaillees: null, joursAbsenceInjustifiee: 1, montantCalcule: 237500, payeurEtat: false, payslipId: null, modePaiement: 'orange_money', destinationPaiement: '77 505 66 54', statutVersement: null, referenceTransaction: null, motifEchecPaiement: null },
     ],
   },
   {
@@ -632,7 +661,7 @@ export const SALARY_REQUESTS: SalaryRequest[] = [
     motifRejet: null,
     montantTotal: 140000,
     lignes: [
-      { teacherId: 'ens-8', teacherNom: 'M. Ousmane Diallo', salaryMode: 'par_heure', joursTravailles: null, heuresTravaillees: 40, joursAbsenceInjustifiee: null, montantCalcule: 140000, payeurEtat: false, payslipId: null },
+      { teacherId: 'ens-8', teacherNom: 'M. Ousmane Diallo', salaryMode: 'par_heure', joursTravailles: null, heuresTravaillees: 40, joursAbsenceInjustifiee: null, montantCalcule: 140000, payeurEtat: false, payslipId: null, modePaiement: 'wave', destinationPaiement: '77 508 99 87', statutVersement: null, referenceTransaction: null, motifEchecPaiement: null },
     ],
   },
   {
@@ -645,7 +674,7 @@ export const SALARY_REQUESTS: SalaryRequest[] = [
     motifRejet: "Montant à vérifier avec le profil de l'enseignante — doublon avec sr-401.",
     montantTotal: 235000,
     lignes: [
-      { teacherId: 'ens-9', teacherNom: 'Mme Soda Niang', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 235000, payeurEtat: false, payslipId: null },
+      { teacherId: 'ens-9', teacherNom: 'Mme Soda Niang', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 235000, payeurEtat: false, payslipId: null, modePaiement: 'especes', destinationPaiement: null, statutVersement: null, referenceTransaction: null, motifEchecPaiement: null },
     ],
   },
 ];

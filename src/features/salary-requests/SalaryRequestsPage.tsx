@@ -1,14 +1,29 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Field, Input, MonthInput, Sheet, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, MonthInput, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { CHANNEL_LABELS } from '@/features/payments/pricing';
 import { fmtXOF, monthValueToFR, todayISO } from '@/utils/format';
-import type { SalaryMode, SalaryRequest } from '@/types/domain';
+import type { PaymentChannel, PayoutStatus, SalaryMode, SalaryRequest } from '@/types/domain';
 
 const STATUS_TONE = { brouillon: 'info', en_attente: 'warning', validee: 'success', rejetee: 'danger', annulee: 'info' } as const;
 const STATUS_LABEL = { brouillon: 'Brouillon', en_attente: 'En attente', validee: 'Validée', rejetee: 'Rejetée', annulee: 'Annulée' } as const;
 const SALARY_MODE_LABEL: Record<SalaryMode, string> = { fixe: 'Fixe', par_jour: 'Par jour', par_heure: 'Par heure' };
+const PAYOUT_STATUS_LABEL: Record<PayoutStatus, string> = {
+  en_attente: 'En attente',
+  paye: 'Payé',
+  echec: 'Échec',
+  attente_confirmation_cash: 'Attente confirmation (cash)',
+};
+const PAYOUT_STATUS_TONE: Record<PayoutStatus, 'info' | 'warning' | 'success' | 'danger'> = {
+  en_attente: 'info',
+  paye: 'success',
+  echec: 'danger',
+  attente_confirmation_cash: 'warning',
+};
+/** Canaux pour lesquels un numéro de destination est requis — voir `buildLine()` côté backend. */
+const CHANNELS_NEEDING_DESTINATION: PaymentChannel[] = ['wave', 'orange_money'];
 
 /** Premier/dernier jour du mois sélectionné (dd/mm/yyyy) — la période couverte par la demande. */
 function monthBounds(monthValue: string): { dateDebut: string; dateFin: string } {
@@ -33,6 +48,8 @@ export default function SalaryRequestsPage() {
   const [mois, setMois] = useState(todayISO().slice(0, 7));
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [workedInputs, setWorkedInputs] = useState<Record<string, string>>({});
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, PaymentChannel>>({});
+  const [destinations, setDestinations] = useState<Record<string, string>>({});
 
   const activeTeachers = (teacherList.data ?? []).filter((t) => t.statut === 'actif');
 
@@ -46,10 +63,13 @@ export default function SalaryRequestsPage() {
       const lignes = [...checked].map((teacherId) => {
         const teacher = activeTeachers.find((t) => t.id === teacherId)!;
         const worked = Number(workedInputs[teacherId] ?? 0);
+        const modePaiement = paymentMethods[teacherId];
         return {
           teacherId,
           joursTravailles: teacher.salaryMode === 'par_jour' ? worked : undefined,
           heuresTravaillees: teacher.salaryMode === 'par_heure' ? worked : undefined,
+          modePaiement,
+          destinationPaiement: modePaiement && CHANNELS_NEEDING_DESTINATION.includes(modePaiement) ? destinations[teacherId] : undefined,
         };
       });
       return salaryRequests.create({ periode: monthValueToFR(mois), dateDebut, dateFin, lignes });
@@ -59,6 +79,8 @@ export default function SalaryRequestsPage() {
       setCreateOpen(false);
       setChecked(new Set());
       setWorkedInputs({});
+      setPaymentMethods({});
+      setDestinations({});
     },
   });
 
@@ -70,11 +92,6 @@ export default function SalaryRequestsPage() {
     mutationFn: (id: string) => salaryRequests.cancel(id),
     onSuccess: invalidate,
   });
-  const validateMutation = useMutation({
-    mutationFn: ({ id, approve, comment }: { id: string; approve: boolean; comment?: string }) =>
-      salaryRequests.validate(id, approve, comment),
-    onSuccess: invalidate,
-  });
 
   function toggle(id: string) {
     setChecked((prev) => {
@@ -83,12 +100,6 @@ export default function SalaryRequestsPage() {
       else next.add(id);
       return next;
     });
-  }
-
-  function reject(id: string) {
-    const comment = window.prompt('Motif du rejet (visible par la direction) :');
-    if (comment === null) return;
-    validateMutation.mutate({ id, approve: false, comment });
   }
 
   const columns: Column<SalaryRequest>[] = [
@@ -116,21 +127,6 @@ export default function SalaryRequestsPage() {
               </Button>
             </>
           ) : null}
-          {r.statut === 'en_attente' ? (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={validateMutation.isPending}
-                onClick={() => validateMutation.mutate({ id: r.id, approve: true })}
-              >
-                Valider
-              </Button>
-              <Button variant="danger" size="sm" onClick={() => reject(r.id)}>
-                Rejeter
-              </Button>
-            </>
-          ) : null}
         </div>
       ),
     },
@@ -140,7 +136,7 @@ export default function SalaryRequestsPage() {
     <div>
       <PageHeader
         title="Demandes de salaire"
-        subtitle="Paiement du personnel enseignant — une demande couvre plusieurs enseignants sur une même période."
+        subtitle="Paiement du personnel enseignant — une demande couvre plusieurs enseignants sur une même période. La validation et l’exécution du versement sont faites par la comptabilité."
         action={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             + Nouvelle demande
@@ -179,19 +175,22 @@ export default function SalaryRequestsPage() {
         </Field>
         <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '4px 0 10px' }}>
           Le montant de chaque ligne est calculé automatiquement à partir du salaire configuré de l’enseignant — pour les
-          modes « par jour » et « par heure », indiquez le nombre de jours/heures travaillés sur la période.
+          modes « par jour » et « par heure », indiquez le nombre de jours/heures travaillés sur la période. Choisissez
+          également le moyen de paiement de chaque ligne ; espèces par défaut.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
           {activeTeachers.map((t) => {
             const unconfigured = !t.salaryMode;
+            const isChecked = checked.has(t.id);
+            const mode = paymentMethods[t.id] ?? 'especes';
+            const needsDestination = CHANNELS_NEEDING_DESTINATION.includes(mode);
             return (
-              <label
+              <div
                 key={t.id}
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
+                  flexDirection: 'column',
+                  gap: 8,
                   padding: '8px 12px',
                   border: '1px solid var(--color-border)',
                   borderRadius: 10,
@@ -199,31 +198,58 @@ export default function SalaryRequestsPage() {
                   opacity: unconfigured ? 0.6 : 1,
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    disabled={unconfigured}
-                    checked={checked.has(t.id)}
-                    onChange={() => toggle(t.id)}
-                  />
-                  {t.nom}
-                  <Badge tone="info">{unconfigured ? 'Non configuré' : SALARY_MODE_LABEL[t.salaryMode!]}</Badge>
-                </span>
-                {unconfigured ? (
-                  <span style={{ color: 'var(--color-text-muted)' }}>Configurer depuis la fiche enseignant</span>
-                ) : t.salaryMode === 'fixe' ? (
-                  <span style={{ color: 'var(--color-text-muted)' }}>{fmtXOF(t.salaireFixe ?? 0)}</span>
-                ) : (
-                  <Input
-                    type="number"
-                    min={0}
-                    style={{ width: 100 }}
-                    placeholder={t.salaryMode === 'par_jour' ? 'Jours' : 'Heures'}
-                    value={workedInputs[t.id] ?? ''}
-                    onChange={(e) => setWorkedInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                  />
-                )}
-              </label>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      disabled={unconfigured}
+                      checked={isChecked}
+                      onChange={() => toggle(t.id)}
+                    />
+                    {t.nom}
+                    <Badge tone="info">{unconfigured ? 'Non configuré' : SALARY_MODE_LABEL[t.salaryMode!]}</Badge>
+                  </span>
+                  {unconfigured ? (
+                    <span style={{ color: 'var(--color-text-muted)' }}>Configurer depuis la fiche enseignant</span>
+                  ) : t.salaryMode === 'fixe' ? (
+                    <span style={{ color: 'var(--color-text-muted)' }}>{fmtXOF(t.salaireFixe ?? 0)}</span>
+                  ) : (
+                    <Input
+                      type="number"
+                      min={0}
+                      style={{ width: 100 }}
+                      placeholder={t.salaryMode === 'par_jour' ? 'Jours' : 'Heures'}
+                      value={workedInputs[t.id] ?? ''}
+                      onChange={(e) => setWorkedInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                    />
+                  )}
+                </label>
+                {isChecked && !unconfigured ? (
+                  <div style={{ display: 'flex', gap: 8, paddingLeft: 24 }}>
+                    <Select
+                      style={{ flex: needsDestination ? '0 0 160px' : '0 0 220px' }}
+                      value={mode}
+                      onChange={(e) =>
+                        setPaymentMethods((prev) => ({ ...prev, [t.id]: e.target.value as PaymentChannel }))
+                      }
+                    >
+                      {(Object.keys(CHANNEL_LABELS) as PaymentChannel[]).map((channel) => (
+                        <option key={channel} value={channel}>
+                          {CHANNEL_LABELS[channel]}
+                        </option>
+                      ))}
+                    </Select>
+                    {needsDestination ? (
+                      <Input
+                        placeholder="Numéro (par défaut : celui du personnel)"
+                        style={{ flex: 1 }}
+                        value={destinations[t.id] ?? ''}
+                        onChange={(e) => setDestinations((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </div>
@@ -248,6 +274,8 @@ export default function SalaryRequestsPage() {
                   <th style={{ textAlign: 'left', padding: '6px 0', color: 'var(--color-text-muted)', fontSize: 12 }}>Absences inj.</th>
                   <th style={{ textAlign: 'right', padding: '6px 0', color: 'var(--color-text-muted)', fontSize: 12 }}>Montant</th>
                   <th style={{ textAlign: 'left', padding: '6px 0', color: 'var(--color-text-muted)', fontSize: 12 }}>Payeur</th>
+                  <th style={{ textAlign: 'left', padding: '6px 0', color: 'var(--color-text-muted)', fontSize: 12 }}>Paiement</th>
+                  <th style={{ textAlign: 'left', padding: '6px 0', color: 'var(--color-text-muted)', fontSize: 12 }}>Versement</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,6 +291,25 @@ export default function SalaryRequestsPage() {
                       {fmtXOF(l.montantCalcule)}
                     </td>
                     <td style={{ padding: '6px 0', borderTop: '1px solid var(--color-border)' }}>{l.payeurEtat ? 'État' : 'École'}</td>
+                    <td style={{ padding: '6px 0', borderTop: '1px solid var(--color-border)' }}>
+                      {CHANNEL_LABELS[l.modePaiement]}
+                      {l.destinationPaiement ? <div style={{ color: 'var(--color-text-muted)', fontSize: 11.5 }}>{l.destinationPaiement}</div> : null}
+                    </td>
+                    <td style={{ padding: '6px 0', borderTop: '1px solid var(--color-border)' }}>
+                      {l.statutVersement ? (
+                        <>
+                          <Badge tone={PAYOUT_STATUS_TONE[l.statutVersement]}>{PAYOUT_STATUS_LABEL[l.statutVersement]}</Badge>
+                          {l.statutVersement === 'echec' && l.motifEchecPaiement ? (
+                            <div style={{ color: 'var(--color-danger)', fontSize: 11.5, marginTop: 2 }}>{l.motifEchecPaiement}</div>
+                          ) : null}
+                          {l.statutVersement === 'paye' && l.referenceTransaction ? (
+                            <div style={{ color: 'var(--color-text-muted)', fontSize: 11.5, marginTop: 2 }}>Réf. {l.referenceTransaction}</div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -6,6 +6,7 @@ import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, StateV
 import { useServices } from '@/hooks/useServices';
 import { fmtXOF, isoToFR, todayISO } from '@/utils/format';
 import type { SalaryMode, Teacher } from '@/types/domain';
+import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { TeacherFormSheet } from './TeacherFormSheet';
 import styles from './TeacherDetailPage.module.css';
 
@@ -164,6 +165,14 @@ export default function TeacherDetailPage() {
                     </tbody>
                   </table>
                 </StateView>
+
+                <h3 className={styles.sectionTitle} style={{ marginTop: 'var(--space-lg)' }}>
+                  Pièces personnelles
+                </h3>
+                <p className={styles.hint}>
+                  CNI, diplôme, certification — distinct des documents administratifs signés ci-dessus.
+                </p>
+                <PersonalDocumentsSection ownerId={teacherId} ownerType="personnel" />
               </>
             ) : null}
 

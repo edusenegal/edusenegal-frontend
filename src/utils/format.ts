@@ -59,3 +59,12 @@ export function monthValueToFR(value: string): string {
   const name = MONTHS_FR[index];
   return name ? `${name} ${y}` : value;
 }
+
+/** Taille de fichier lisible — "245 Ko", "1.3 Mo". */
+export function fmtBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  const ko = bytes / 1024;
+  if (ko < 1024) return `${ko.toFixed(ko < 10 ? 1 : 0)} Ko`;
+  const mo = ko / 1024;
+  return `${mo.toFixed(mo < 10 ? 1 : 0)} Mo`;
+}
