@@ -1,0 +1,1 @@
+import{j as e}from"./query-BCGKLFR2.js";import{L as t}from"./react-CYQSQlLP.js";function n(){return e.jsxs("div",{style:{padding:48,textAlign:"center"},children:[e.jsx("h1",{children:"Page introuvable"}),e.jsx("p",{children:"Cette page n’existe pas ou a été déplacée."}),e.jsx(t,{to:"/",children:"Retour au tableau de bord"})]})}export{n as default};

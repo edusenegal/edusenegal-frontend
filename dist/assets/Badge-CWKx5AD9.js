@@ -1,0 +1,1 @@
+import{j as e}from"./query-BCGKLFR2.js";const t="_badge_1hf6v_1",_="_success_1hf6v_12",o="_warning_1hf6v_17",r="_danger_1hf6v_22",c="_info_1hf6v_27",f="_neutral_1hf6v_32",n={badge:t,success:_,warning:o,danger:r,info:c,neutral:f};function i({children:s,tone:a="neutral"}){return e.jsx("span",{className:[n.badge,n[a]].join(" "),children:s})}export{i as B};

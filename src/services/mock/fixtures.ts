@@ -1,0 +1,613 @@
+/**
+ * Données de démonstration de la branche `mock`.
+ *
+ * Un seul établissement, un seul niveau : un lycée privé sénégalais, ses 8
+ * classes (Seconde → Terminale), son personnel enseignant et ~80 élèves.
+ * Volontairement limité au lycée — ni primaire, ni collège, ni université —
+ * conformément au périmètre demandé pour cette application.
+ *
+ * Les élèves sont générés par un petit générateur déterministe (seed fixe)
+ * plutôt que tapés à la main : 80 lignes identiques en forme n'apportent
+ * rien à relire, et la génération garantit des données stables entre deux
+ * rechargements (mêmes notes, mêmes absences) — utile pour les tests comme
+ * pour les captures d'écran.
+ *
+ * POINT DE REMPLACEMENT : ce fichier n'existe que sur la branche `mock`.
+ * Une branche `api` fournirait les mêmes interfaces (`@/services/ports`) à
+ * partir des vrais endpoints ; aucun écran n'aurait à changer.
+ */
+
+import type {
+  AcademicYear,
+  BulletinPeriod,
+  ClassEvent,
+  ClassGroup,
+  ClassLevel,
+  LeaveRequest,
+  Notice,
+  PaymentConfig,
+  SalaryRequest,
+  SalarySlip,
+  ScheduleSlot,
+  School,
+  SignedDocument,
+  Student,
+  Subject,
+  Teacher,
+  TransferRequest,
+} from '@/types/domain';
+
+export const SCHOOL: School = {
+  id: 'sch-flamboyants',
+  name: 'Lycée Privé Les Flamboyants',
+  type: 'prive',
+  niveau: 'lycee',
+  region: 'Dakar',
+  adresse: 'Sacré-Cœur 3, Dakar',
+  telephone: '+221 33 824 12 40',
+  email: 'direction@lyceelesflamboyants.sn',
+  logoUrl: null,
+  brandColor: '#1D9E75',
+  devise: 'XOF',
+};
+
+export const DIRECTOR = {
+  id: 'dir-1',
+  prenom: 'Aminata',
+  nom: 'Diagne',
+  role: 'DIRECTOR' as const,
+  email: 'a.diagne@lyceelesflamboyants.sn',
+};
+
+export const ACADEMIC_YEARS: AcademicYear[] = [
+  { id: 'ay-2627', label: '2026-2027', statut: 'ouverte', dateDebut: '02/09/2026', dateFin: '30/06/2027' },
+  { id: 'ay-2526', label: '2025-2026', statut: 'cloturee', dateDebut: '01/09/2025', dateFin: '28/06/2026' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Classes                                                             */
+/* ------------------------------------------------------------------ */
+
+interface ClassSeed {
+  id: string;
+  level: ClassLevel;
+  series: string | null;
+  tag: string | null;
+  capacite: number;
+}
+
+const CLASS_SEEDS: ClassSeed[] = [
+  { id: 'cl-2a', level: 'Seconde', series: null, tag: 'A', capacite: 42 },
+  { id: 'cl-2b', level: 'Seconde', series: null, tag: 'B', capacite: 42 },
+  { id: 'cl-1l', level: 'Première', series: 'L', tag: null, capacite: 38 },
+  { id: 'cl-1s1', level: 'Première', series: 'S1', tag: null, capacite: 40 },
+  { id: 'cl-1s2', level: 'Première', series: 'S2', tag: null, capacite: 40 },
+  { id: 'cl-tl', level: 'Terminale', series: 'L', tag: null, capacite: 36 },
+  { id: 'cl-ts1', level: 'Terminale', series: 'S1', tag: null, capacite: 38 },
+  { id: 'cl-ts2', level: 'Terminale', series: 'S2', tag: null, capacite: 38 },
+];
+
+/**
+ * Exporté pour `services/mock/index.ts` (`classes.create`) : une classe créée
+ * à la main doit se nommer exactement comme celles des fixtures (même ordre
+ * niveau/série/division), pas une variante locale au service.
+ */
+export function classNameOf(seed: { level: ClassLevel; series: string | null; tag: string | null }): string {
+  const parts = [seed.level, seed.series, seed.tag].filter(Boolean);
+  return parts.join(' ');
+}
+
+/* ------------------------------------------------------------------ */
+/* Enseignants                                                        */
+/* ------------------------------------------------------------------ */
+
+interface TeacherSeed {
+  id: string;
+  nom: string;
+  matiere: string;
+  tel: string;
+  email: string;
+  salaire: number;
+  classes: string[]; // noms de classes
+}
+
+const TEACHER_SEEDS: TeacherSeed[] = [
+  { id: 'ens-1', nom: 'M. Ibrahima Sarr', matiere: 'Mathématiques', tel: '77 501 22 10', email: 'i.sarr@lyceelesflamboyants.sn', salaire: 320000, classes: ['Terminale S1', 'Terminale S2', 'Première S2'] },
+  { id: 'ens-2', nom: 'Mme Awa Diop', matiere: 'Physique-Chimie', tel: '77 502 33 21', email: 'a.diop@lyceelesflamboyants.sn', salaire: 300000, classes: ['Terminale S2', 'Première S1', 'Première S2'] },
+  { id: 'ens-3', nom: 'M. Modou Fallou Kane', matiere: 'Sciences de la Vie et de la Terre', tel: '77 503 44 32', email: 'm.kane@lyceelesflamboyants.sn', salaire: 280000, classes: ['Terminale S1', 'Première S1', 'Seconde A'] },
+  { id: 'ens-4', nom: 'Mme Khady Mbaye', matiere: 'Français', tel: '77 504 55 43', email: 'k.mbaye@lyceelesflamboyants.sn', salaire: 260000, classes: ['Seconde A', 'Seconde B', 'Première L'] },
+  { id: 'ens-5', nom: 'M. Pathé Gueye', matiere: 'Anglais', tel: '77 505 66 54', email: 'p.gueye@lyceelesflamboyants.sn', salaire: 250000, classes: ['Terminale S2', 'Terminale L', 'Seconde B'] },
+  { id: 'ens-6', nom: 'Mme Ndèye Fatou Cissé', matiere: 'Philosophie', tel: '77 506 77 65', email: 'n.cisse@lyceelesflamboyants.sn', salaire: 270000, classes: ['Terminale L', 'Terminale S1', 'Terminale S2'] },
+  { id: 'ens-7', nom: 'M. Babacar Thiam', matiere: 'Histoire-Géographie', tel: '77 507 88 76', email: 'b.thiam@lyceelesflamboyants.sn', salaire: 255000, classes: ['Seconde A', 'Seconde B', 'Première L'] },
+  { id: 'ens-8', nom: 'M. Ousmane Diallo', matiere: 'Éducation Physique et Sportive', tel: '77 508 99 87', email: 'o.diallo@lyceelesflamboyants.sn', salaire: 220000, classes: ['Seconde A', 'Seconde B', 'Première L', 'Première S1', 'Première S2', 'Terminale L', 'Terminale S1', 'Terminale S2'] },
+  { id: 'ens-9', nom: 'Mme Soda Niang', matiere: 'Espagnol', tel: '77 509 10 98', email: 's.niang@lyceelesflamboyants.sn', salaire: 235000, classes: ['Première S1', 'Première S2', 'Terminale S1'] },
+  { id: 'ens-10', nom: 'M. Cheikh Faye', matiere: 'Sciences Économiques et Sociales', tel: '77 510 21 09', email: 'c.faye@lyceelesflamboyants.sn', salaire: 245000, classes: ['Première L', 'Terminale L'] },
+];
+
+export function buildTeachers(): Teacher[] {
+  return TEACHER_SEEDS.map((seed) => ({
+    id: seed.id,
+    nom: seed.nom,
+    matiere: seed.matiere,
+    tel: seed.tel,
+    email: seed.email,
+    statut: 'actif',
+    classes: [...seed.classes],
+    salaire: seed.salaire,
+  }));
+}
+
+/** Enseignants d'une classe — titulaire (professeur principal) en premier. */
+export function teacherNamesForClass(className: string): string[] {
+  return TEACHER_SEEDS.filter((t) => t.classes.includes(className)).map((t) => t.id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Élèves — générés, seed fixe pour des données stables                */
+/* ------------------------------------------------------------------ */
+
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const PRENOMS_F = ['Fatou', 'Aïssatou', 'Khady', 'Ndèye', 'Awa', 'Mariama', 'Bineta', 'Sokhna', 'Adama', 'Rokhaya', 'Dieynaba', 'Astou'];
+const PRENOMS_M = ['Moussa', 'Mamadou', 'Ibrahima', 'Ousmane', 'Cheikh', 'Modou', 'Babacar', 'Lamine', 'Alioune', 'Pape', 'Serigne', 'Bakary'];
+const NOMS = ['Ndiaye', 'Diop', 'Fall', 'Sarr', 'Gueye', 'Mbaye', 'Kane', 'Cissé', 'Diallo', 'Thiam', 'Niang', 'Sow', 'Faye', 'Camara', 'Ba', 'Diagne'];
+
+function buildStudentsForClass(seed: ClassSeed, rand: () => number, startIndex: number): Student[] {
+  const className = classNameOf(seed);
+  const count = Math.max(8, Math.min(14, Math.round(seed.capacite * 0.3)));
+  const students: Student[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const sexe: 'M' | 'F' = rand() > 0.48 ? 'M' : 'F';
+    const prenom = sexe === 'F'
+      ? PRENOMS_F[Math.floor(rand() * PRENOMS_F.length)]!
+      : PRENOMS_M[Math.floor(rand() * PRENOMS_M.length)]!;
+    const nom = NOMS[Math.floor(rand() * NOMS.length)]!;
+    const birthYear = seed.level === 'Seconde' ? 2010 : seed.level === 'Première' ? 2009 : 2008;
+    const day = 1 + Math.floor(rand() * 27);
+    const month = 1 + Math.floor(rand() * 12);
+    const moyenne = Math.round((8 + rand() * 11) * 10) / 10;
+    const absences = Math.floor(rand() * 9);
+    const retards = Math.floor(rand() * 5);
+    const tauxPaiement = Math.round(55 + rand() * 45);
+    const num = String(startIndex + i + 1).padStart(3, '0');
+    students.push({
+      id: `std-${num}`,
+      prenom,
+      nom,
+      classeId: seed.id,
+      classe: className,
+      dateNaissance: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${birthYear}`,
+      sexe,
+      parent: `${sexe === 'F' ? 'M.' : 'Mme'} ${NOMS[Math.floor(rand() * NOMS.length)]}`,
+      tel: `77 ${600 + Math.floor(rand() * 300)} ${10 + Math.floor(rand() * 89)} ${10 + Math.floor(rand() * 89)}`,
+      statut: 'actif',
+      moyenne,
+      absences,
+      retards,
+      tauxPaiement,
+      photoUrl: null,
+    });
+  }
+  return students;
+}
+
+export function buildClasses(): ClassGroup[] {
+  const allStudents = buildAllStudents();
+  return CLASS_SEEDS.map((seed) => {
+    const className = classNameOf(seed);
+    const teacherIds = teacherNamesForClass(className);
+    const effectif = allStudents.filter((s) => s.classeId === seed.id).length;
+    return {
+      id: seed.id,
+      level: seed.level,
+      series: seed.series,
+      tag: seed.tag,
+      name: className,
+      effectif,
+      capacite: seed.capacite,
+      homeroomTeacherId: teacherIds[0] ?? null,
+      itinerantTeacherIds: teacherIds.slice(1),
+    };
+  });
+}
+
+let cachedStudents: Student[] | null = null;
+
+export function buildAllStudents(): Student[] {
+  if (cachedStudents) return cachedStudents;
+  const rand = mulberry32(42);
+  const students: Student[] = [];
+  for (const seed of CLASS_SEEDS) {
+    students.push(...buildStudentsForClass(seed, rand, students.length));
+  }
+  cachedStudents = students;
+  return students;
+}
+
+/* ------------------------------------------------------------------ */
+/* Matières & coefficients                                            */
+/* ------------------------------------------------------------------ */
+
+interface SubjectCoefficientSeed {
+  classId: string;
+  value: number;
+  enseignee: boolean;
+}
+
+interface SubjectSeed {
+  id: string;
+  code: string;
+  nom: string;
+  optionnelle: boolean;
+  global: boolean;
+  coefficients: SubjectCoefficientSeed[];
+}
+
+const SUBJECT_CLASS_IDS = CLASS_SEEDS.map((c) => c.id);
+
+/**
+ * `spec` ne couvre que les classes où la matière est enseignée ; les classes
+ * omises sont complétées en coefficient 0 / non enseignée — pas besoin de
+ * répéter les 8 classes pour une matière qui n'existe qu'en série L, par
+ * exemple.
+ */
+function coefficients(spec: Record<string, [value: number, enseignee: boolean]>): SubjectCoefficientSeed[] {
+  return SUBJECT_CLASS_IDS.map((classId) => {
+    const [value, enseignee] = spec[classId] ?? [0, false];
+    return { classId, value, enseignee };
+  });
+}
+
+const SUBJECT_SEEDS: SubjectSeed[] = [
+  {
+    id: 'subj-math',
+    code: 'MATH',
+    nom: 'Mathématiques',
+    optionnelle: false,
+    global: true,
+    coefficients: coefficients({
+      'cl-2a': [4, true],
+      'cl-2b': [4, true],
+      'cl-1l': [2, true],
+      'cl-1s1': [5, true],
+      'cl-1s2': [5, true],
+      'cl-tl': [2, true],
+      'cl-ts1': [6, true],
+      'cl-ts2': [5, true],
+    }),
+  },
+  {
+    id: 'subj-pc',
+    code: 'PC',
+    nom: 'Physique-Chimie',
+    optionnelle: false,
+    global: true,
+    // Pas enseignée en série L (cl-1l, cl-tl) : laissée à [0, false].
+    coefficients: coefficients({
+      'cl-2a': [3, true],
+      'cl-2b': [3, true],
+      'cl-1s1': [4, true],
+      'cl-1s2': [5, true],
+      'cl-ts1': [6, true],
+      'cl-ts2': [5, true],
+    }),
+  },
+  {
+    id: 'subj-svt',
+    code: 'SVT',
+    nom: 'Sciences de la Vie et de la Terre',
+    optionnelle: false,
+    global: true,
+    coefficients: coefficients({
+      'cl-2a': [2, true],
+      'cl-2b': [2, true],
+      'cl-1s1': [2, true],
+      'cl-1s2': [4, true],
+      'cl-ts1': [2, true],
+      'cl-ts2': [4, true],
+    }),
+  },
+  {
+    id: 'subj-fr',
+    code: 'FR',
+    nom: 'Français',
+    optionnelle: false,
+    global: true,
+    // Épreuve de Français uniquement jusqu'en Première.
+    coefficients: coefficients({
+      'cl-2a': [4, true],
+      'cl-2b': [4, true],
+      'cl-1l': [5, true],
+      'cl-1s1': [3, true],
+      'cl-1s2': [3, true],
+    }),
+  },
+  {
+    id: 'subj-ang',
+    code: 'ANG',
+    nom: 'Anglais',
+    optionnelle: false,
+    global: true,
+    coefficients: coefficients({
+      'cl-2a': [2, true],
+      'cl-2b': [2, true],
+      'cl-1l': [3, true],
+      'cl-1s1': [2, true],
+      'cl-1s2': [2, true],
+      'cl-tl': [3, true],
+      'cl-ts1': [2, true],
+      'cl-ts2': [2, true],
+    }),
+  },
+  {
+    id: 'subj-philo',
+    code: 'PHILO',
+    nom: 'Philosophie',
+    optionnelle: false,
+    global: true,
+    // Philosophie démarre en Terminale.
+    coefficients: coefficients({
+      'cl-tl': [4, true],
+      'cl-ts1': [2, true],
+      'cl-ts2': [2, true],
+    }),
+  },
+  {
+    id: 'subj-hg',
+    code: 'HG',
+    nom: 'Histoire-Géographie',
+    optionnelle: false,
+    global: true,
+    coefficients: coefficients({
+      'cl-2a': [3, true],
+      'cl-2b': [3, true],
+      'cl-1l': [3, true],
+      'cl-1s1': [2, true],
+      'cl-1s2': [2, true],
+      'cl-tl': [4, true],
+      'cl-ts1': [2, true],
+      'cl-ts2': [2, true],
+    }),
+  },
+  {
+    id: 'subj-eps',
+    code: 'EPS',
+    nom: 'Éducation Physique et Sportive',
+    optionnelle: false,
+    global: true,
+    coefficients: coefficients({
+      'cl-2a': [1, true],
+      'cl-2b': [1, true],
+      'cl-1l': [1, true],
+      'cl-1s1': [1, true],
+      'cl-1s2': [1, true],
+      'cl-tl': [1, true],
+      'cl-ts1': [1, true],
+      'cl-ts2': [1, true],
+    }),
+  },
+  {
+    id: 'subj-esp',
+    code: 'ESP',
+    nom: 'Espagnol',
+    optionnelle: true,
+    global: false,
+    // Enseignée partout mais facultative (coefficient 0) en Terminale S2 —
+    // illustre la distinction « facultative » / « non enseignée ».
+    coefficients: coefficients({
+      'cl-2a': [2, true],
+      'cl-2b': [2, true],
+      'cl-1l': [2, true],
+      'cl-1s1': [2, true],
+      'cl-1s2': [2, true],
+      'cl-tl': [2, true],
+      'cl-ts1': [2, true],
+      'cl-ts2': [0, true],
+    }),
+  },
+  {
+    id: 'subj-ses',
+    code: 'SES',
+    nom: 'Sciences Économiques et Sociales',
+    optionnelle: false,
+    global: false,
+    // Propre à la série L.
+    coefficients: coefficients({
+      'cl-1l': [2, true],
+      'cl-tl': [2, true],
+    }),
+  },
+];
+
+export function buildSubjects(): Subject[] {
+  return SUBJECT_SEEDS.map((seed) => ({
+    id: seed.id,
+    code: seed.code,
+    nom: seed.nom,
+    optionnelle: seed.optionnelle,
+    global: seed.global,
+    coefficients: seed.coefficients.map((c) => ({ classeId: c.classId, valeur: c.value, enseignee: c.enseignee })),
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Paiements — configuration des frais de scolarité                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Configuration initiale, réaliste pour un lycée privé dakarois : frais
+ * d'inscription + scolarité trimestrielle, par niveau (pas de distinction
+ * par série — `series` reste `null`, comme le permet `LevelPricing`
+ * côté backend). `totalAnnualFcfa` est calculé ici une fois, exactement
+ * comme l'écran le recalculera à chaque modification côté direction.
+ */
+function levelPricing(level: string, displayName: string, inscriptionFcfa: number, periodFcfa: number, periods: number) {
+  return {
+    level,
+    series: null,
+    displayName,
+    inscriptionFcfa,
+    periodFcfa,
+    totalAnnualFcfa: inscriptionFcfa + periodFcfa * periods,
+  };
+}
+
+export function buildPaymentConfig(): PaymentConfig {
+  return {
+    id: 'paycfg-sch-flamboyants',
+    type: 'inscription_trimestriel',
+    levelPricings: [
+      levelPricing('Seconde', 'Seconde', 50000, 150000, 3),
+      levelPricing('Première', 'Première', 55000, 160000, 3),
+      levelPricing('Terminale', 'Terminale', 60000, 175000, 3),
+    ],
+    installmentAllowed: true,
+    maxInstallments: 3,
+    deferredAllowed: true,
+    maxDeferDays: 15,
+    alertDaysBefore: 5,
+    enabledChannels: ['wave', 'orange_money', 'especes'],
+    updatedAt: '15/09/2026',
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Devoirs, examens, compositions                                     */
+/* ------------------------------------------------------------------ */
+
+export const CLASS_EVENTS: ClassEvent[] = [
+  { id: 'cev-1', classeId: 'cl-ts2', type: 'Devoir', titre: 'Devoir n°2', matiere: 'Physique-Chimie', date: '20/10/2026', notes: '' },
+  { id: 'cev-2', classeId: 'cl-ts2', type: 'Composition', titre: 'Composition du 1er trimestre', matiere: 'Toutes matières', date: '10/11/2026', notes: '' },
+  { id: 'cev-3', classeId: 'cl-ts2', type: 'Conseil de classe', titre: 'Conseil de classe', matiere: null, date: '15/11/2026', notes: '' },
+  { id: 'cev-4', classeId: 'cl-1s1', type: 'Devoir', titre: 'Devoir n°1', matiere: 'Mathématiques', date: '17/10/2026', notes: '' },
+  { id: 'cev-5', classeId: 'cl-2a', type: 'Devoir', titre: 'Devoir n°1', matiere: 'Français', date: '22/10/2026', notes: '' },
+  { id: 'cev-6', classeId: 'cl-tl', type: 'Examen', titre: 'Examen blanc — Philosophie', matiere: 'Philosophie', date: '05/11/2026', notes: 'Préparation au bac' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Emploi du temps                                                    */
+/* ------------------------------------------------------------------ */
+
+const DAYS: ScheduleSlot['jour'][] = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const PERIODS = [
+  { start: '08:00', end: '09:00' },
+  { start: '09:00', end: '10:00' },
+  { start: '10:15', end: '11:15' },
+  { start: '11:15', end: '12:15' },
+  { start: '14:00', end: '15:00' },
+  { start: '15:00', end: '16:00' },
+];
+
+export function buildWeeklySchedule(classId: string): ScheduleSlot[] {
+  const className = buildClasses().find((c) => c.id === classId)?.name ?? '';
+  const teacherIds = teacherNamesForClass(className);
+  if (teacherIds.length === 0) return [];
+  const slots: ScheduleSlot[] = [];
+  let cursor = 0;
+  for (const jour of DAYS) {
+    const periodCount = jour === 'Samedi' ? 2 : 5;
+    for (let p = 0; p < periodCount; p += 1) {
+      const period = PERIODS[p]!;
+      if (jour !== 'Samedi' && p === 3) {
+        slots.push({ jour, heureDebut: period.start, heureFin: period.end, matiere: null, enseignantId: null, salle: null, kind: 'libre' });
+        continue;
+      }
+      const teacherId = teacherIds[cursor % teacherIds.length]!;
+      const teacher = TEACHER_SEEDS.find((t) => t.id === teacherId)!;
+      slots.push({
+        jour,
+        heureDebut: period.start,
+        heureFin: period.end,
+        matiere: teacher.matiere,
+        enseignantId: teacher.id,
+        salle: `Salle ${1 + (cursor % 8)}`,
+        kind: 'cours',
+      });
+      cursor += 1;
+    }
+  }
+  return slots;
+}
+
+/* ------------------------------------------------------------------ */
+/* RH — congés, salaires                                              */
+/* ------------------------------------------------------------------ */
+
+export const LEAVE_REQUESTS: LeaveRequest[] = [
+  { id: 'cg-301', teacherId: 'ens-4', teacherNom: 'Mme Khady Mbaye', dateDebut: '14/10/2026', dateFin: '17/10/2026', motif: 'Raisons médicales', statut: 'approuve', remplacant: 'M. Babacar Thiam', pieceJointe: { nom: 'certificat_medical_kmbaye.pdf' } },
+  { id: 'cg-302', teacherId: 'ens-7', teacherNom: 'M. Babacar Thiam', dateDebut: '02/11/2026', dateFin: '03/11/2026', motif: 'Convocation administrative', statut: 'en_attente', remplacant: null, pieceJointe: { nom: 'convocation_administrative_bthiam.pdf' } },
+  { id: 'cg-303', teacherId: 'ens-9', teacherNom: 'Mme Soda Niang', dateDebut: '20/10/2026', dateFin: '20/10/2026', motif: 'Événement familial', statut: 'en_attente', remplacant: null, pieceJointe: null },
+  { id: 'cg-304', teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', dateDebut: '10/09/2026', dateFin: '12/09/2026', motif: 'Congé de maternité — suivi médical', statut: 'rejete', remplacant: null, pieceJointe: { nom: 'justificatif_adiop.pdf' } },
+];
+
+export const SALARY_REQUESTS: SalaryRequest[] = [
+  { id: 'sr-401', teacherId: 'ens-1', teacherNom: 'M. Ibrahima Sarr', mois: 'Octobre 2026', montant: 320000, statut: 'payee', dateCreation: '28/09/2026' },
+  { id: 'sr-402', teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', mois: 'Octobre 2026', montant: 300000, statut: 'validee', dateCreation: '28/09/2026' },
+  { id: 'sr-403', teacherId: 'ens-3', teacherNom: 'M. Modou Fallou Kane', mois: 'Octobre 2026', montant: 280000, statut: 'en_attente', dateCreation: '01/10/2026' },
+];
+
+export const SALARY_SLIPS: SalarySlip[] = [
+  { id: 'pay-1', teacherId: 'ens-1', mois: 'Septembre 2026', montant: 320000, datePaiement: '30/09/2026', statut: 'payé' },
+  { id: 'pay-2', teacherId: 'ens-1', mois: 'Août 2026', montant: 320000, datePaiement: '31/08/2026', statut: 'payé' },
+  { id: 'pay-3', teacherId: 'ens-2', mois: 'Septembre 2026', montant: 300000, datePaiement: '30/09/2026', statut: 'payé' },
+  { id: 'pay-4', teacherId: 'ens-3', mois: 'Septembre 2026', montant: 280000, datePaiement: '30/09/2026', statut: 'payé' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Documents & signatures                                             */
+/* ------------------------------------------------------------------ */
+
+export const BULLETIN_PERIODS: BulletinPeriod[] = [
+  { key: 't1', label: '1er trimestre', available: true },
+  { key: 't2', label: '2e trimestre', available: true },
+  { key: 't3', label: '3e trimestre', available: false },
+];
+
+export const SIGNED_DOCUMENTS: SignedDocument[] = [
+  { serie: 'BUL-2026-00841', type: 'Bulletin — 1er trimestre', cible: 'Fatou Ndiaye — Terminale S2', cibleKind: 'eleve', date: '12/10/2026', signataire: 'Aminata Diagne' },
+  { serie: 'BUL-2026-00842', type: 'Bulletin — 1er trimestre', cible: 'Moussa Diallo — Terminale S1', cibleKind: 'eleve', date: '12/10/2026', signataire: 'Aminata Diagne' },
+  { serie: 'CERT-2026-00112', type: 'Certificat de scolarité', cible: 'Khady Sow — Première S2', cibleKind: 'eleve', date: '05/10/2026', signataire: 'Aminata Diagne' },
+  { serie: 'ATTW-2026-00033', type: 'Attestation de travail', cible: 'M. Ibrahima Sarr', cibleKind: 'personnel', date: '08/10/2026', signataire: 'Aminata Diagne' },
+  { serie: 'DOCADM-2026-00019', type: 'Document administratif', cible: 'Mme Khady Mbaye', cibleKind: 'personnel', date: '14/10/2026', signataire: 'Aminata Diagne' },
+  { serie: 'ATTP-2026-00008', type: 'Certificat de présence', cible: 'M. Babacar Thiam', cibleKind: 'personnel', date: '02/11/2026', signataire: 'Aminata Diagne' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Notes de service / annonces                                        */
+/* ------------------------------------------------------------------ */
+
+export const NOTICES: Notice[] = [
+  { id: 'ns-101', titre: 'Reprise des cours de soutien', corps: 'Les cours de soutien du samedi reprennent dès le 18 octobre pour les classes de Terminale.', destType: 'personnel', destLabel: 'Personnel', date: '10/10/2026', auteur: 'Direction' },
+  { id: 'ns-102', titre: 'Journée pédagogique', corps: "L'établissement sera fermé aux élèves le 9 octobre pour une journée pédagogique du corps enseignant.", destType: 'ecole', destLabel: "Toute l'école", date: '09/10/2026', auteur: 'Direction' },
+  { id: 'ns-103', titre: 'Conseil de classe — Terminale S2', corps: 'Le conseil de classe se tiendra le 15 novembre à 15h en salle des professeurs.', destType: 'classe', destLabel: 'Terminale S2', date: '15/10/2026', auteur: 'Direction' },
+  { id: 'ns-104', titre: 'Clôture des paiements du 2ème versement', corps: "Le deuxième versement de la scolarité doit être réglé avant le 31 octobre.", destType: 'ecole', destLabel: "Toute l'école", date: '20/10/2026', auteur: 'Direction' },
+];
+
+/* ------------------------------------------------------------------ */
+/* Transferts                                                         */
+/* ------------------------------------------------------------------ */
+
+export const TRANSFER_REQUESTS: TransferRequest[] = [
+  { id: 'tr-1', studentId: buildAllStudents()[0]?.id ?? 'std-001', studentNom: `${buildAllStudents()[0]?.prenom ?? ''} ${buildAllStudents()[0]?.nom ?? ''}`, mode: 'interne', classeDepartId: 'cl-2a', classeArriveeId: 'cl-2b', regionDestination: null, ecoleDestination: null, statut: 'en_attente', date: '11/10/2026' },
+  { id: 'tr-2', studentId: buildAllStudents()[1]?.id ?? 'std-002', studentNom: `${buildAllStudents()[1]?.prenom ?? ''} ${buildAllStudents()[1]?.nom ?? ''}`, mode: 'externe', classeDepartId: 'cl-1s1', classeArriveeId: null, regionDestination: 'Thiès', ecoleDestination: 'Lycée Malick Sy', statut: 'acceptee', date: '30/09/2026' },
+];
+
+export const REGIONS: Record<string, string[]> = {
+  Dakar: ['Lycée John F. Kennedy', 'Lycée Blaise Diagne', 'Lycée Seydina Limamoulaye'],
+  Thiès: ['Lycée Malick Sy', 'Lycée El Hadji Omar Lamine Badiane'],
+  'Saint-Louis': ['Lycée Charles de Gaulle', 'Lycée El Hadji Amadou Malick Gaye'],
+  Ziguinchor: ['Lycée Djignabo'],
+};
+
+export function schoolsOfRegionAZ(region: string): string[] {
+  return [...(REGIONS[region] ?? [])].sort((a, b) => a.localeCompare(b));
+}
