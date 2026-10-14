@@ -39,7 +39,7 @@ export function TeacherFormSheet({ open, onClose, teacher }: TeacherFormSheetPro
   }, [open, teacher]);
 
   const createMutation = useMutation({
-    mutationFn: () => teachers.create({ nom: nom.trim(), matiere: matiere.trim() || '—', tel: tel.trim() || '—', email: email.trim() || '—', salaire: 0 }),
+    mutationFn: () => teachers.create({ nom: nom.trim(), matiere: matiere.trim() || '—', tel: tel.trim() || '—', email: email.trim() || '—' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       onClose();
@@ -97,7 +97,7 @@ export function TeacherFormSheet({ open, onClose, teacher }: TeacherFormSheetPro
       </Field>
       {isNew ? (
         <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: -4 }}>
-          Les classes se gèrent depuis la fiche de l’enseignant une fois créé.
+          Les classes et la rémunération se gèrent depuis la fiche de l’enseignant une fois créé.
         </p>
       ) : null}
       {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</p> : null}

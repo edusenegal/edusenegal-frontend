@@ -29,10 +29,13 @@ import type {
   PaymentConfig,
   PromotionResult,
   SalaryRequest,
+  SalaryRequestLine,
   SalarySlip,
   School,
   SemesterResult,
   SignedDocument,
+  StaffAbsence,
+  StaffAbsenceSummary,
   Student,
   Subject,
   SubjectAverage,
@@ -40,6 +43,7 @@ import type {
   TransferRequest,
   YearResult,
 } from '@/types/domain';
+import { frToISO } from '@/utils/format';
 import * as fixtures from './fixtures';
 
 const LATENCY_MS = 220;
@@ -77,6 +81,7 @@ function createInitialState() {
     subjects: structuredClone(fixtures.buildSubjects()) as Subject[],
     paymentConfig: structuredClone(fixtures.buildPaymentConfig()) as PaymentConfig,
     leaveRequests: structuredClone(fixtures.LEAVE_REQUESTS) as LeaveRequest[],
+    staffAbsences: structuredClone(fixtures.STAFF_ABSENCES) as StaffAbsence[],
     salaryRequests: structuredClone(fixtures.SALARY_REQUESTS) as SalaryRequest[],
     salarySlips: structuredClone(fixtures.SALARY_SLIPS) as SalarySlip[],
     signedDocuments: structuredClone(fixtures.SIGNED_DOCUMENTS) as SignedDocument[],
@@ -102,6 +107,32 @@ export function createMockServices(): Services {
     for (const classe of state.classes) {
       classe.effectif = state.students.filter((s) => s.classeId === classe.id).length;
     }
+  }
+
+  /**
+   * Jours d'absence justifiée/non justifiée qui recouvrent `[dateDebut,
+   * dateFin]` — même logique d'intersection que
+   * `StaffAbsenceServiceImpl.getSummary` côté backend : pour chaque absence
+   * qui chevauche la période, `max(début absence, début période)` ..
+   * `min(fin absence, fin période)`, +1 jour inclusif.
+   */
+  function computeAbsenceSummary(teacherId: string, dateDebut: string, dateFin: string): { joursJustifies: number; joursInjustifies: number } {
+    const from = frToISO(dateDebut);
+    const to = frToISO(dateFin);
+    let joursJustifies = 0;
+    let joursInjustifies = 0;
+    for (const absence of state.staffAbsences) {
+      if (absence.teacherId !== teacherId) continue;
+      const absenceFrom = frToISO(absence.dateDebut);
+      const absenceTo = frToISO(absence.dateFin);
+      if (absenceFrom > to || absenceTo < from) continue;
+      const start = absenceFrom > from ? absenceFrom : from;
+      const end = absenceTo < to ? absenceTo : to;
+      const days = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86_400_000) + 1;
+      if (absence.justifiee) joursJustifies += days;
+      else joursInjustifies += days;
+    }
+    return { joursJustifies, joursInjustifies };
   }
 
   return {
@@ -313,7 +344,16 @@ export function createMockServices(): Services {
         return respond(found);
       },
       async create(input): Promise<Teacher> {
-        const teacher: Teacher = { ...input, id: `ens-${Date.now()}`, classes: [], statut: 'actif' };
+        const teacher: Teacher = {
+          ...input,
+          id: `ens-${Date.now()}`,
+          classes: [],
+          statut: 'actif',
+          salaryMode: null,
+          salaireFixe: null,
+          tauxJournalier: null,
+          tauxHoraire: null,
+        };
         state.teachers.unshift(teacher);
         return respond(teacher, 350);
       },
@@ -351,8 +391,33 @@ export function createMockServices(): Services {
       async listPayslips(teacherId): Promise<SalarySlip[]> {
         const slips = state.salarySlips
           .filter((s) => s.teacherId === teacherId)
-          .sort((a, b) => b.datePaiement.split('/').reverse().join('').localeCompare(a.datePaiement.split('/').reverse().join('')));
+          .sort((a, b) => frToISO(b.dateGeneration).localeCompare(frToISO(a.dateGeneration)));
         return respond(slips);
+      },
+      /**
+       * Un seul des trois montants est pertinent selon `salaryMode` — même
+       * règle que `UserServiceImpl.validateSalaryAmounts` côté backend : le
+       * champ attendu doit être renseigné, les deux autres sont ignorés
+       * (remis à `null`) pour ne jamais laisser une ancienne valeur
+       * incohérente traîner après un changement de mode.
+       */
+      async updateSalary(teacherId, input): Promise<Teacher> {
+        const found = state.teachers.find((t) => t.id === teacherId);
+        if (!found) notFound('Enseignant');
+        if (input.salaryMode === 'fixe' && !input.salaireFixe) {
+          throw new AppError('validation', 'Le salaire fixe doit être renseigné pour le mode « Fixe ».', 422);
+        }
+        if (input.salaryMode === 'par_jour' && !input.tauxJournalier) {
+          throw new AppError('validation', 'Le taux journalier doit être renseigné pour le mode « Par jour travaillé ».', 422);
+        }
+        if (input.salaryMode === 'par_heure' && !input.tauxHoraire) {
+          throw new AppError('validation', 'Le taux horaire doit être renseigné pour le mode « Par heure ».', 422);
+        }
+        found.salaryMode = input.salaryMode;
+        found.salaireFixe = input.salaryMode === 'fixe' ? input.salaireFixe : null;
+        found.tauxJournalier = input.salaryMode === 'par_jour' ? input.tauxJournalier : null;
+        found.tauxHoraire = input.salaryMode === 'par_heure' ? input.tauxHoraire : null;
+        return respond(found, 300);
       },
     },
 
@@ -548,43 +613,178 @@ export function createMockServices(): Services {
       },
     },
 
+    staffAbsences: {
+      async list(teacherId): Promise<StaffAbsence[]> {
+        const rows = state.staffAbsences
+          .filter((a) => a.teacherId === teacherId)
+          .sort((a, b) => frToISO(b.dateDebut).localeCompare(frToISO(a.dateDebut)));
+        return respond(rows);
+      },
+      async record(teacherId, input): Promise<StaffAbsence> {
+        const teacher = state.teachers.find((t) => t.id === teacherId);
+        if (!teacher) notFound('Enseignant');
+        const absence: StaffAbsence = {
+          id: `abs-${Date.now()}`,
+          teacherId,
+          dateDebut: input.dateDebut,
+          dateFin: input.dateFin,
+          justifiee: input.justifiee,
+          motif: input.motif,
+          enregistreePar: `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`,
+        };
+        state.staffAbsences.unshift(absence);
+        return respond(absence, 300);
+      },
+      async remove(absenceId): Promise<void> {
+        state.staffAbsences = state.staffAbsences.filter((a) => a.id !== absenceId);
+        await respond(undefined, 200);
+      },
+      async getSummary(teacherId, dateDebut, dateFin): Promise<StaffAbsenceSummary> {
+        return respond(computeAbsenceSummary(teacherId, dateDebut, dateFin), 200);
+      },
+    },
+
     salaryRequests: {
       async list(): Promise<SalaryRequest[]> {
         return respond(state.salaryRequests);
       },
-      async create(teacherId, mois): Promise<SalaryRequest> {
-        const teacher = state.teachers.find((t) => t.id === teacherId);
-        if (!teacher) notFound('Enseignant');
-        const request: SalaryRequest = {
-          id: `sr-${Date.now()}`,
-          teacherId,
-          teacherNom: teacher.nom,
-          mois,
-          montant: teacher.salaire,
-          statut: 'en_attente',
-          dateCreation: new Date().toLocaleDateString('fr-FR'),
-        };
-        state.salaryRequests.unshift(request);
-        return respond(request, 350);
-      },
-      async createBulk(teacherIds, mois): Promise<SalaryRequest[]> {
-        const created: SalaryRequest[] = [];
-        for (const teacherId of teacherIds) {
+      /**
+       * Une ligne par enseignant choisi — le montant de chaque ligne est
+       * calculé ici exactement comme `SalaryPaymentServiceImpl.buildLine`
+       * côté backend : FIXED → le montant fixe du profil ; PER_WORKED_DAY →
+       * jours payables (jours déclarés moins absences non justifiées sur la
+       * période) × taux journalier ; PER_HOUR → heures déclarées × taux
+       * horaire. `payeurEtat` reflète `School.ownership` (ici toujours
+       * PRIVATE pour cet établissement, voir `fixtures.SCHOOL`).
+       */
+      async create(input): Promise<SalaryRequest> {
+        const payeurEtat = state.school.type !== 'prive';
+        const lignes: SalaryRequestLine[] = input.lignes.map(({ teacherId, joursTravailles, heuresTravaillees }) => {
           const teacher = state.teachers.find((t) => t.id === teacherId);
-          if (!teacher) continue;
-          const request: SalaryRequest = {
-            id: `sr-${Date.now()}-${teacherId}`,
+          if (!teacher) notFound('Enseignant');
+          if (!teacher.salaryMode) {
+            throw new AppError(
+              'validation',
+              `Aucun salaire configuré pour ${teacher.nom} — utilisez « Modifier le salaire » avant de créer la demande.`,
+              409,
+            );
+          }
+          if (teacher.salaryMode === 'fixe') {
+            return {
+              teacherId,
+              teacherNom: teacher.nom,
+              salaryMode: 'fixe',
+              joursTravailles: null,
+              heuresTravaillees: null,
+              joursAbsenceInjustifiee: null,
+              montantCalcule: teacher.salaireFixe ?? 0,
+              payeurEtat,
+              payslipId: null,
+            };
+          }
+          if (teacher.salaryMode === 'par_jour') {
+            if (joursTravailles == null) {
+              throw new AppError('validation', `Le nombre de jours travaillés est requis pour ${teacher.nom}.`, 422);
+            }
+            const { joursInjustifies } = computeAbsenceSummary(teacherId, input.dateDebut, input.dateFin);
+            const joursPayables = Math.max(0, joursTravailles - joursInjustifies);
+            return {
+              teacherId,
+              teacherNom: teacher.nom,
+              salaryMode: 'par_jour',
+              joursTravailles,
+              heuresTravaillees: null,
+              joursAbsenceInjustifiee: joursInjustifies,
+              montantCalcule: joursPayables * (teacher.tauxJournalier ?? 0),
+              payeurEtat,
+              payslipId: null,
+            };
+          }
+          if (heuresTravaillees == null) {
+            throw new AppError('validation', `Le nombre d’heures travaillées est requis pour ${teacher.nom}.`, 422);
+          }
+          return {
             teacherId,
             teacherNom: teacher.nom,
-            mois,
-            montant: teacher.salaire,
-            statut: 'en_attente',
-            dateCreation: new Date().toLocaleDateString('fr-FR'),
+            salaryMode: 'par_heure',
+            joursTravailles: null,
+            heuresTravaillees,
+            joursAbsenceInjustifiee: null,
+            montantCalcule: Math.round(heuresTravaillees * (teacher.tauxHoraire ?? 0)),
+            payeurEtat,
+            payslipId: null,
           };
-          state.salaryRequests.unshift(request);
-          created.push(request);
+        });
+
+        const request: SalaryRequest = {
+          id: `sr-${Date.now()}`,
+          periode: input.periode,
+          dateDebut: input.dateDebut,
+          dateFin: input.dateFin,
+          lignes,
+          montantTotal: lignes.reduce((sum, l) => sum + l.montantCalcule, 0),
+          statut: 'brouillon',
+          dateCreation: new Date().toLocaleDateString('fr-FR'),
+          motifRejet: null,
+        };
+        state.salaryRequests.unshift(request);
+        return respond(request, 450);
+      },
+      async submit(requestId): Promise<SalaryRequest> {
+        const found = state.salaryRequests.find((r) => r.id === requestId);
+        if (!found) notFound('Demande de paiement');
+        if (found.statut !== 'brouillon') {
+          throw new AppError('validation', 'Seule une demande en brouillon peut être soumise.', 409);
         }
-        return respond(created, 500);
+        found.statut = 'en_attente';
+        return respond(found, 300);
+      },
+      /**
+       * Approuver règle automatiquement le paiement : génère un bulletin de
+       * paie par ligne, et si l'école est privée, débite la caisse (comme
+       * `SalaryPaymentServiceImpl.settleLine`, qui crée en plus une Expense
+       * VALIDATED côté réel — hors scope mock, cet écran ne reflète pas le
+       * solde de caisse). Rejeter exige un motif.
+       */
+      async validate(requestId, approve, comment): Promise<SalaryRequest> {
+        const found = state.salaryRequests.find((r) => r.id === requestId);
+        if (!found) notFound('Demande de paiement');
+        if (found.statut !== 'en_attente') {
+          throw new AppError('validation', "La demande n'est pas en attente de validation.", 409);
+        }
+        if (approve) {
+          found.statut = 'validee';
+          const generee = new Date().toLocaleDateString('fr-FR');
+          found.lignes = found.lignes.map((ligne) => {
+            const payslipId = `pay-${Date.now()}-${ligne.teacherId}`;
+            state.salarySlips.unshift({
+              id: payslipId,
+              teacherId: ligne.teacherId,
+              periode: found.periode,
+              salaryMode: ligne.salaryMode,
+              montantBrut: ligne.montantCalcule,
+              joursTravailles: ligne.joursTravailles,
+              heuresTravaillees: ligne.heuresTravaillees,
+              joursAbsenceInjustifiee: ligne.joursAbsenceInjustifiee,
+              payeurEtat: ligne.payeurEtat,
+              dateGeneration: generee,
+            });
+            return { ...ligne, payslipId };
+          });
+        } else {
+          found.statut = 'rejetee';
+          found.motifRejet = comment?.trim() || 'Rejetée sans motif renseigné.';
+        }
+        return respond(found, 400);
+      },
+      async cancel(requestId): Promise<SalaryRequest> {
+        const found = state.salaryRequests.find((r) => r.id === requestId);
+        if (!found) notFound('Demande de paiement');
+        if (found.statut !== 'brouillon') {
+          throw new AppError('validation', 'Seule une demande en brouillon peut être annulée.', 409);
+        }
+        found.statut = 'annulee';
+        return respond(found, 250);
       },
     },
 

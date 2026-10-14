@@ -22,12 +22,15 @@ import type {
   Notice,
   NoticeDestType,
   PaymentConfig,
+  SalaryMode,
   SalaryRequest,
   SalarySlip,
   ScheduleSlot,
   School,
   SemesterResult,
   SignedDocument,
+  StaffAbsence,
+  StaffAbsenceSummary,
   Student,
   Subject,
   SubjectCoefficient,
@@ -139,13 +142,51 @@ export interface ClassesPort {
 export interface TeachersPort {
   list(): Promise<Teacher[]>;
   get(teacherId: string): Promise<Teacher>;
-  create(input: Omit<Teacher, 'id' | 'classes' | 'statut'>): Promise<Teacher>;
+  /**
+   * La rémunération ne se saisit pas à la création — un enseignant nouvellement
+   * créé n'a aucun salaire configuré côté backend (`SchoolSalaryProfileResponse`
+   * n'existe qu'après un premier appel à `updateSalary`) ; c'est un acte distinct,
+   * volontaire, depuis la fiche de l'enseignant.
+   */
+  create(input: Omit<Teacher, 'id' | 'classes' | 'statut' | 'salaryMode' | 'salaireFixe' | 'tauxJournalier' | 'tauxHoraire'>): Promise<Teacher>;
   update(teacherId: string, patch: Partial<Pick<Teacher, 'nom' | 'matiere' | 'tel' | 'email'>>): Promise<Teacher>;
+  /** Backend : `DELETE /users/{id}`. */
   remove(teacherId: string): Promise<void>;
   addClass(teacherId: string, className: string): Promise<Teacher>;
   removeClass(teacherId: string, className: string): Promise<Teacher>;
   listDocuments(teacherId: string): Promise<SignedDocument[]>;
+  /** Backend : `GET /api/v1/accounting/salary-requests/payslips?schoolId&staffUserId` (payment-service). */
   listPayslips(teacherId: string): Promise<SalarySlip[]>;
+  /**
+   * Configure le mode et le montant de salaire de cet enseignant pour
+   * l'établissement du directeur connecté — un seul des trois montants est
+   * pertinent selon `salaryMode` (validé côté serveur, pas ici, pour un
+   * message métier clair plutôt qu'une erreur de validation générique).
+   * Backend : `PUT /api/v1/users/{userId}/schools/{schoolId}/salary` (user-service).
+   */
+  updateSalary(
+    teacherId: string,
+    input: { salaryMode: SalaryMode; salaireFixe: number | null; tauxJournalier: number | null; tauxHoraire: number | null },
+  ): Promise<Teacher>;
+}
+
+/**
+ * Absences du personnel enseignant, saisies par la direction — distinct de
+ * l'appel fait par un enseignant sur ses élèves (hors scope de cette
+ * application). Alimente le calcul d'une `SalaryRequest` en mode "par jour".
+ */
+export interface StaffAbsencesPort {
+  /** Backend : `GET /api/v1/staff-absences?schoolId&staffUserId` (attendance-service). */
+  list(teacherId: string): Promise<StaffAbsence[]>;
+  /** Backend : `POST /api/v1/staff-absences`. */
+  record(
+    teacherId: string,
+    input: { dateDebut: string; dateFin: string; justifiee: boolean; motif: string | null },
+  ): Promise<StaffAbsence>;
+  /** Backend : `DELETE /api/v1/staff-absences/{absenceId}`. */
+  remove(absenceId: string): Promise<void>;
+  /** Backend : `GET /api/v1/staff-absences/summary?schoolId&staffUserId&from&to`. */
+  getSummary(teacherId: string, dateDebut: string, dateFin: string): Promise<StaffAbsenceSummary>;
 }
 
 export interface StudentsPort {
@@ -199,10 +240,40 @@ export interface LeavesPort {
   review(leaveId: string, approve: boolean): Promise<LeaveRequest>;
 }
 
+/**
+ * Demandes de paiement de salaire — traduit `SalaryPaymentController`
+ * (payment-service). Mêmes rôles que les dépenses : la création/soumission
+ * comme la décision finale reviennent indifféremment au directeur ou au
+ * comptable selon le circuit de l'école ; cette application ne propose que
+ * le rôle directeur, qui peut donc enchaîner les quatre étapes lui-même.
+ */
 export interface SalaryRequestsPort {
+  /** Backend : `GET /api/v1/accounting/salary-requests?schoolId&academicYearId`. */
   list(): Promise<SalaryRequest[]>;
-  create(teacherId: string, mois: string): Promise<SalaryRequest>;
-  createBulk(teacherIds: string[], mois: string): Promise<SalaryRequest[]>;
+  /**
+   * Crée une demande en statut brouillon — une ligne par enseignant choisi.
+   * Le montant de chaque ligne est calculé côté serveur à partir de son
+   * profil de salaire et, en mode "par jour", de ses absences non
+   * justifiées sur la période ; jamais saisi ici.
+   * Backend : `POST /api/v1/accounting/salary-requests`.
+   */
+  create(input: {
+    periode: string;
+    dateDebut: string;
+    dateFin: string;
+    lignes: { teacherId: string; joursTravailles?: number; heuresTravaillees?: number }[];
+  }): Promise<SalaryRequest>;
+  /** Backend : `POST /api/v1/accounting/salary-requests/{id}/submit`. */
+  submit(requestId: string): Promise<SalaryRequest>;
+  /**
+   * Décision — approuver règle automatiquement le paiement (dépense côté
+   * école si l'établissement est privé, bulletin de paie dans tous les cas,
+   * pour chaque ligne) ; rejeter exige un motif.
+   * Backend : `POST /api/v1/accounting/salary-requests/{id}/validate`.
+   */
+  validate(requestId: string, approve: boolean, comment?: string): Promise<SalaryRequest>;
+  /** Backend : `POST /api/v1/accounting/salary-requests/{id}/cancel`. Réservé aux demandes encore en brouillon. */
+  cancel(requestId: string): Promise<SalaryRequest>;
 }
 
 export interface SignaturesPort {
@@ -291,6 +362,7 @@ export interface Services {
   promotions: PromotionsPort;
   transfers: TransfersPort;
   leaves: LeavesPort;
+  staffAbsences: StaffAbsencesPort;
   salaryRequests: SalaryRequestsPort;
   signatures: SignaturesPort;
   notices: NoticesPort;

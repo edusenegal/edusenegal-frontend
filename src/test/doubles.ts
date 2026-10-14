@@ -48,6 +48,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       removeClass: notStubbed('teachers.removeClass'),
       listDocuments: notStubbed('teachers.listDocuments'),
       listPayslips: notStubbed('teachers.listPayslips'),
+      updateSalary: notStubbed('teachers.updateSalary'),
     },
     students: {
       list: notStubbed('students.list'),
@@ -80,10 +81,18 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       list: notStubbed('leaves.list'),
       review: notStubbed('leaves.review'),
     },
+    staffAbsences: {
+      list: notStubbed('staffAbsences.list'),
+      record: notStubbed('staffAbsences.record'),
+      remove: notStubbed('staffAbsences.remove'),
+      getSummary: notStubbed('staffAbsences.getSummary'),
+    },
     salaryRequests: {
       list: notStubbed('salaryRequests.list'),
       create: notStubbed('salaryRequests.create'),
-      createBulk: notStubbed('salaryRequests.createBulk'),
+      submit: notStubbed('salaryRequests.submit'),
+      validate: notStubbed('salaryRequests.validate'),
+      cancel: notStubbed('salaryRequests.cancel'),
     },
     signatures: {
       listDocuments: notStubbed('signatures.listDocuments'),

@@ -52,20 +52,106 @@ describe('mock services — classes et promotions', () => {
 });
 
 describe('mock services — RH', () => {
-  it('createBulk crée une demande de salaire par enseignant choisi', async () => {
+  it('create calcule chaque ligne selon le mode de salaire, puis submit/validate règlent le paiement (bulletin généré)', async () => {
     const services = createMockServices();
     const teachers = await services.teachers.list();
-    const ids = teachers.slice(0, 3).map((t) => t.id);
+    const fixe = teachers.find((t) => t.salaryMode === 'fixe')!;
+    const parJour = teachers.find((t) => t.salaryMode === 'par_jour')!;
+    expect(fixe).toBeDefined();
+    expect(parJour).toBeDefined();
 
-    const created = await services.salaryRequests.createBulk(ids, 'Décembre 2026');
-    expect(created).toHaveLength(3);
-    for (const request of created) {
-      expect(request.mois).toBe('Décembre 2026');
-      expect(request.statut).toBe('en_attente');
-    }
+    const created = await services.salaryRequests.create({
+      periode: 'Décembre 2026',
+      dateDebut: '01/12/2026',
+      dateFin: '31/12/2026',
+      lignes: [{ teacherId: fixe.id }, { teacherId: parJour.id, joursTravailles: 22 }],
+    });
+    expect(created.statut).toBe('brouillon');
+    expect(created.lignes).toHaveLength(2);
+
+    const fixeLigne = created.lignes.find((l) => l.teacherId === fixe.id)!;
+    expect(fixeLigne.montantCalcule).toBe(fixe.salaireFixe);
+    expect(fixeLigne.payslipId).toBeNull();
+
+    const submitted = await services.salaryRequests.submit(created.id);
+    expect(submitted.statut).toBe('en_attente');
+    await expect(services.salaryRequests.submit(created.id)).rejects.toThrow();
+
+    const validated = await services.salaryRequests.validate(created.id, true);
+    expect(validated.statut).toBe('validee');
+    const validatedFixeLigne = validated.lignes.find((l) => l.teacherId === fixe.id)!;
+    expect(validatedFixeLigne.payslipId).toBeTruthy();
+
+    const payslips = await services.teachers.listPayslips(fixe.id);
+    expect(payslips.some((p) => p.id === validatedFixeLigne.payslipId)).toBe(true);
 
     const all = await services.salaryRequests.list();
-    expect(all.length).toBeGreaterThanOrEqual(3);
+    expect(all.some((r) => r.id === created.id)).toBe(true);
+  });
+
+  it('validate(false) rejette avec un motif, sans générer de bulletin', async () => {
+    const services = createMockServices();
+    const teachers = await services.teachers.list();
+    const fixe = teachers.find((t) => t.salaryMode === 'fixe')!;
+
+    const created = await services.salaryRequests.create({
+      periode: 'Décembre 2026',
+      dateDebut: '01/12/2026',
+      dateFin: '31/12/2026',
+      lignes: [{ teacherId: fixe.id }],
+    });
+    await services.salaryRequests.submit(created.id);
+
+    const rejected = await services.salaryRequests.validate(created.id, false, 'Montant à revoir');
+    expect(rejected.statut).toBe('rejetee');
+    expect(rejected.motifRejet).toBe('Montant à revoir');
+    expect(rejected.lignes[0]!.payslipId).toBeNull();
+  });
+
+  it('cancel n’annule qu’une demande encore en brouillon', async () => {
+    const services = createMockServices();
+    const teachers = await services.teachers.list();
+    const fixe = teachers.find((t) => t.salaryMode === 'fixe')!;
+
+    const created = await services.salaryRequests.create({
+      periode: 'Janvier 2027',
+      dateDebut: '01/01/2027',
+      dateFin: '31/01/2027',
+      lignes: [{ teacherId: fixe.id }],
+    });
+    const cancelled = await services.salaryRequests.cancel(created.id);
+    expect(cancelled.statut).toBe('annulee');
+    await expect(services.salaryRequests.cancel(created.id)).rejects.toThrow();
+  });
+
+  it('create refuse un enseignant sans salaire configuré', async () => {
+    const services = createMockServices();
+    const teacher = await services.teachers.create({ nom: 'M. Test Sans Salaire', matiere: 'Test', tel: '00', email: 't@t.sn' });
+    await expect(
+      services.salaryRequests.create({
+        periode: 'Décembre 2026',
+        dateDebut: '01/12/2026',
+        dateFin: '31/12/2026',
+        lignes: [{ teacherId: teacher.id }],
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('staffAbsences.getSummary déduit les jours d’absence non justifiée qui recouvrent la période', async () => {
+    const services = createMockServices();
+    const teachers = await services.teachers.list();
+    const parJour = teachers.find((t) => t.salaryMode === 'par_jour')!;
+
+    const absence = await services.staffAbsences.record(parJour.id, {
+      dateDebut: '15/12/2026',
+      dateFin: '16/12/2026',
+      justifiee: false,
+      motif: null,
+    });
+    expect(absence.id).toBeTruthy();
+
+    const summary = await services.staffAbsences.getSummary(parJour.id, '01/12/2026', '31/12/2026');
+    expect(summary.joursInjustifies).toBeGreaterThanOrEqual(2);
   });
 
   it('review met à jour le statut d’une demande de congé', async () => {

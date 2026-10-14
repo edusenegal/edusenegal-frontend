@@ -70,6 +70,12 @@ export interface ScheduleSlot {
 
 export type StaffStatus = 'actif' | 'en_conge';
 
+/**
+ * Traduit `SalaryMode` (common-lib, partagé user-service/payment-service) :
+ * FIXED, PER_WORKED_DAY, PER_HOUR.
+ */
+export type SalaryMode = 'fixe' | 'par_jour' | 'par_heure';
+
 export interface Teacher {
   id: string;
   nom: string;
@@ -78,16 +84,62 @@ export interface Teacher {
   email: string;
   statut: StaffStatus;
   classes: string[]; // noms de classes, ex. "Terminale S2"
-  salaire: number;
+  /**
+   * Rémunération de cet enseignant DANS CET ÉTABLISSEMENT — un enseignant
+   * itinérant qui enseignerait ailleurs aurait un profil distinct par école
+   * côté backend (`SchoolSalaryProfileResponse`, un par couple
+   * userId/schoolId) ; cette application ne gère que l'établissement du
+   * directeur connecté, donc un seul profil par enseignant ici. Un seul des
+   * trois montants est pertinent selon `salaryMode`.
+   */
+  /**
+   * `null` tant qu'aucun salaire n'a été configuré pour cet enseignant dans
+   * cette école (mirroring : `SchoolSalaryProfileResponse.salaryMode` est
+   * `null` avant le premier `PUT .../salary` côté backend — une tentative de
+   * créer une demande de paiement pour un enseignant dans cet état échoue
+   * avec `SALARY_NOT_CONFIGURED`).
+   */
+  salaryMode: SalaryMode | null;
+  salaireFixe: number | null; // fixedAmountFcfa — pertinent si salaryMode === 'fixe'
+  tauxJournalier: number | null; // dailyRateFcfa — pertinent si salaryMode === 'par_jour'
+  tauxHoraire: number | null; // hourlyRateFcfa — pertinent si salaryMode === 'par_heure'
 }
 
+/** Absence de personnel enseignant, saisie par la direction — traduit `StaffAbsenceResponse` (attendance-service). */
+export interface StaffAbsence {
+  id: string;
+  teacherId: string;
+  dateDebut: string; // dd/mm/yyyy
+  dateFin: string;
+  justifiee: boolean;
+  motif: string | null;
+  enregistreePar: string;
+}
+
+/** Agrégat sur une période — traduit `StaffAbsenceSummaryResponse` ; utilisé pour calculer une demande de paiement en mode "par jour". */
+export interface StaffAbsenceSummary {
+  joursJustifies: number;
+  joursInjustifies: number;
+}
+
+/**
+ * Bulletin de paie — traduit `PayslipResponse` (payment-service). Généré
+ * automatiquement à la validation d'une `SalaryRequest`, une fois par ligne
+ * (un enseignant, une période) ; jamais créé directement depuis cette
+ * application.
+ */
 export interface SalarySlip {
   id: string;
   teacherId: string;
-  mois: string; // "Septembre 2026"
-  montant: number;
-  datePaiement: string; // dd/mm/yyyy
-  statut: 'payé' | 'en_attente';
+  periode: string; // periodLabel, ex. "Octobre 2026"
+  salaryMode: SalaryMode;
+  montantBrut: number; // grossAmountFcfa
+  joursTravailles: number | null;
+  heuresTravaillees: number | null;
+  joursAbsenceInjustifiee: number | null;
+  /** `true` si payerOwnership === PUBLIC (État) — sinon pris en charge par l'école (payerOwnership === PRIVATE). */
+  payeurEtat: boolean;
+  dateGeneration: string; // dd/mm/yyyy
 }
 
 export type StudentStatus = 'actif' | 'suspendu' | 'transfere';
@@ -180,16 +232,38 @@ export interface LeaveRequest {
   pieceJointe: { nom: string } | null;
 }
 
-export type SalaryRequestStatus = 'en_attente' | 'validee' | 'payee';
+/** Traduit `SalaryPaymentStatus` (payment-service) : DRAFT, PENDING_VALIDATION, VALIDATED, REJECTED, CANCELLED. */
+export type SalaryRequestStatus = 'brouillon' | 'en_attente' | 'validee' | 'rejetee' | 'annulee';
 
-export interface SalaryRequest {
-  id: string;
+/** Une ligne de la demande — traduit `SalaryLineResponse`, un enseignant payé sur la période. */
+export interface SalaryRequestLine {
   teacherId: string;
   teacherNom: string;
-  mois: string; // "Octobre 2026"
-  montant: number;
+  salaryMode: SalaryMode;
+  joursTravailles: number | null;
+  heuresTravaillees: number | null;
+  joursAbsenceInjustifiee: number | null;
+  montantCalcule: number;
+  payeurEtat: boolean;
+  payslipId: string | null;
+}
+
+/**
+ * Demande de paiement de salaire — traduit `SalaryPaymentRequestResponse`
+ * (payment-service). Couvre PLUSIEURS enseignants sur une même période ; le
+ * montant de chaque ligne est calculé côté serveur (profil de salaire +
+ * absences), jamais saisi ici.
+ */
+export interface SalaryRequest {
+  id: string;
+  periode: string; // periodLabel, ex. "Octobre 2026"
+  dateDebut: string; // dd/mm/yyyy, periodStart
+  dateFin: string; // dd/mm/yyyy, periodEnd
+  lignes: SalaryRequestLine[];
+  montantTotal: number;
   statut: SalaryRequestStatus;
   dateCreation: string;
+  motifRejet: string | null;
 }
 
 export type DocumentTargetKind = 'eleve' | 'personnel';

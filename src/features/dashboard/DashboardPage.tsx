@@ -75,7 +75,9 @@ export default function DashboardPage() {
                 .slice(0, 3)
                 .map((r) => (
                   <div key={r.id} className={styles.requestRow}>
-                    <span>Salaire — {r.teacherNom}</span>
+                    <span>
+                      Salaire — {r.periode} ({r.lignes.length} enseignant{r.lignes.length > 1 ? 's' : ''})
+                    </span>
                     <Badge tone="warning">En attente</Badge>
                   </div>
                 ))}

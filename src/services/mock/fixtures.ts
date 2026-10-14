@@ -34,6 +34,7 @@ import type {
   ScheduleSlot,
   School,
   SignedDocument,
+  StaffAbsence,
   Student,
   Subject,
   SubjectAverage,
@@ -105,27 +106,40 @@ export function classNameOf(seed: { level: ClassLevel; series: string | null; ta
 /* Enseignants                                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * `salaryMode` mélange volontairement les trois modes (voir `SalaryMode`,
+ * backend) pour exercer les trois branches de calcul dès les données de
+ * démonstration : la plupart des enseignants sont au fixe (mode le plus
+ * courant pour un poste permanent), deux sont rémunérés au jour travaillé
+ * (ex. un remplaçant), et le professeur d'EPS — qui intervient sur presque
+ * toutes les classes mais à temps partiel — est rémunéré à l'heure.
+ */
 interface TeacherSeed {
   id: string;
   nom: string;
   matiere: string;
   tel: string;
   email: string;
-  salaire: number;
+  salaryMode: TeacherSeedSalaryMode;
+  salaireFixe: number | null;
+  tauxJournalier: number | null;
+  tauxHoraire: number | null;
   classes: string[]; // noms de classes
 }
 
+type TeacherSeedSalaryMode = 'fixe' | 'par_jour' | 'par_heure';
+
 const TEACHER_SEEDS: TeacherSeed[] = [
-  { id: 'ens-1', nom: 'M. Ibrahima Sarr', matiere: 'Mathématiques', tel: '77 501 22 10', email: 'i.sarr@lyceelesflamboyants.sn', salaire: 320000, classes: ['Terminale S1', 'Terminale S2', 'Première S2'] },
-  { id: 'ens-2', nom: 'Mme Awa Diop', matiere: 'Physique-Chimie', tel: '77 502 33 21', email: 'a.diop@lyceelesflamboyants.sn', salaire: 300000, classes: ['Terminale S2', 'Première S1', 'Première S2'] },
-  { id: 'ens-3', nom: 'M. Modou Fallou Kane', matiere: 'Sciences de la Vie et de la Terre', tel: '77 503 44 32', email: 'm.kane@lyceelesflamboyants.sn', salaire: 280000, classes: ['Terminale S1', 'Première S1', 'Seconde A'] },
-  { id: 'ens-4', nom: 'Mme Khady Mbaye', matiere: 'Français', tel: '77 504 55 43', email: 'k.mbaye@lyceelesflamboyants.sn', salaire: 260000, classes: ['Seconde A', 'Seconde B', 'Première L'] },
-  { id: 'ens-5', nom: 'M. Pathé Gueye', matiere: 'Anglais', tel: '77 505 66 54', email: 'p.gueye@lyceelesflamboyants.sn', salaire: 250000, classes: ['Terminale S2', 'Terminale L', 'Seconde B'] },
-  { id: 'ens-6', nom: 'Mme Ndèye Fatou Cissé', matiere: 'Philosophie', tel: '77 506 77 65', email: 'n.cisse@lyceelesflamboyants.sn', salaire: 270000, classes: ['Terminale L', 'Terminale S1', 'Terminale S2'] },
-  { id: 'ens-7', nom: 'M. Babacar Thiam', matiere: 'Histoire-Géographie', tel: '77 507 88 76', email: 'b.thiam@lyceelesflamboyants.sn', salaire: 255000, classes: ['Seconde A', 'Seconde B', 'Première L'] },
-  { id: 'ens-8', nom: 'M. Ousmane Diallo', matiere: 'Éducation Physique et Sportive', tel: '77 508 99 87', email: 'o.diallo@lyceelesflamboyants.sn', salaire: 220000, classes: ['Seconde A', 'Seconde B', 'Première L', 'Première S1', 'Première S2', 'Terminale L', 'Terminale S1', 'Terminale S2'] },
-  { id: 'ens-9', nom: 'Mme Soda Niang', matiere: 'Espagnol', tel: '77 509 10 98', email: 's.niang@lyceelesflamboyants.sn', salaire: 235000, classes: ['Première S1', 'Première S2', 'Terminale S1'] },
-  { id: 'ens-10', nom: 'M. Cheikh Faye', matiere: 'Sciences Économiques et Sociales', tel: '77 510 21 09', email: 'c.faye@lyceelesflamboyants.sn', salaire: 245000, classes: ['Première L', 'Terminale L'] },
+  { id: 'ens-1', nom: 'M. Ibrahima Sarr', matiere: 'Mathématiques', tel: '77 501 22 10', email: 'i.sarr@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 320000, tauxJournalier: null, tauxHoraire: null, classes: ['Terminale S1', 'Terminale S2', 'Première S2'] },
+  { id: 'ens-2', nom: 'Mme Awa Diop', matiere: 'Physique-Chimie', tel: '77 502 33 21', email: 'a.diop@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 300000, tauxJournalier: null, tauxHoraire: null, classes: ['Terminale S2', 'Première S1', 'Première S2'] },
+  { id: 'ens-3', nom: 'M. Modou Fallou Kane', matiere: 'Sciences de la Vie et de la Terre', tel: '77 503 44 32', email: 'm.kane@lyceelesflamboyants.sn', salaryMode: 'par_jour', salaireFixe: null, tauxJournalier: 14000, tauxHoraire: null, classes: ['Terminale S1', 'Première S1', 'Seconde A'] },
+  { id: 'ens-4', nom: 'Mme Khady Mbaye', matiere: 'Français', tel: '77 504 55 43', email: 'k.mbaye@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 260000, tauxJournalier: null, tauxHoraire: null, classes: ['Seconde A', 'Seconde B', 'Première L'] },
+  { id: 'ens-5', nom: 'M. Pathé Gueye', matiere: 'Anglais', tel: '77 505 66 54', email: 'p.gueye@lyceelesflamboyants.sn', salaryMode: 'par_jour', salaireFixe: null, tauxJournalier: 12500, tauxHoraire: null, classes: ['Terminale S2', 'Terminale L', 'Seconde B'] },
+  { id: 'ens-6', nom: 'Mme Ndèye Fatou Cissé', matiere: 'Philosophie', tel: '77 506 77 65', email: 'n.cisse@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 270000, tauxJournalier: null, tauxHoraire: null, classes: ['Terminale L', 'Terminale S1', 'Terminale S2'] },
+  { id: 'ens-7', nom: 'M. Babacar Thiam', matiere: 'Histoire-Géographie', tel: '77 507 88 76', email: 'b.thiam@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 255000, tauxJournalier: null, tauxHoraire: null, classes: ['Seconde A', 'Seconde B', 'Première L'] },
+  { id: 'ens-8', nom: 'M. Ousmane Diallo', matiere: 'Éducation Physique et Sportive', tel: '77 508 99 87', email: 'o.diallo@lyceelesflamboyants.sn', salaryMode: 'par_heure', salaireFixe: null, tauxJournalier: null, tauxHoraire: 3500, classes: ['Seconde A', 'Seconde B', 'Première L', 'Première S1', 'Première S2', 'Terminale L', 'Terminale S1', 'Terminale S2'] },
+  { id: 'ens-9', nom: 'Mme Soda Niang', matiere: 'Espagnol', tel: '77 509 10 98', email: 's.niang@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 235000, tauxJournalier: null, tauxHoraire: null, classes: ['Première S1', 'Première S2', 'Terminale S1'] },
+  { id: 'ens-10', nom: 'M. Cheikh Faye', matiere: 'Sciences Économiques et Sociales', tel: '77 510 21 09', email: 'c.faye@lyceelesflamboyants.sn', salaryMode: 'fixe', salaireFixe: 245000, tauxJournalier: null, tauxHoraire: null, classes: ['Première L', 'Terminale L'] },
 ];
 
 export function buildTeachers(): Teacher[] {
@@ -137,9 +151,19 @@ export function buildTeachers(): Teacher[] {
     email: seed.email,
     statut: 'actif',
     classes: [...seed.classes],
-    salaire: seed.salaire,
+    salaryMode: seed.salaryMode,
+    salaireFixe: seed.salaireFixe,
+    tauxJournalier: seed.tauxJournalier,
+    tauxHoraire: seed.tauxHoraire,
   }));
 }
+
+/** Quelques absences de démonstration — alimentent `StaffAbsencesPort` et le calcul "par jour". */
+export const STAFF_ABSENCES: StaffAbsence[] = [
+  { id: 'abs-1', teacherId: 'ens-3', dateDebut: '14/10/2026', dateFin: '14/10/2026', justifiee: true, motif: 'Rendez-vous médical', enregistreePar: 'Direction' },
+  { id: 'abs-2', teacherId: 'ens-3', dateDebut: '02/10/2026', dateFin: '03/10/2026', justifiee: false, motif: null, enregistreePar: 'Direction' },
+  { id: 'abs-3', teacherId: 'ens-5', dateDebut: '09/10/2026', dateFin: '09/10/2026', justifiee: false, motif: null, enregistreePar: 'Direction' },
+];
 
 /** Enseignants d'une classe — titulaire (professeur principal) en premier. */
 export function teacherNamesForClass(className: string): string[] {
@@ -553,17 +577,77 @@ export const LEAVE_REQUESTS: LeaveRequest[] = [
   { id: 'cg-304', teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', dateDebut: '10/09/2026', dateFin: '12/09/2026', motif: 'Congé de maternité — suivi médical', statut: 'rejete', remplacant: null, pieceJointe: { nom: 'justificatif_adiop.pdf' } },
 ];
 
-export const SALARY_REQUESTS: SalaryRequest[] = [
-  { id: 'sr-401', teacherId: 'ens-1', teacherNom: 'M. Ibrahima Sarr', mois: 'Octobre 2026', montant: 320000, statut: 'payee', dateCreation: '28/09/2026' },
-  { id: 'sr-402', teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', mois: 'Octobre 2026', montant: 300000, statut: 'validee', dateCreation: '28/09/2026' },
-  { id: 'sr-403', teacherId: 'ens-3', teacherNom: 'M. Modou Fallou Kane', mois: 'Octobre 2026', montant: 280000, statut: 'en_attente', dateCreation: '01/10/2026' },
+/** `payeurEtat: false` partout — `SCHOOL.type === 'prive'` (voir plus haut), donc `SchoolOwnership.PRIVATE` côté backend : l'école paie, jamais l'État. */
+export const SALARY_SLIPS: SalarySlip[] = [
+  { id: 'pay-1', teacherId: 'ens-1', periode: 'Septembre 2026', salaryMode: 'fixe', montantBrut: 320000, joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, payeurEtat: false, dateGeneration: '30/09/2026' },
+  { id: 'pay-2', teacherId: 'ens-1', periode: 'Août 2026', salaryMode: 'fixe', montantBrut: 320000, joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, payeurEtat: false, dateGeneration: '31/08/2026' },
+  { id: 'pay-3', teacherId: 'ens-2', periode: 'Septembre 2026', salaryMode: 'fixe', montantBrut: 300000, joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, payeurEtat: false, dateGeneration: '30/09/2026' },
+  { id: 'pay-4', teacherId: 'ens-3', periode: 'Septembre 2026', salaryMode: 'par_jour', montantBrut: 308000, joursTravailles: 22, heuresTravaillees: null, joursAbsenceInjustifiee: 0, payeurEtat: false, dateGeneration: '30/09/2026' },
 ];
 
-export const SALARY_SLIPS: SalarySlip[] = [
-  { id: 'pay-1', teacherId: 'ens-1', mois: 'Septembre 2026', montant: 320000, datePaiement: '30/09/2026', statut: 'payé' },
-  { id: 'pay-2', teacherId: 'ens-1', mois: 'Août 2026', montant: 320000, datePaiement: '31/08/2026', statut: 'payé' },
-  { id: 'pay-3', teacherId: 'ens-2', mois: 'Septembre 2026', montant: 300000, datePaiement: '30/09/2026', statut: 'payé' },
-  { id: 'pay-4', teacherId: 'ens-3', mois: 'Septembre 2026', montant: 280000, datePaiement: '30/09/2026', statut: 'payé' },
+/**
+ * Quatre statuts représentés pour exercer tout le circuit dans l'écran
+ * « Demandes de salaire » : sr-401 déjà validée (ses lignes portent les
+ * `payslipId` de SALARY_SLIPS ci-dessus — règlement automatique à la
+ * validation, voir `SalaryPaymentServiceImpl.settleLine`), sr-402 soumise et
+ * en attente de décision, sr-403 encore en brouillon, sr-404 rejetée.
+ */
+export const SALARY_REQUESTS: SalaryRequest[] = [
+  {
+    id: 'sr-401',
+    periode: 'Septembre 2026',
+    dateDebut: '01/09/2026',
+    dateFin: '30/09/2026',
+    statut: 'validee',
+    dateCreation: '28/09/2026',
+    motifRejet: null,
+    montantTotal: 928000,
+    lignes: [
+      { teacherId: 'ens-1', teacherNom: 'M. Ibrahima Sarr', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 320000, payeurEtat: false, payslipId: 'pay-1' },
+      { teacherId: 'ens-2', teacherNom: 'Mme Awa Diop', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 300000, payeurEtat: false, payslipId: 'pay-3' },
+      { teacherId: 'ens-3', teacherNom: 'M. Modou Fallou Kane', salaryMode: 'par_jour', joursTravailles: 22, heuresTravaillees: null, joursAbsenceInjustifiee: 0, montantCalcule: 308000, payeurEtat: false, payslipId: 'pay-4' },
+    ],
+  },
+  {
+    id: 'sr-402',
+    periode: 'Octobre 2026',
+    dateDebut: '01/10/2026',
+    dateFin: '31/10/2026',
+    statut: 'en_attente',
+    dateCreation: '05/10/2026',
+    motifRejet: null,
+    montantTotal: 497500,
+    lignes: [
+      { teacherId: 'ens-4', teacherNom: 'Mme Khady Mbaye', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 260000, payeurEtat: false, payslipId: null },
+      { teacherId: 'ens-5', teacherNom: 'M. Pathé Gueye', salaryMode: 'par_jour', joursTravailles: 20, heuresTravaillees: null, joursAbsenceInjustifiee: 1, montantCalcule: 237500, payeurEtat: false, payslipId: null },
+    ],
+  },
+  {
+    id: 'sr-403',
+    periode: 'Octobre 2026',
+    dateDebut: '01/10/2026',
+    dateFin: '31/10/2026',
+    statut: 'brouillon',
+    dateCreation: '10/10/2026',
+    motifRejet: null,
+    montantTotal: 140000,
+    lignes: [
+      { teacherId: 'ens-8', teacherNom: 'M. Ousmane Diallo', salaryMode: 'par_heure', joursTravailles: null, heuresTravaillees: 40, joursAbsenceInjustifiee: null, montantCalcule: 140000, payeurEtat: false, payslipId: null },
+    ],
+  },
+  {
+    id: 'sr-404',
+    periode: 'Septembre 2026',
+    dateDebut: '01/09/2026',
+    dateFin: '30/09/2026',
+    statut: 'rejetee',
+    dateCreation: '25/09/2026',
+    motifRejet: "Montant à vérifier avec le profil de l'enseignante — doublon avec sr-401.",
+    montantTotal: 235000,
+    lignes: [
+      { teacherId: 'ens-9', teacherNom: 'Mme Soda Niang', salaryMode: 'fixe', joursTravailles: null, heuresTravaillees: null, joursAbsenceInjustifiee: null, montantCalcule: 235000, payeurEtat: false, payslipId: null },
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
