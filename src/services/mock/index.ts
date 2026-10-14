@@ -20,20 +20,25 @@
 import { AppError } from '@/services/errors';
 import type { Services } from '@/services/ports';
 import type {
+  AcademicYearConfig,
   ClassEvent,
   ClassGroup,
   DirectorProfile,
   LeaveRequest,
   Notice,
   PaymentConfig,
+  PromotionResult,
   SalaryRequest,
   SalarySlip,
   School,
+  SemesterResult,
   SignedDocument,
   Student,
   Subject,
+  SubjectAverage,
   Teacher,
   TransferRequest,
+  YearResult,
 } from '@/types/domain';
 import * as fixtures from './fixtures';
 
@@ -77,6 +82,15 @@ function createInitialState() {
     signedDocuments: structuredClone(fixtures.SIGNED_DOCUMENTS) as SignedDocument[],
     notices: structuredClone(fixtures.NOTICES) as Notice[],
     transferRequests: structuredClone(fixtures.TRANSFER_REQUESTS) as TransferRequest[],
+    academicConfigs: structuredClone(fixtures.buildAcademicConfigs()) as AcademicYearConfig[],
+    /** Clés `classId|subjectId|semestre` déjà verrouillées (`lockGrades`). */
+    lockedGradeKeys: new Set<string>(),
+    /** Moyennes par matière déjà calculées (`computeClassAverages`), avant agrégation en résultat. Clé `classId|semestre`. */
+    subjectAveragesByClassSemester: {} as Record<string, Record<string, SubjectAverage[]>>, // -> studentId -> matières
+    /** Résultats semestriels agrégés (`computeClassResults`). Clé `classId|semestre`. */
+    semesterResults: {} as Record<string, SemesterResult[]>,
+    /** Année des résultats (academic-service) clôturée — distincte de `AcademicYear.statut`. */
+    resultsYearClosed: false,
   };
 }
 
@@ -660,6 +674,183 @@ export function createMockServices(): Services {
         const notice: Notice = { ...input, id: `ns-${Date.now()}`, auteur: 'Direction' };
         state.notices.unshift(notice);
         return respond(notice, 350);
+      },
+    },
+
+    academicResults: {
+      async getEffectiveConfig(classId): Promise<AcademicYearConfig | null> {
+        if (!classId) return respond(null);
+        const config = state.academicConfigs.find((c) => c.classId === classId);
+        return respond(config ?? null);
+      },
+      async configure(input): Promise<AcademicYearConfig> {
+        const periods = input.periods.map((p) => ({ ...p, verrouillee: false }));
+        const targets = input.classId
+          ? state.academicConfigs.filter((c) => c.classId === input.classId)
+          : state.academicConfigs; // classId null — portée école entière, cf. doc-comment du port
+        for (const config of targets) {
+          config.periodType = input.periodType;
+          config.semesterCount = input.semesterCount;
+          config.periods = periods;
+          config.d1Weight = input.d1Weight;
+          config.d2Weight = input.d2Weight;
+          config.compositionWeight = input.compositionWeight;
+          config.minPassAverage = input.minPassAverage;
+          config.updatedAt = new Date().toLocaleDateString('fr-FR');
+        }
+        const result = (input.classId ? targets[0] : targets[0]) ?? null;
+        if (!result) notFound('Configuration académique');
+        return respond(result);
+      },
+
+      async lockGrades(classId, subjectId, semesterNumber): Promise<void> {
+        const classe = state.classes.find((c) => c.id === classId);
+        if (!classe) notFound('Classe');
+        state.lockedGradeKeys.add(`${classId}|${subjectId}|${semesterNumber}`);
+        return respond(undefined, 300);
+      },
+
+      async computeClassAverages(classId, semesterNumber): Promise<void> {
+        const classe = state.classes.find((c) => c.id === classId);
+        if (!classe) notFound('Classe');
+        const config = state.academicConfigs.find((c) => c.classId === classId);
+        const weights = config
+          ? { d1Weight: config.d1Weight, d2Weight: config.d2Weight, compositionWeight: config.compositionWeight }
+          : { d1Weight: 1, d2Weight: 1, compositionWeight: 2 };
+        const key = `${classId}|${semesterNumber}`;
+        const byStudent: Record<string, SubjectAverage[]> = {};
+        for (const student of state.students.filter((s) => s.classeId === classId)) {
+          byStudent[student.id] = fixtures.buildSubjectAveragesForStudent(student, classId, semesterNumber, weights);
+        }
+        state.subjectAveragesByClassSemester[key] = byStudent;
+        return respond(undefined, 500);
+      },
+
+      async computeClassResults(classId, semesterNumber): Promise<void> {
+        const classe = state.classes.find((c) => c.id === classId);
+        if (!classe) notFound('Classe');
+        const key = `${classId}|${semesterNumber}`;
+        const byStudent = state.subjectAveragesByClassSemester[key];
+        if (!byStudent) {
+          throw new AppError('validation', "Calculez d'abord les moyennes de cette classe pour ce semestre.", 400);
+        }
+        const classStudents = state.students.filter((s) => s.classeId === classId);
+        const rows = classStudents.map((student) => {
+          const matieres = byStudent[student.id] ?? [];
+          const totalPoints = matieres.reduce((sum, m) => sum + m.pointsPonderes, 0);
+          const totalCoef = matieres.reduce((sum, m) => sum + m.coefficient, 0) || 1;
+          const moyenneGenerale = Math.round((totalPoints / totalCoef) * 100) / 100;
+          return { student, matieres, moyenneGenerale };
+        });
+        rows.sort((a, b) => b.moyenneGenerale - a.moyenneGenerale);
+        const results: SemesterResult[] = rows.map((row, i) => ({
+          id: `semres-${classId}-${semesterNumber}-${row.student.id}`,
+          studentId: row.student.id,
+          studentNom: `${row.student.prenom} ${row.student.nom}`,
+          classId,
+          semesterNumber,
+          moyenneGenerale: row.moyenneGenerale,
+          rangClasse: i + 1,
+          totalEleves: rows.length,
+          mention: fixtures.mentionFromAverage(row.moyenneGenerale),
+          matieres: row.matieres,
+          bulletinGenere: false,
+          publie: false,
+        }));
+        state.semesterResults[key] = results;
+        return respond(undefined, 500);
+      },
+
+      async getClassSemesterResults(classId, semesterNumber): Promise<SemesterResult[]> {
+        const results = state.semesterResults[`${classId}|${semesterNumber}`] ?? [];
+        return respond(results);
+      },
+
+      async publishResults(classId, semesterNumber): Promise<SemesterResult[]> {
+        const key = `${classId}|${semesterNumber}`;
+        const results = state.semesterResults[key];
+        if (!results || results.length === 0) {
+          throw new AppError('validation', "Calculez d'abord les résultats de cette classe pour ce semestre.", 400);
+        }
+        for (const row of results) row.publie = true;
+        return respond(results, 400);
+      },
+
+      async generateStudentBulletin(studentId, semesterNumber): Promise<void> {
+        const row = Object.values(state.semesterResults)
+          .flat()
+          .find((r) => r.studentId === studentId && r.semesterNumber === semesterNumber);
+        if (!row) throw new AppError('validation', "Les résultats de cet élève n'ont pas encore été calculés.", 400);
+        row.bulletinGenere = true;
+        return respond(undefined, 400);
+      },
+
+      async generateClassBulletins(classId, semesterNumber): Promise<void> {
+        const key = `${classId}|${semesterNumber}`;
+        const results = state.semesterResults[key];
+        if (!results || results.length === 0) {
+          throw new AppError('validation', "Calculez d'abord les résultats de cette classe pour ce semestre.", 400);
+        }
+        for (const row of results) row.bulletinGenere = true;
+        return respond(undefined, 600);
+      },
+
+      async downloadBulletinPdf(studentId, semesterNumber): Promise<void> {
+        const row = Object.values(state.semesterResults)
+          .flat()
+          .find((r) => r.studentId === studentId && r.semesterNumber === semesterNumber);
+        if (!row?.bulletinGenere) {
+          throw new AppError('validation', "Le bulletin n'a pas encore été généré pour cet élève.", 400);
+        }
+        return respond(undefined, 300);
+      },
+
+      async getClassYearResults(classId): Promise<YearResult[]> {
+        const classe = state.classes.find((c) => c.id === classId);
+        if (!classe) notFound('Classe');
+        const config = state.academicConfigs.find((c) => c.classId === classId);
+        const minPassAverage = config?.minPassAverage ?? 10;
+        const semesterCount = config?.semesterCount ?? 2;
+        const classStudents = state.students.filter((s) => s.classeId === classId);
+        const rows = classStudents.map((student) => {
+          const semesterRows = Array.from({ length: semesterCount }, (_, i) => i + 1)
+            .map((sem) => state.semesterResults[`${classId}|${sem}`]?.find((r) => r.studentId === student.id))
+            .filter((r): r is SemesterResult => Boolean(r));
+          const moyenneAnnuelle = semesterRows.length
+            ? Math.round((semesterRows.reduce((sum, r) => sum + r.moyenneGenerale, 0) / semesterRows.length) * 100) / 100
+            : student.moyenne;
+          const matieres = semesterRows.at(-1)?.matieres ?? [];
+          return { student, moyenneAnnuelle, matieres };
+        });
+        rows.sort((a, b) => b.moyenneAnnuelle - a.moyenneAnnuelle);
+        return respond(
+          rows.map((row, i): YearResult => {
+            const decision: PromotionResult =
+              row.moyenneAnnuelle >= minPassAverage
+                ? 'admis'
+                : row.moyenneAnnuelle >= minPassAverage - 1
+                  ? 'admis_exceptionnel'
+                  : 'redouble';
+            return {
+              id: `yearres-${classId}-${row.student.id}`,
+              studentId: row.student.id,
+              studentNom: `${row.student.prenom} ${row.student.nom}`,
+              classId,
+              moyenneAnnuelle: row.moyenneAnnuelle,
+              rangClasse: i + 1,
+              totalEleves: rows.length,
+              mention: fixtures.mentionFromAverage(row.moyenneAnnuelle),
+              decision,
+              matieres: row.matieres,
+              cloture: state.resultsYearClosed,
+            };
+          }),
+        );
+      },
+
+      async closeResultsYear(): Promise<void> {
+        state.resultsYearClosed = true;
+        return respond(undefined, 400);
       },
     },
   };

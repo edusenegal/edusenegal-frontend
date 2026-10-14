@@ -145,12 +145,12 @@ export type PaymentType =
 export type PaymentChannel = 'wave' | 'orange_money' | 'especes' | 'cheque' | 'virement_bancaire';
 
 export interface LevelPricing {
-  level: string;
+  level: string; // "Seconde", "Première", "Terminale"…
   series: string | null;
   displayName: string;
   inscriptionFcfa: number;
-  periodFcfa: number;
-  totalAnnualFcfa: number;
+  periodFcfa: number; // par mois/trimestre/année selon `type`
+  totalAnnualFcfa: number; // inscription + (période × nombre de périodes)
 }
 
 export interface PaymentConfig {
@@ -234,6 +234,95 @@ export interface TransferRequest {
   ecoleDestination: string | null;
   statut: 'en_attente' | 'acceptee' | 'refusee';
   date: string;
+}
+
+/** Traduit `PeriodType` (academic-service) : SEMESTER, TRIMESTER, ANNUAL. */
+export type AcademicPeriodType = 'semestre' | 'trimestre' | 'annuel';
+
+/** Traduit `SemesterPeriod` (academic-service) — une période (semestre/trimestre) de l'année académique. */
+export interface AcademicPeriod {
+  number: number; // 1, 2, 3 ou 4
+  label: string; // "Semestre 1"…
+  dateDebut: string; // dd/mm/yyyy
+  dateFin: string;
+  dateLimiteNotes: string; // date limite de saisie des notes
+  dateBulletin: string; // date de remise des bulletins
+  verrouillee: boolean;
+}
+
+/**
+ * Configuration de l'année académique (nombre de semestres, pondérations,
+ * moyenne de passage) — portée école, niveau ou classe (résolution par
+ * priorité classe > niveau > école, comme côté backend).
+ * Backend : `AcademicConfigController` (academic-service).
+ */
+export interface AcademicYearConfig {
+  id: string;
+  levelTarget: string | null;
+  classId: string | null;
+  periodType: AcademicPeriodType;
+  semesterCount: number; // 1 à 4
+  periods: AcademicPeriod[];
+  d1Weight: number;
+  d2Weight: number;
+  compositionWeight: number;
+  minPassAverage: number; // sur 20
+  updatedAt: string; // dd/mm/yyyy
+}
+
+/** Traduit `Mention` (academic-service). */
+export type Mention = 'excellent' | 'tres_bien' | 'bien' | 'assez_bien' | 'passable' | 'insuffisant';
+
+/** Traduit `PromotionResult` (academic-service) : PROMOTED, EXCEPTIONAL, RETAINED, EXCLUDED. */
+export type PromotionResult = 'admis' | 'admis_exceptionnel' | 'redouble' | 'exclu';
+
+/** Moyenne d'une matière pour un élève sur un semestre — traduit `SubjectAverage`. */
+export interface SubjectAverage {
+  subjectId: string;
+  subjectNom: string;
+  d1: number | null;
+  d2: number | null;
+  composition: number | null;
+  moyenne: number;
+  coefficient: number;
+  pointsPonderes: number;
+  mention: Mention;
+}
+
+/**
+ * Résultat semestriel d'un élève — traduit `SemesterResultResponse`.
+ * `bulletinGenerated`/`published` reflètent l'état réel côté backend (le
+ * bulletin PDF n'existe/n'est visible élève-parent qu'une fois ces deux
+ * étapes franchies).
+ */
+export interface SemesterResult {
+  id: string;
+  studentId: string;
+  studentNom: string;
+  classId: string;
+  semesterNumber: number;
+  moyenneGenerale: number;
+  rangClasse: number;
+  totalEleves: number;
+  mention: Mention;
+  matieres: SubjectAverage[];
+  bulletinGenere: boolean;
+  publie: boolean;
+}
+
+/** Bilan annuel d'un élève — traduit `YearResultResponse`. */
+export interface YearResult {
+  id: string;
+  studentId: string;
+  studentNom: string;
+  classId: string;
+  moyenneAnnuelle: number;
+  rangClasse: number;
+  totalEleves: number;
+  mention: Mention;
+  decision: PromotionResult;
+  matieres: SubjectAverage[];
+  cloture: boolean;
 }
 
 export interface DashboardSnapshot {

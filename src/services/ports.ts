@@ -9,7 +9,10 @@
  */
 
 import type {
+  AcademicPeriod,
+  AcademicPeriodType,
   AcademicYear,
+  AcademicYearConfig,
   BulletinPeriod,
   ClassEvent,
   ClassGroup,
@@ -23,12 +26,14 @@ import type {
   SalarySlip,
   ScheduleSlot,
   School,
+  SemesterResult,
   SignedDocument,
   Student,
   Subject,
   SubjectCoefficient,
   Teacher,
   TransferRequest,
+  YearResult,
 } from '@/types/domain';
 
 export interface AuthPort {
@@ -209,6 +214,59 @@ export interface SignaturesPort {
   importToSign(targetKind: 'eleve' | 'personnel', targetId: string, fileName: string): Promise<SignedDocument>;
 }
 
+/**
+ * Pilotage des résultats et bulletins — réservé aux actes de DIRECTION
+ * (verrouiller, calculer, publier, générer, consulter). La saisie/modification
+ * d'une note (`POST /academic/grades`, `PUT /academic/grades/{id}`) est un
+ * acte ENSEIGNANT (`TEACHER`/`INSTITUTEUR`) côté backend et n'a volontairement
+ * pas d'écran ici — ce n'est pas le rôle de cette application.
+ *
+ * Deux systèmes de génération de bulletin existent côté backend
+ * (`academic-service` et `report-service`, génériques l'un comme l'autre
+ * pour la classe entière) ; ce port s'appuie uniquement sur `academic-service`
+ * car il est le seul branché sur le pipeline moyennes → résultats →
+ * publication, avec le contrôle « non visible élève/parent avant
+ * publication ». `report-service` reste la seule voie pour les stats école et
+ * le rapport paiements (hors scope de ce port, voir Phase 1).
+ */
+export interface AcademicResultsPort {
+  /** Backend : `GET /academic/config/effective`. `null` si aucune config n'a encore été posée pour cette portée. */
+  getEffectiveConfig(classId?: string): Promise<AcademicYearConfig | null>;
+  /** Backend : `POST /academic/config` — portée classe si `classId` fourni, sinon école entière. */
+  configure(input: {
+    classId: string | null;
+    periodType: AcademicPeriodType;
+    semesterCount: number;
+    periods: Omit<AcademicPeriod, 'verrouillee'>[];
+    d1Weight: number;
+    d2Weight: number;
+    compositionWeight: number;
+    minPassAverage: number;
+  }): Promise<AcademicYearConfig>;
+
+  /** Backend : `PUT /academic/grades/lock`. Verrouille les notes d'une matière pour une classe/semestre — préalable au calcul des moyennes. */
+  lockGrades(classId: string, subjectId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/averages/class/{classId}/semester/{semester}`. */
+  computeClassAverages(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/results/class/{classId}/semester/{semester}`. Calcule rangs/mentions à partir des moyennes déjà calculées. */
+  computeClassResults(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `GET /academic/results/class/{classId}/semester/{semester}`. Lit ce que `computeClassResults` a persisté — ne recalcule rien. */
+  getClassSemesterResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
+  /** Backend : `PUT /academic/results/class/{classId}/semester/{semester}/publish`. Notifie élèves/parents (Kafka côté réel). */
+  publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
+  /** Backend : `POST /academic/bulletins/student/{studentId}/semester/{semester}`. */
+  generateStudentBulletin(studentId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/bulletins/class/{classId}/semester/{semester}` — asynchrone côté réel. */
+  generateClassBulletins(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `GET /academic/bulletins/student/{studentId}/semester/{semester}/pdf`. */
+  downloadBulletinPdf(studentId: string, semesterNumber: number): Promise<void>;
+
+  /** Backend : `GET /academic/results/class/{classId}/annual`. */
+  getClassYearResults(classId: string): Promise<YearResult[]>;
+  /** Backend : `POST /academic/year/close`. Clôture les résultats de l'année — distincte de `SchoolPort.closeAcademicYear` (year-opening-service) et de la clôture école (`PUT /schools/{id}/year/close`) ; les trois orchestrations ne sont pas encore reliées dans ce prototype. */
+  closeResultsYear(): Promise<void>;
+}
+
 export interface NoticesPort {
   list(): Promise<Notice[]>;
   create(input: {
@@ -236,4 +294,5 @@ export interface Services {
   salaryRequests: SalaryRequestsPort;
   signatures: SignaturesPort;
   notices: NoticesPort;
+  academicResults: AcademicResultsPort;
 }

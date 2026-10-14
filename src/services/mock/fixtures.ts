@@ -18,12 +18,15 @@
  */
 
 import type {
+  AcademicPeriod,
   AcademicYear,
+  AcademicYearConfig,
   BulletinPeriod,
   ClassEvent,
   ClassGroup,
   ClassLevel,
   LeaveRequest,
+  Mention,
   Notice,
   PaymentConfig,
   SalaryRequest,
@@ -33,6 +36,7 @@ import type {
   SignedDocument,
   Student,
   Subject,
+  SubjectAverage,
   Teacher,
   TransferRequest,
 } from '@/types/domain';
@@ -610,4 +614,113 @@ export const REGIONS: Record<string, string[]> = {
 
 export function schoolsOfRegionAZ(region: string): string[] {
   return [...(REGIONS[region] ?? [])].sort((a, b) => a.localeCompare(b));
+}
+
+/* ------------------------------------------------------------------ */
+/* Résultats & bulletins                                              */
+/* ------------------------------------------------------------------ */
+
+/** Traduit `Mention.fromAverage` (academic-service) — mêmes seuils. */
+export function mentionFromAverage(avg: number): Mention {
+  if (avg >= 18) return 'excellent';
+  if (avg >= 16) return 'tres_bien';
+  if (avg >= 14) return 'bien';
+  if (avg >= 12) return 'assez_bien';
+  if (avg >= 10) return 'passable';
+  return 'insuffisant';
+}
+
+/**
+ * Configuration académique par défaut (semestres, pondérations D1/D2/
+ * Composition, moyenne de passage) — une par classe, comme la résolution de
+ * portée réelle (`classId` prioritaire sur `levelTarget`/école). Pondération
+ * 1/1/2 : pratique courante au lycée sénégalais (la composition pèse autant
+ * que les deux devoirs réunis).
+ */
+function academicPeriodsFor(anneeLabel: string): AcademicPeriod[] {
+  const [startYear, endYear] = anneeLabel.split('-').map(Number) as [number, number];
+  return [
+    {
+      number: 1,
+      label: 'Semestre 1',
+      dateDebut: `02/09/${startYear}`,
+      dateFin: `20/12/${startYear}`,
+      dateLimiteNotes: `15/12/${startYear}`,
+      dateBulletin: `22/12/${startYear}`,
+      verrouillee: false,
+    },
+    {
+      number: 2,
+      label: 'Semestre 2',
+      dateDebut: `05/01/${endYear}`,
+      dateFin: `30/06/${endYear}`,
+      dateLimiteNotes: `20/06/${endYear}`,
+      dateBulletin: `27/06/${endYear}`,
+      verrouillee: false,
+    },
+  ];
+}
+
+export function buildAcademicConfigs(): AcademicYearConfig[] {
+  const anneeOuverte = ACADEMIC_YEARS.find((y) => y.statut === 'ouverte') ?? ACADEMIC_YEARS[0]!;
+  return CLASS_SEEDS.map((seed) => ({
+    id: `acfg-${seed.id}`,
+    levelTarget: null,
+    classId: seed.id,
+    periodType: 'semestre',
+    semesterCount: 2,
+    periods: academicPeriodsFor(anneeOuverte.label),
+    d1Weight: 1,
+    d2Weight: 1,
+    compositionWeight: 2,
+    minPassAverage: 10,
+    updatedAt: '01/09/2026',
+  }));
+}
+
+function hashStringToInt(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+/**
+ * Moyennes par matière d'un élève pour un semestre — dérivées de façon
+ * déterministe de `Student.moyenne` (seed = identifiant élève + semestre, pas
+ * de dépendance à l'ordre d'appel). Ne couvre que les matières réellement
+ * enseignées dans sa classe (`enseignee: true`), comme le fait le vrai calcul
+ * côté `academic-service` (une matière non enseignée n'a pas de moyenne).
+ */
+export function buildSubjectAveragesForStudent(
+  student: Student,
+  classId: string,
+  semesterNumber: number,
+  weights: { d1Weight: number; d2Weight: number; compositionWeight: number },
+): SubjectAverage[] {
+  const rand = mulberry32(hashStringToInt(`${student.id}|${classId}|sem${semesterNumber}`));
+  const totalWeight = weights.d1Weight + weights.d2Weight + weights.compositionWeight || 1;
+  return buildSubjects()
+    .map((subj) => ({ subj, coef: subj.coefficients.find((c) => c.classeId === classId) }))
+    .filter((x) => x.coef?.enseignee)
+    .map(({ subj, coef }) => {
+      const base = student.moyenne;
+      const note = () => Math.round(Math.max(0, Math.min(20, base + (rand() - 0.5) * 5)) * 100) / 100;
+      const d1 = note();
+      const d2 = note();
+      const composition = note();
+      const moyenne = Math.round(
+        ((d1 * weights.d1Weight + d2 * weights.d2Weight + composition * weights.compositionWeight) / totalWeight) * 100,
+      ) / 100;
+      return {
+        subjectId: subj.id,
+        subjectNom: subj.nom,
+        d1,
+        d2,
+        composition,
+        moyenne,
+        coefficient: coef!.valeur,
+        pointsPonderes: Math.round(moyenne * coef!.valeur * 100) / 100,
+        mention: mentionFromAverage(moyenne),
+      };
+    });
 }

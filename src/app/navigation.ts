@@ -29,6 +29,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/enseignants', label: 'Enseignants', icon: '🧑‍🏫' },
       { to: '/eleves', label: 'Élèves', icon: '🎓' },
       { to: '/matieres', label: 'Matières', icon: '📘' },
+      { to: '/resultats', label: 'Résultats & bulletins', icon: '🧮' },
       { to: '/promotions', label: 'Promotions', icon: '⬆️' },
       { to: '/transferts', label: 'Transferts', icon: '↔️' },
       { to: '/annee-scolaire', label: 'Année scolaire', icon: '📅' },
