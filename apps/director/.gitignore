@@ -1,0 +1,20 @@
+# Dépendances et builds
+node_modules/
+dist/
+dist-ssr/
+coverage/
+
+# Environnement — jamais de secrets commités ; .env.example documente les clés.
+.env
+.env.*
+!.env.example
+
+# Artefacts TypeScript / Vite
+*.tsbuildinfo
+.vite/
+
+# Éditeurs / OS
+.DS_Store
+.idea/
+.vscode/
+*.log

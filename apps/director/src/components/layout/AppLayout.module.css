@@ -1,0 +1,42 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: var(--space-lg);
+  max-width: var(--layout-max);
+  width: 100%;
+}
+
+.backdrop {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 40%);
+    z-index: 15;
+  }
+
+  .content {
+    padding: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: var(--space-sm);
+  }
+}
