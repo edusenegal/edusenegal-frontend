@@ -1,0 +1,187 @@
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Button, Card, CardHeader, Field, Input, Select, StateView } from '@/components/ui';
+import { useServices } from '@/hooks/useServices';
+import type { AssessmentType } from '@/types/domain';
+
+const TYPE_LABEL: Record<AssessmentType, string> = {
+  devoir1: 'Devoir 1',
+  devoir2: 'Devoir 2',
+  composition: 'Composition',
+  interro: 'Interrogation',
+  tp: 'TP',
+  td: 'TD',
+  devoir: 'Devoir',
+  controle_continu: 'Contrôle continu',
+  examen: 'Examen',
+  projet: 'Projet',
+  expose: 'Exposé',
+  stage: 'Stage',
+};
+const TYPES = Object.keys(TYPE_LABEL) as AssessmentType[];
+
+/** Saisie en masse — une note par élève de la classe, même type/coefficient/semestre. */
+export default function GradeEntryPage() {
+  const { myClasses, subjects, grades } = useServices();
+
+  const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
+  const subjectsQuery = useQuery({ queryKey: ['subjects', 'mine'], queryFn: () => subjects.listMine() });
+
+  const [classId, setClassId] = useState('');
+  const [subjectId, setSubjectId] = useState('');
+  const [semestre, setSemestre] = useState(1);
+  const [type, setType] = useState<AssessmentType>('devoir1');
+  const [coefficient, setCoefficient] = useState(1);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [absents, setAbsents] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ saved: number; updated: number; failed: number } | null>(null);
+
+  const rosterQuery = useQuery({
+    queryKey: ['roster', classId],
+    queryFn: () => myClasses.roster(classId),
+    enabled: classId !== '',
+  });
+
+  const entries = useMemo(
+    () =>
+      (rosterQuery.data ?? []).map((s) => ({
+        studentId: s.id,
+        valeur: Number(values[s.id] ?? 0),
+        absent: absents[s.id] ?? false,
+      })),
+    [rosterQuery.data, values, absents],
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: () => grades.enterBulk({ classId, subjectId, semestre, type, session: 1, coefficient, entries }),
+    onSuccess: (r) => {
+      setResult(r);
+      setError(null);
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Échec de l’enregistrement.'),
+  });
+
+  function onSubmit() {
+    if (!classId || !subjectId) {
+      setError('Classe et matière sont obligatoires.');
+      return;
+    }
+    setResult(null);
+    saveMutation.mutate();
+  }
+
+  return (
+    <div>
+      <PageHeader title="Saisie des notes" subtitle="Notes en masse pour une classe, une matière et une évaluation." />
+
+      <Card padded style={{ marginBottom: 16 }}>
+        <CardHeader title="Évaluation" />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+          <Field label="Classe" required>
+            <Select value={classId} onChange={(e) => setClassId(e.target.value)} style={{ width: 180 }}>
+              <option value="">Choisir…</option>
+              {(classesQuery.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nom}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Matière" required>
+            <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} style={{ width: 180 }}>
+              <option value="">Choisir…</option>
+              {(subjectsQuery.data ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nom}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Semestre">
+            <Select value={String(semestre)} onChange={(e) => setSemestre(Number(e.target.value))} style={{ width: 120 }}>
+              {[1, 2, 3, 4].map((s) => (
+                <option key={s} value={s}>
+                  Semestre {s}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Type">
+            <Select value={type} onChange={(e) => setType(e.target.value as AssessmentType)} style={{ width: 170 }}>
+              {TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TYPE_LABEL[t]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Coefficient">
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              value={coefficient}
+              onChange={(e) => setCoefficient(Number(e.target.value))}
+              style={{ width: 90 }}
+            />
+          </Field>
+        </div>
+      </Card>
+
+      {classId ? (
+        <Card>
+          <CardHeader
+            title="Notes des élèves"
+            action={
+              <Button variant="primary" size="sm" loading={saveMutation.isPending} onClick={onSubmit}>
+                Enregistrer
+              </Button>
+            }
+          />
+          {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{error}</p> : null}
+          {result ? (
+            <p style={{ color: 'var(--color-success)', fontSize: 13, margin: '0 0 8px' }}>
+              {result.saved} enregistrée(s), {result.updated} mise(s) à jour{result.failed ? `, ${result.failed} échec(s)` : ''}.
+            </p>
+          ) : null}
+          <StateView loading={rosterQuery.isLoading} error={rosterQuery.error} empty={rosterQuery.data?.length === 0}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(rosterQuery.data ?? []).map((s) => (
+                <div
+                  key={s.id}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--color-border)' }}
+                >
+                  <span>
+                    {s.prenom} {s.nom}
+                  </span>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <label style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={absents[s.id] ?? false}
+                        onChange={(e) => setAbsents((prev) => ({ ...prev, [s.id]: e.target.checked }))}
+                      />
+                      Absent
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={20}
+                      step={0.25}
+                      disabled={absents[s.id]}
+                      value={values[s.id] ?? ''}
+                      onChange={(e) => setValues((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                      style={{ width: 80 }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </StateView>
+        </Card>
+      ) : null}
+    </div>
+  );
+}

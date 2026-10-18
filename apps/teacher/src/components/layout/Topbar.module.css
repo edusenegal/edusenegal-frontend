@@ -1,0 +1,32 @@
+.topbar {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 0 var(--space-lg);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+}
+
+.menuBtn {
+  display: none;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+@media (max-width: 1024px) {
+  .menuBtn {
+    display: inline-flex;
+  }
+}
