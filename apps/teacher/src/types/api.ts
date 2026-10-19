@@ -169,6 +169,16 @@ export interface SchoolResponseDto {
 }
 
 /** GET /api/v1/subjects/{id}, GET /api/v1/subjects/school/{schoolId}/global */
+/** Une entrée de coefficient par classe — `subject-service`, voir `UpdateCoefficientsRequestDto`. */
+export interface CoefficientEntryDto {
+  classId: string;
+  level?: string | null;
+  series?: string | null;
+  tag?: string | null;
+  value: number;
+  active: boolean;
+}
+
 export interface SubjectResponseDto {
   id: string;
   schoolId: string | null;
@@ -177,6 +187,7 @@ export interface SubjectResponseDto {
   names: Record<string, string>;
   schoolTypeScope: ApiSchoolType;
   optional: boolean;
+  coefficients: CoefficientEntryDto[];
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -214,6 +225,20 @@ export interface GradeResponseDto {
   locked: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** GradeHistoryResponse (academic-service) — GET /api/v1/academic/grades/{gradeId}/history */
+export interface GradeHistoryResponseDto {
+  id: string;
+  gradeId: string;
+  action: 'ENTERED' | 'UPDATED';
+  oldValue: number | null;
+  newValue: number;
+  oldComment: string | null;
+  newComment: string | null;
+  actorId: string;
+  actorName: string | null;
+  at: string;
 }
 
 /** POST /api/v1/academic/grades */
@@ -290,6 +315,8 @@ export interface GradeDisputeResponseDto {
   classId: string;
   subjectId: string;
   subjectName: string | null;
+  /** Type d'évaluation de la note contestée — résolu depuis la note au moment de la lecture, peut être absent si la note a disparu. */
+  type?: ApiAssessmentType | null;
   teacherId: string;
   disputedValue: number;
   currentValue: number | null;
@@ -423,6 +450,7 @@ export interface DocumentResponseDto {
   classId: string | null;
   subjectId: string;
   subjectName: string | null;
+  timetableSlotId?: string | null;
   uploadedByTeacherId: string;
   title: string;
   description: string | null;
@@ -438,7 +466,9 @@ export interface DocumentResponseDto {
 export interface UploadDocumentRequestDto {
   schoolId?: string;
   classId?: string;
-  subjectId: string;
+  subjectId?: string;
+  /** Rattache le dépôt à un créneau précis de l'emploi du temps — voir `SlotDetailSheet`. */
+  timetableSlotId?: string;
   type: ApiCourseDocumentType;
   title: string;
   description?: string;
@@ -527,6 +557,26 @@ export interface ScheduleExamRequestDto {
 /** Jour de semaine côté backend — `MON`..`SAT`. */
 export type ApiDayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT';
 
+// ── Salles de classe (schedule-service, ClassRoomController) ──
+
+/** ClassRoomResponse. */
+export interface ClassRoomDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  capacity: number;
+  classId?: string | null;
+}
+
+/** RoomAvailabilityResponse — GET /api/v1/rooms/availability */
+export interface RoomAvailabilityResponseDto {
+  roomId: string;
+  roomName: string;
+  capacity: number;
+  available: boolean;
+  conflictReason: string | null;
+}
+
 /** TimetableSlotResponse (schedule-service). */
 export interface TimetableSlotResponseDto {
   id: string;
@@ -541,6 +591,7 @@ export interface TimetableSlotResponseDto {
   startTime: string;
   endTime: string;
   room: string | null;
+  description?: string | null;
   grayedOut: boolean;
   weekNumber: number;
   createdAt?: string;

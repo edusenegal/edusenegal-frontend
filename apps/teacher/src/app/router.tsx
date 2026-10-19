@@ -5,6 +5,8 @@ import { StateView } from '@/components/ui';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import LoginPage from '@/features/auth/LoginPage';
 
+const SchoolSelectionPage = lazy(() => import('@/features/auth/SchoolSelectionPage'));
+
 /**
  * Chaque écran est chargé à la demande — même convention que
  * `apps/director` (voir son `app/router.tsx`).
@@ -37,6 +39,7 @@ export function AppRoutes() {
         <Route path="/connexion" element={<LoginPage />} />
 
         <Route element={<ProtectedRoute />}>
+          <Route path="choix-ecole" element={<SchoolSelectionPage />} />
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="emploi-du-temps" element={<SchedulePage />} />

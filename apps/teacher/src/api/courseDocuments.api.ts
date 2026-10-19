@@ -20,6 +20,7 @@ function fromDocumentResponse(dto: DocumentResponseDto): CourseDocument {
   return {
     id: dto.id,
     subjectId: dto.subjectId,
+    timetableSlotId: dto.timetableSlotId ?? null,
     type: TYPE_FROM_API[dto.type] ?? 'autre',
     titre: dto.title,
     description: dto.description,
@@ -39,10 +40,16 @@ export function createCourseDocumentsApi(): CourseDocumentsPort {
       return dtos.map(fromDocumentResponse);
     },
 
+    async listForSlot(timetableSlotId): Promise<CourseDocument[]> {
+      const dtos = await request<DocumentResponseDto[]>(`/api/v1/documents/slot/${encodeURIComponent(timetableSlotId)}`);
+      return dtos.map(fromDocumentResponse);
+    },
+
     async upload(input): Promise<CourseDocument> {
       const data: UploadDocumentRequestDto = {
         classId: input.classId,
         subjectId: input.subjectId,
+        timetableSlotId: input.timetableSlotId,
         type: TYPE_TO_API[input.type],
         title: input.titre,
         description: input.description,

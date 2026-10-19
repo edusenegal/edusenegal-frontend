@@ -13,6 +13,7 @@ import { createPayslipsApi } from '@/api/payslips.api';
 import { createPersonalDocumentsApi } from '@/api/personalDocuments.api';
 import { createQuizApi } from '@/api/quiz.api';
 import { createResultsApi } from '@/api/results.api';
+import { createRoomsApi } from '@/api/rooms.api';
 import { createSchoolApi } from '@/api/school.api';
 import { createSubjectsApi } from '@/api/subjects.api';
 import { createTimetableApi } from '@/api/timetable.api';
@@ -33,6 +34,7 @@ export function createApiServices(): Services {
     courseDocuments: createCourseDocumentsApi(),
     personalDocuments: createPersonalDocumentsApi(),
     exams: createExamsApi(),
+    rooms: createRoomsApi(),
     leaves: createLeavesApi(),
     payslips: createPayslipsApi(),
     quiz: createQuizApi(),

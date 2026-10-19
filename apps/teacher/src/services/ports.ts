@@ -9,6 +9,7 @@ import type {
   AppNotification,
   AssessmentType,
   AttendanceStudentEntry,
+  ClassRoom,
   Complaint,
   ComplaintType,
   CourseDocument,
@@ -20,6 +21,7 @@ import type {
   Grade,
   GradeDispute,
   GradeDisputeDecisionInput,
+  GradeHistoryEntry,
   GroupMessage,
   LeaveRequest,
   MessageKind,
@@ -29,6 +31,7 @@ import type {
   PersonalDocumentType,
   Quiz,
   RequestLeaveInput,
+  RoomAvailability,
   SalarySlip,
   School,
   SemesterResult,
@@ -48,11 +51,17 @@ export interface AuthPort {
   logout(): Promise<void>;
   currentTeacher(): Promise<TeacherProfile>;
   changePassword(newPassword: string): Promise<void>;
+  /** Bascule l'école active — enseignant multi-écoles, voir `SchoolSelectionPage`. */
+  switchSchool(schoolId: string): Promise<TeacherProfile>;
+  /** Photo de profil de l'enseignant connecté — voir `UserServiceImpl#updateProfilePhoto`. */
+  updateMyPhoto(file: File): Promise<TeacherProfile>;
 }
 
 /** Lecture seule — l'enseignant ne modifie ni le branding ni l'année scolaire. */
 export interface SchoolPort {
   getSchool(): Promise<School>;
+  /** Fiche d'une école précise, par id — choix d'école au multi-établissement. */
+  getSchoolById(schoolId: string): Promise<School>;
 }
 
 /** Matières enseignées par le professeur connecté — résolu depuis son profil. */
@@ -70,6 +79,8 @@ export interface MyClassesPort {
 export interface TimetablePort {
   /** Emploi du temps hebdomadaire du professeur connecté, toutes classes confondues. */
   mine(): Promise<TimetableSlot[]>;
+  /** Note de préparation libre sur un créneau — vide/null pour l'effacer. */
+  updateDescription(slotId: string, description: string | null): Promise<TimetableSlot>;
 }
 
 export interface GradesPort {
@@ -97,6 +108,8 @@ export interface GradesPort {
     entries: { studentId: string; valeur: number; commentaire?: string; absent: boolean }[];
   }): Promise<{ requested: number; saved: number; updated: number; failed: number }>;
   update(gradeId: string, valeur: number, commentaire?: string): Promise<Grade>;
+  /** Historique des modifications d'une note — traçabilité, visible tant qu'on a le droit de voir la note. */
+  history(gradeId: string): Promise<GradeHistoryEntry[]>;
 }
 
 export interface GradeDisputesPort {
@@ -136,9 +149,12 @@ export interface AttendancePort {
  */
 export interface CourseDocumentsPort {
   list(subjectId: string): Promise<CourseDocument[]>;
+  /** Documents rattachés à un créneau précis de l'emploi du temps. */
+  listForSlot(timetableSlotId: string): Promise<CourseDocument[]>;
   upload(input: {
-    subjectId: string;
+    subjectId?: string;
     classId?: string;
+    timetableSlotId?: string;
     type: CourseDocumentType;
     titre: string;
     description?: string;
@@ -180,6 +196,18 @@ export interface ExamsPort {
   remove(examId: string): Promise<void>;
 }
 
+export interface RoomsPort {
+  /** Catalogue des salles de l'école — consultation seule (gestion = direction). */
+  list(): Promise<ClassRoom[]>;
+  /** Disponibilité de toutes les salles pour un examen ponctuel (date, pas jour récurrent). */
+  checkAvailability(input: {
+    date?: string;
+    heureDebut: string;
+    heureFin: string;
+    excludeExamId?: string;
+  }): Promise<RoomAvailability[]>;
+}
+
 export interface LeavesPort {
   /** Congés du professeur connecté. */
   mine(): Promise<LeaveRequest[]>;
@@ -189,6 +217,8 @@ export interface LeavesPort {
 /** Bulletins de salaire — lecture seule, voir `apps/director`. */
 export interface PayslipsPort {
   mine(): Promise<SalarySlip[]>;
+  /** Télécharge le PDF de la fiche de paie (déclenche l'enregistrement local). */
+  downloadPdf(payslipId: string): Promise<void>;
 }
 
 export interface QuizPort {
@@ -231,6 +261,7 @@ export interface Services {
   courseDocuments: CourseDocumentsPort;
   personalDocuments: PersonalDocumentsPort;
   exams: ExamsPort;
+  rooms: RoomsPort;
   leaves: LeavesPort;
   payslips: PayslipsPort;
   quiz: QuizPort;

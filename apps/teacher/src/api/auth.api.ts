@@ -2,6 +2,7 @@ import { request } from '@/api/client';
 import { AppError, toAppError } from '@/services/errors';
 import { sessionStorageAdapter } from '@/services/session-storage';
 import { useAuthStore, type AuthSession } from '@/stores/auth.store';
+import { clearContextCache } from '@/api/context';
 import type { AuthPort } from '@/services/ports';
 import type { LoginResponseDto, UserResponseDto } from '@/types/api';
 import type { TeacherProfile } from '@/types/domain';
@@ -77,6 +78,38 @@ export function createAuthApi(): AuthPort {
         body: { newPassword },
       });
     },
+
+    /**
+     * Bascule le contexte école actif — mint un nouveau jeton côté passerelle
+     * (voir `/api/v1/auth/switch-school`), pas une simple préférence locale :
+     * toute requête suivante doit porter le claim `school_id` de la nouvelle
+     * école. Le cache d'année scolaire (`context.ts`) est invalidé : il était
+     * résolu pour l'ancienne école.
+     */
+    async switchSchool(schoolId: string): Promise<TeacherProfile> {
+      const response = await request<LoginResponseDto>('/api/v1/auth/switch-school', {
+        method: 'POST',
+        body: { schoolId },
+      });
+      useAuthStore.getState().setSchoolContext(response);
+      clearContextCache();
+      const teacher = await fetchTeacherProfile(response.userId ?? '');
+      useAuthStore.getState().setTeacher(teacher);
+      return teacher;
+    },
+
+    async updateMyPhoto(file: File): Promise<TeacherProfile> {
+      const userId = useAuthStore.getState().session?.userId ?? '';
+      const formData = new FormData();
+      formData.append('file', file);
+      const dto = await request<UserResponseDto>(
+        `/api/v1/users/${encodeURIComponent(userId)}/photo`,
+        { method: 'POST', formData },
+      );
+      const teacher = toTeacherProfile(dto);
+      useAuthStore.getState().setTeacher(teacher);
+      return teacher;
+    },
   };
 }
 
@@ -90,6 +123,10 @@ export async function restoreSession(): Promise<void> {
   try {
     const tokens = await requestRefresh(refreshToken);
     useAuthStore.getState().setSession(tokens);
+    // Une session restaurée reprend l'école déjà active côté serveur (choisie
+    // à une connexion antérieure, cf. `switchSchool` qui la persiste) : on ne
+    // renvoie pas l'enseignant au choix d'école à chaque rechargement de page.
+    useAuthStore.getState().confirmSchool();
     const teacher = await fetchTeacherProfile(tokens.userId ?? '');
     useAuthStore.getState().setTeacher(teacher);
   } catch {

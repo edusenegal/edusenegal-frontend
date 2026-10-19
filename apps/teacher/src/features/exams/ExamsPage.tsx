@@ -16,7 +16,7 @@ const TYPE_LABEL: Record<ExamType, string> = {
 const TYPES = Object.keys(TYPE_LABEL) as ExamType[];
 
 export default function ExamsPage() {
-  const { myClasses, subjects, exams } = useServices();
+  const { myClasses, subjects, exams, rooms } = useServices();
   const queryClient = useQueryClient();
 
   const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
@@ -32,6 +32,18 @@ export default function ExamsPage() {
   const [heureFin, setHeureFin] = useState('10:00');
   const [salle, setSalle] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const roomsQuery = useQuery({ queryKey: ['rooms'], queryFn: () => rooms.list() });
+  // Disponibilité recalculée à chaque changement de date/heure, pour marquer
+  // dans la liste les salles déjà occupées par un autre examen ce jour-là.
+  const availabilityQuery = useQuery({
+    queryKey: ['room-availability', date, heureDebut, heureFin],
+    queryFn: () => rooms.checkAvailability({ date, heureDebut, heureFin }),
+    enabled: date !== '' && heureFin > heureDebut,
+  });
+  const availabilityByName = new Map(
+    (availabilityQuery.data ?? []).map((a) => [a.salleNom.toLowerCase(), a]),
+  );
 
   const examsQuery = useQuery({
     queryKey: ['exams', classId],
@@ -142,8 +154,27 @@ export default function ExamsPage() {
           <Field label="Fin">
             <Input type="time" value={heureFin} onChange={(e) => setHeureFin(e.target.value)} />
           </Field>
-          <Field label="Salle">
-            <Input value={salle} onChange={(e) => setSalle(e.target.value)} style={{ width: 100 }} />
+          <Field
+            label="Salle"
+            hint={
+              salle && availabilityByName.get(salle.toLowerCase())?.disponible === false
+                ? 'Cette salle est déjà occupée à ce créneau.'
+                : undefined
+            }
+          >
+            <Select value={salle} onChange={(e) => setSalle(e.target.value)} style={{ width: 160 }}>
+              <option value="">— Aucune —</option>
+              {(roomsQuery.data ?? []).map((r) => {
+                const avail = availabilityByName.get(r.nom.toLowerCase());
+                const unavailable = avail ? !avail.disponible : false;
+                return (
+                  <option key={r.id} value={r.nom} disabled={unavailable}>
+                    {r.nom}
+                    {unavailable ? ' — occupée' : ''}
+                  </option>
+                );
+              })}
+            </Select>
           </Field>
           <Button variant="primary" size="sm" loading={scheduleMutation.isPending} onClick={onSubmit}>
             Planifier

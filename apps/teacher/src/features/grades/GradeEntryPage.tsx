@@ -21,6 +21,9 @@ const TYPE_LABEL: Record<AssessmentType, string> = {
 };
 const TYPES = Object.keys(TYPE_LABEL) as AssessmentType[];
 
+/** Barème standard des notes — une note ne peut jamais le dépasser. */
+const BAREME_STANDARD = 20;
+
 /** Saisie en masse — une note par élève de la classe, même type/coefficient/semestre. */
 export default function GradeEntryPage() {
   const { myClasses, subjects, grades } = useServices();
@@ -32,11 +35,15 @@ export default function GradeEntryPage() {
   const [subjectId, setSubjectId] = useState('');
   const [semestre, setSemestre] = useState(1);
   const [type, setType] = useState<AssessmentType>('devoir1');
-  const [coefficient, setCoefficient] = useState(1);
   const [values, setValues] = useState<Record<string, string>>({});
   const [absents, setAbsents] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ saved: number; updated: number; failed: number } | null>(null);
+
+  /** Coefficient récupéré depuis la configuration de la matière pour cette classe — jamais saisi à la main. */
+  const selectedSubject = (subjectsQuery.data ?? []).find((s) => s.id === subjectId);
+  const coefficientEntry = selectedSubject?.coefficients.find((c) => c.classeId === classId && c.enseignee);
+  const coefficient = coefficientEntry?.valeur ?? null;
 
   const rosterQuery = useQuery({
     queryKey: ['roster', classId],
@@ -55,7 +62,7 @@ export default function GradeEntryPage() {
   );
 
   const saveMutation = useMutation({
-    mutationFn: () => grades.enterBulk({ classId, subjectId, semestre, type, session: 1, coefficient, entries }),
+    mutationFn: () => grades.enterBulk({ classId, subjectId, semestre, type, session: 1, coefficient: coefficient ?? 0, entries }),
     onSuccess: (r) => {
       setResult(r);
       setError(null);
@@ -66,6 +73,15 @@ export default function GradeEntryPage() {
   function onSubmit() {
     if (!classId || !subjectId) {
       setError('Classe et matière sont obligatoires.');
+      return;
+    }
+    if (coefficient === null) {
+      setError("Coefficient introuvable : cette matière n'est pas configurée pour cette classe.");
+      return;
+    }
+    const depasseBareme = entries.some((e) => !e.absent && (e.valeur < 0 || e.valeur > BAREME_STANDARD));
+    if (depasseBareme) {
+      setError(`Une note ne peut pas dépasser le barème (${BAREME_STANDARD}).`);
       return;
     }
     setResult(null);
@@ -118,14 +134,22 @@ export default function GradeEntryPage() {
             </Select>
           </Field>
           <Field label="Coefficient">
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              value={coefficient}
-              onChange={(e) => setCoefficient(Number(e.target.value))}
-              style={{ width: 90 }}
-            />
+            <div
+              style={{
+                width: 90,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                border: '1px solid var(--color-border)',
+                fontWeight: 600,
+                color: coefficient === null ? 'var(--color-danger)' : undefined,
+              }}
+              title="Coefficient défini dans la configuration de la matière pour cette classe."
+            >
+              {coefficient === null ? (subjectId && classId ? 'Aucun' : '—') : coefficient}
+            </div>
           </Field>
         </div>
       </Card>
@@ -168,11 +192,16 @@ export default function GradeEntryPage() {
                     <Input
                       type="number"
                       min={0}
-                      max={20}
+                      max={BAREME_STANDARD}
                       step={0.25}
                       disabled={absents[s.id]}
                       value={values[s.id] ?? ''}
-                      onChange={(e) => setValues((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const n = Number(raw);
+                        const clamped = raw !== '' && !Number.isNaN(n) && n > BAREME_STANDARD ? String(BAREME_STANDARD) : raw;
+                        setValues((prev) => ({ ...prev, [s.id]: clamped }));
+                      }}
                       style={{ width: 80 }}
                     />
                   </div>

@@ -14,6 +14,22 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 };
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'retard', 'justifie'];
 
+function isFutureSlot(date: string, period: string): boolean {
+  const todayStr = todayISO();
+  if (date > todayStr) return true;
+  if (date < todayStr) return false;
+  const startTime = period.split('-')[0]?.trim();
+  if (!startTime) return false;
+  const parts = startTime.split(':').map(Number);
+  const h = parts[0];
+  const m = parts[1];
+  if (h === undefined || m === undefined || Number.isNaN(h) || Number.isNaN(m)) return false;
+  const now = new Date();
+  const slotStart = new Date();
+  slotStart.setHours(h, m, 0, 0);
+  return slotStart > now;
+}
+
 export default function AttendancePage() {
   const { myClasses, subjects, attendance } = useServices();
   const queryClient = useQueryClient();
@@ -71,6 +87,10 @@ export default function AttendancePage() {
       setError('Classe, matière, date et créneau sont obligatoires.');
       return;
     }
+    if (isFutureSlot(date, period)) {
+      setError("Vous ne pouvez pas faire l'appel pour une date ou un horaire à venir.");
+      return;
+    }
     setSaved(false);
     markMutation.mutate();
   }
@@ -103,7 +123,7 @@ export default function AttendancePage() {
             </Select>
           </Field>
           <Field label="Date" required>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Créneau horaire" required>
             <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="08:00-10:00" style={{ width: 140 }} />

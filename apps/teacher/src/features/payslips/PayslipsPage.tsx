@@ -1,13 +1,31 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Card, StateView, Table, type Column } from '@/components/ui';
+import { Button, Card, Sheet, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { fmtXOF } from '@/utils/format';
-import type { SalarySlip } from '@/types/domain';
+import type { PaymentChannel, SalarySlip } from '@/types/domain';
+
+const CHANNEL_LABEL: Record<PaymentChannel, string> = {
+  wave: 'Wave',
+  orange_money: 'Orange Money',
+  especes: 'Espèces',
+  cheque: 'Chèque',
+  virement_bancaire: 'Virement bancaire',
+};
 
 export default function PayslipsPage() {
   const { payslips } = useServices();
   const list = useQuery({ queryKey: ['payslips', 'mine'], queryFn: () => payslips.mine() });
+
+  const [selected, setSelected] = useState<SalarySlip | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const downloadMutation = useMutation({
+    mutationFn: (payslipId: string) => payslips.downloadPdf(payslipId),
+    onSuccess: () => setDownloadError(null),
+    onError: (e) => setDownloadError(e instanceof Error ? e.message : 'Échec du téléchargement.'),
+  });
 
   const columns: Column<SalarySlip>[] = [
     { key: 'periode', header: 'Période', render: (p) => p.periode },
@@ -30,9 +48,69 @@ export default function PayslipsPage() {
       <PageHeader title="Ma fiche de paie" subtitle="Historique de vos bulletins de salaire." />
       <Card>
         <StateView loading={list.isLoading} error={list.error} empty={list.data?.length === 0}>
-          <Table columns={columns} rows={list.data ?? []} rowKey={(p) => p.id} />
+          <Table
+            columns={columns}
+            rows={list.data ?? []}
+            rowKey={(p) => p.id}
+            onRowClick={(p) => {
+              setSelected(p);
+              setDownloadError(null);
+            }}
+          />
         </StateView>
       </Card>
+
+      <Sheet
+        title={selected ? `Fiche de paie — ${selected.periode}` : 'Fiche de paie'}
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        width="sm"
+        footer={
+          selected ? (
+            <Button
+              variant="primary"
+              loading={downloadMutation.isPending}
+              onClick={() => downloadMutation.mutate(selected.id)}
+            >
+              Télécharger le PDF
+            </Button>
+          ) : undefined
+        }
+      >
+        {selected ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5 }}>
+            <Row label="Période" value={selected.periode} />
+            <Row label="Montant brut" value={fmtXOF(selected.montantBrut)} />
+            <Row
+              label="Mode de rémunération"
+              value={
+                selected.salaryMode === 'par_jour'
+                  ? 'Par jour travaillé'
+                  : selected.salaryMode === 'par_heure'
+                    ? 'Par heure travaillée'
+                    : 'Fixe'
+              }
+            />
+            {selected.joursTravailles != null ? <Row label="Jours travaillés" value={String(selected.joursTravailles)} /> : null}
+            {selected.heuresTravaillees != null ? <Row label="Heures travaillées" value={String(selected.heuresTravaillees)} /> : null}
+            {selected.joursAbsenceInjustifiee != null ? (
+              <Row label="Absences injustifiées" value={`${selected.joursAbsenceInjustifiee} j.`} />
+            ) : null}
+            <Row label="Moyen de paiement" value={selected.modePaiement ? CHANNEL_LABEL[selected.modePaiement] : '—'} />
+            <Row label="Généré le" value={selected.dateGeneration} />
+            {downloadError ? <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: 0 }}>{downloadError}</p> : null}
+          </div>
+        ) : null}
+      </Sheet>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 6 }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
     </div>
   );
 }

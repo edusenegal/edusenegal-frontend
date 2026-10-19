@@ -5,10 +5,11 @@ import type {
   BulkEnterGradesRequestDto,
   BulkGradeResultDto,
   EnterGradeRequestDto,
+  GradeHistoryResponseDto,
   GradeResponseDto,
 } from '@/types/api';
 import type { GradesPort } from '@/services/ports';
-import type { AssessmentType, Grade } from '@/types/domain';
+import type { AssessmentType, Grade, GradeHistoryEntry } from '@/types/domain';
 
 const TYPE_TO_API: Record<AssessmentType, ApiAssessmentType> = {
   devoir1: 'DEVOIR1',
@@ -24,7 +25,7 @@ const TYPE_TO_API: Record<AssessmentType, ApiAssessmentType> = {
   expose: 'EXPOSE',
   stage: 'STAGE',
 };
-const TYPE_FROM_API: Record<ApiAssessmentType, AssessmentType> = Object.fromEntries(
+export const TYPE_FROM_API: Record<ApiAssessmentType, AssessmentType> = Object.fromEntries(
   Object.entries(TYPE_TO_API).map(([k, v]) => [v, k]),
 ) as Record<ApiAssessmentType, AssessmentType>;
 
@@ -42,6 +43,21 @@ function fromGradeResponse(dto: GradeResponseDto): Grade {
     coefficient: dto.coefficient,
     commentaire: dto.comment,
     verrouillee: dto.locked,
+  };
+}
+
+function fromGradeHistoryResponse(dto: GradeHistoryResponseDto): GradeHistoryEntry {
+  return {
+    id: dto.id,
+    gradeId: dto.gradeId,
+    action: dto.action === 'ENTERED' ? 'entree' : 'mise_a_jour',
+    ancienneValeur: dto.oldValue,
+    nouvelleValeur: dto.newValue,
+    ancienCommentaire: dto.oldComment,
+    nouveauCommentaire: dto.newComment,
+    acteurId: dto.actorId,
+    acteurNom: dto.actorName,
+    le: dto.at,
   };
 }
 
@@ -105,6 +121,13 @@ export function createGradesApi(): GradesPort {
         query: { value: valeur, comment: commentaire },
       });
       return fromGradeResponse(dto);
+    },
+
+    async history(gradeId): Promise<GradeHistoryEntry[]> {
+      const dtos = await request<GradeHistoryResponseDto[]>(
+        `/api/v1/academic/grades/${encodeURIComponent(gradeId)}/history`,
+      );
+      return dtos.map(fromGradeHistoryResponse);
     },
   };
 }

@@ -5,7 +5,16 @@ import type { SubjectsPort } from '@/services/ports';
 import type { Subject } from '@/types/domain';
 
 function fromSubjectResponse(dto: SubjectResponseDto): Subject {
-  return { id: dto.id, code: dto.code, nom: dto.names['fr'] ?? dto.code };
+  return {
+    id: dto.id,
+    code: dto.code,
+    nom: dto.names['fr'] ?? dto.code,
+    coefficients: (dto.coefficients ?? []).map((c) => ({
+      classeId: c.classId,
+      valeur: c.value,
+      enseignee: c.active,
+    })),
+  };
 }
 
 /**

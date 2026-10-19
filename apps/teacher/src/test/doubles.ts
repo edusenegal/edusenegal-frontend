@@ -21,9 +21,12 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       logout: notStubbed('auth.logout'),
       currentTeacher: notStubbed('auth.currentTeacher'),
       changePassword: notStubbed('auth.changePassword'),
+      switchSchool: notStubbed('auth.switchSchool'),
+      updateMyPhoto: notStubbed('auth.updateMyPhoto'),
     },
     school: {
       getSchool: notStubbed('school.getSchool'),
+      getSchoolById: notStubbed('school.getSchoolById'),
     },
     subjects: {
       listMine: notStubbed('subjects.listMine'),
@@ -34,12 +37,14 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
     },
     timetable: {
       mine: notStubbed('timetable.mine'),
+      updateDescription: notStubbed('timetable.updateDescription'),
     },
     grades: {
       listForClass: notStubbed('grades.listForClass'),
       enter: notStubbed('grades.enter'),
       enterBulk: notStubbed('grades.enterBulk'),
       update: notStubbed('grades.update'),
+      history: notStubbed('grades.history'),
     },
     gradeDisputes: {
       listPending: notStubbed('gradeDisputes.listPending'),
@@ -55,6 +60,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
     },
     courseDocuments: {
       list: notStubbed('courseDocuments.list'),
+      listForSlot: notStubbed('courseDocuments.listForSlot'),
       upload: notStubbed('courseDocuments.upload'),
       remove: notStubbed('courseDocuments.remove'),
     },
@@ -68,12 +74,17 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       schedule: notStubbed('exams.schedule'),
       remove: notStubbed('exams.remove'),
     },
+    rooms: {
+      list: notStubbed('rooms.list'),
+      checkAvailability: notStubbed('rooms.checkAvailability'),
+    },
     leaves: {
       mine: notStubbed('leaves.mine'),
       request: notStubbed('leaves.request'),
     },
     payslips: {
       mine: notStubbed('payslips.mine'),
+      downloadPdf: notStubbed('payslips.downloadPdf'),
     },
     quiz: {
       mine: notStubbed('quiz.mine'),

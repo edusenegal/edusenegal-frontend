@@ -26,5 +26,10 @@ export function createSchoolApi(): SchoolPort {
       const dto = await request<SchoolResponseDto>(`/api/v1/schools/${encodeURIComponent(schoolId)}`);
       return fromSchoolResponse(dto);
     },
+
+    async getSchoolById(schoolId: string): Promise<School> {
+      const dto = await request<SchoolResponseDto>(`/api/v1/schools/${encodeURIComponent(schoolId)}`);
+      return fromSchoolResponse(dto);
+    },
   };
 }

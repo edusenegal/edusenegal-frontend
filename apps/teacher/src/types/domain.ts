@@ -39,10 +39,18 @@ export interface TeacherProfile {
   photoUrl: string | null;
 }
 
+/** Coefficient de la matière pour une classe donnée — vient de la configuration de la matière. */
+export interface SubjectCoefficient {
+  classeId: string;
+  valeur: number; // coefficient — 0 si facultative
+  enseignee: boolean; // false = non enseignée dans cette classe
+}
+
 export interface Subject {
   id: string;
   code: string;
   nom: string;
+  coefficients: SubjectCoefficient[]; // une entrée par classe de l'établissement
 }
 
 /** Une des classes où ce professeur enseigne — résolu côté frontend depuis `ClassInfoDto.teacherIds`. */
@@ -68,6 +76,8 @@ export type ScheduleSlotKind = 'cours' | 'permanence' | 'remplacement';
 export interface TimetableSlot {
   id: string;
   classe: string; // nom de classe résolu côté frontend
+  /** Brut, pour le dépôt de fichiers rattachés — `matiere` n'est que le libellé résolu. */
+  subjectId: string | null;
   matiere: string | null;
   jour: 'Lundi' | 'Mardi' | 'Mercredi' | 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
   heureDebut: string; // "08:00"
@@ -75,6 +85,8 @@ export interface TimetableSlot {
   salle: string | null;
   kind: ScheduleSlotKind;
   remplacePar: string | null; // nom du remplaçant, si ce créneau est couvert par quelqu'un d'autre
+  /** Note de préparation libre, ajoutée par l'enseignant — voir `SlotDetailSheet`. */
+  description: string | null;
 }
 
 /** Traduit `AssessmentType` (common-lib). */
@@ -106,6 +118,22 @@ export interface Grade {
   coefficient: number;
   commentaire: string | null;
   verrouillee: boolean;
+}
+
+export type GradeHistoryAction = 'entree' | 'mise_a_jour';
+
+/** Une entrée de l'historique des modifications d'une note — traçabilité (`GradesPort.history`). */
+export interface GradeHistoryEntry {
+  id: string;
+  gradeId: string;
+  action: GradeHistoryAction;
+  ancienneValeur: number | null;
+  nouvelleValeur: number;
+  ancienCommentaire: string | null;
+  nouveauCommentaire: string | null;
+  acteurId: string;
+  acteurNom: string | null;
+  le: string; // ISO-8601
 }
 
 /** Saisie d'une note — un élève à la fois, ou en lot (voir `GradesPort.enterBulk`). */
@@ -164,6 +192,8 @@ export interface GradeDispute {
   classId: string;
   subjectId: string;
   subjectNom: string | null;
+  /** Type d'évaluation de la note contestée — peut être absent si la note a depuis disparu. */
+  type: AssessmentType | null;
   valeurContestee: number;
   valeurActuelle: number | null;
   motif: string;
@@ -201,6 +231,8 @@ export type CourseDocumentType = 'cours' | 'exercice' | 'corrige' | 'sujet_exame
 export interface CourseDocument {
   id: string;
   subjectId: string;
+  /** Rattaché à un créneau précis de l'emploi du temps, le cas échéant. */
+  timetableSlotId: string | null;
   type: CourseDocumentType;
   titre: string;
   description: string | null;
@@ -256,6 +288,23 @@ export interface ScheduleExamInput {
   heureDebut: string;
   heureFin: string;
   salle?: string;
+}
+
+/** Salle de classe du catalogue de l'école — sélectionnable pour un examen (voir `RoomsPort`). */
+export interface ClassRoom {
+  id: string;
+  nom: string;
+  capacite: number; // 0 = non renseignée
+  classeId?: string;
+}
+
+/** Disponibilité d'une salle pour un créneau ponctuel (un examen) — voir `RoomsPort.checkAvailability`. */
+export interface RoomAvailability {
+  salleId: string;
+  salleNom: string;
+  capacite: number;
+  disponible: boolean;
+  raisonConflit: string | null; // null si disponible
 }
 
 /** Traduit `LeaveStatus` (schedule-service). */

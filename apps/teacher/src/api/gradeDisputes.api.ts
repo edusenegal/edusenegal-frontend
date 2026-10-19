@@ -1,4 +1,5 @@
 import { request } from '@/api/client';
+import { TYPE_FROM_API } from '@/api/grades.api';
 import type { GradeDisputeResponseDto, TeacherDisputeDecisionRequestDto } from '@/types/api';
 import type { GradeDisputesPort } from '@/services/ports';
 import type { GradeDispute, GradeDisputeStatus } from '@/types/domain';
@@ -20,6 +21,7 @@ function fromDisputeResponse(dto: GradeDisputeResponseDto): GradeDispute {
     classId: dto.classId,
     subjectId: dto.subjectId,
     subjectNom: dto.subjectName,
+    type: dto.type ? TYPE_FROM_API[dto.type] ?? null : null,
     valeurContestee: dto.disputedValue,
     valeurActuelle: dto.currentValue,
     motif: dto.reason,

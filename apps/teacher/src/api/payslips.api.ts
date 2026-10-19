@@ -1,7 +1,9 @@
 import { request, sessionContext } from '@/api/client';
+import { useAuthStore } from '@/stores/auth.store';
 import type { PayslipResponseDto } from '@/types/api';
 import type { PayslipsPort } from '@/services/ports';
 import type { PaymentChannel, SalaryMode, SalarySlip } from '@/types/domain';
+import { buildDownloadFilename, downloadBlob } from '@/utils/format';
 
 const MODE_FROM_API: Record<string, SalaryMode> = {
   FIXED: 'fixe',
@@ -40,6 +42,15 @@ export function createPayslipsApi(): PayslipsPort {
         query: { schoolId },
       });
       return dtos.map(fromPayslipResponse);
+    },
+
+    async downloadPdf(payslipId): Promise<void> {
+      const teacher = useAuthStore.getState().teacher;
+      const blob = await request<Blob>(
+        `/api/v1/accounting/salary-requests/payslips/${encodeURIComponent(payslipId)}/pdf`,
+        { responseType: 'blob' },
+      );
+      downloadBlob(blob, buildDownloadFilename('fiche_de_paie', teacher?.prenom ?? '', teacher?.nom ?? ''));
     },
   };
 }
