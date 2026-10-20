@@ -1,27 +1,38 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, Sheet, StateView, Textarea } from '@/components/ui';
+import { Button, Field, Input, Sheet, StateView, Textarea } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { fmtBytes } from '@/utils/format';
 import type { TimetableSlot } from '@/types/domain';
 
 interface SlotDetailSheetProps {
   slot: TimetableSlot | null;
+  /** Date réelle de cette occurrence du créneau (résolue par `SchedulePage` — voir `dateForWeekdayThisWeek`/la grille mensuelle). */
+  slotDate: Date | null;
   onClose(): void;
+}
+
+/** Combine une date calendaire et une heure "HH:mm" en un instant précis. */
+function atTime(date: Date, time: string): Date {
+  const [hours, minutes] = time.split(':').map(Number);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours ?? 0, minutes ?? 0);
 }
 
 /**
  * Détail d'un créneau — ouvert en cliquant sur un cours dans `SchedulePage`
  * (vue semaine ou mois). Permet d'ajouter une note de préparation libre
  * (`timetable.updateDescription`) et d'y rattacher des fichiers
- * (`courseDocuments`, filtré par `timetableSlotId`).
+ * (`courseDocuments`, filtré par `timetableSlotId`) — tant que l'horaire du
+ * créneau n'est pas déjà passé (demande explicite) : au-delà de l'heure de
+ * fin, le contenu reste consultable mais plus modifiable.
  */
-export function SlotDetailSheet({ slot, onClose }: SlotDetailSheetProps) {
+export function SlotDetailSheet({ slot, slotDate, onClose }: SlotDetailSheetProps) {
   const { timetable, courseDocuments } = useServices();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [description, setDescription] = useState(slot?.description ?? '');
+  const [chapitre, setChapitre] = useState('');
   const [savedSlotId, setSavedSlotId] = useState(slot?.id ?? null);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +41,11 @@ export function SlotDetailSheet({ slot, onClose }: SlotDetailSheetProps) {
   // seulement quand le créneau affiché change réellement.
   if (slot && slot.id !== savedSlotId) {
     setDescription(slot.description ?? '');
+    setChapitre('');
     setSavedSlotId(slot.id);
   }
+
+  const isPast = slot && slotDate ? atTime(slotDate, slot.heureFin) < new Date() : false;
 
   const documentsQuery = useQuery({
     queryKey: ['course-documents', 'slot', slot?.id],
@@ -51,16 +65,18 @@ export function SlotDetailSheet({ slot, onClose }: SlotDetailSheetProps) {
   const uploadFile = useMutation({
     mutationFn: () => {
       if (!file) throw new Error('Aucun fichier sélectionné.');
+      if (!chapitre.trim()) throw new Error('Le chapitre est obligatoire.');
       return courseDocuments.upload({
         subjectId: slot!.subjectId ?? undefined,
         timetableSlotId: slot!.id,
         type: 'ressource',
-        titre: file.name,
+        titre: chapitre.trim(),
         file,
       });
     },
     onSuccess: () => {
       setFile(null);
+      setChapitre('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       queryClient.invalidateQueries({ queryKey: ['course-documents', 'slot', slot?.id] });
     },
@@ -81,14 +97,21 @@ export function SlotDetailSheet({ slot, onClose }: SlotDetailSheetProps) {
             {slot.salle ? <> · Salle {slot.salle}</> : null}
           </div>
 
+          {isPast ? (
+            <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: 0 }}>
+              Ce créneau est terminé — son contenu reste consultable mais n'est plus modifiable.
+            </p>
+          ) : null}
+
           <Field label="Description / note de préparation">
-            <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} disabled={isPast} />
           </Field>
           <Button
             type="button"
             variant="primary"
             size="sm"
             loading={saveDescription.isPending}
+            disabled={isPast}
             onClick={() => saveDescription.mutate(description)}
           >
             Enregistrer la description
@@ -117,12 +140,29 @@ export function SlotDetailSheet({ slot, onClose }: SlotDetailSheetProps) {
               </ul>
             </StateView>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-              <input ref={fileInputRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12.5 }} />
-              <Button variant="secondary" size="sm" loading={uploadFile.isPending} onClick={() => uploadFile.mutate()}>
-                Ajouter
-              </Button>
-            </div>
+            {!isPast ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                <Field label="Chapitre" hint="Nom du chapitre associé au fichier déposé.">
+                  <Input
+                    value={chapitre}
+                    onChange={(e) => setChapitre(e.target.value)}
+                    placeholder="Ex: Chapitre 3 — Les fractions"
+                  />
+                </Field>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input ref={fileInputRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12.5 }} />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={uploadFile.isPending}
+                    disabled={!file || !chapitre.trim()}
+                    onClick={() => uploadFile.mutate()}
+                  >
+                    Ajouter
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: 0 }}>{error}</p> : null}

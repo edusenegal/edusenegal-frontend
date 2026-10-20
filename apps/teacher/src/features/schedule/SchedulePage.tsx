@@ -29,12 +29,35 @@ function monthGrid(year: number, month: number): Date[] {
   return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
 }
 
+const WEEKDAY_INDEX: Record<TimetableSlot['jour'], number> = {
+  Lundi: 0,
+  Mardi: 1,
+  Mercredi: 2,
+  Jeudi: 3,
+  Vendredi: 4,
+  Samedi: 5,
+  Dimanche: 6,
+};
+
+/**
+ * La vue "Semaine" n'a pas de navigation (toujours la semaine en cours) —
+ * on peut donc déduire une vraie date pour chaque créneau récurrent, utile
+ * pour savoir si son horaire est déjà passé (voir `SlotDetailSheet`).
+ */
+function dateForWeekdayThisWeek(day: TimetableSlot['jour']): Date {
+  const now = new Date();
+  const mondayOffset = (now.getDay() + 6) % 7; // 0 = lundi
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
+  return new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + WEEKDAY_INDEX[day]);
+}
+
 export default function SchedulePage() {
   const { timetable } = useServices();
   const query = useQuery({ queryKey: ['timetable', 'mine'], queryFn: () => timetable.mine() });
   const [view, setView] = useState<'semaine' | 'mois'>('semaine');
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
+  const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
 
   const byDay = useMemo(() => {
     const map = new Map<string, TimetableSlot[]>();
@@ -51,12 +74,15 @@ export default function SchedulePage() {
 
   const days = useMemo(() => monthGrid(cursor.getFullYear(), cursor.getMonth()), [cursor]);
 
-  function slotCard(slot: TimetableSlot, key: string | number) {
+  function slotCard(slot: TimetableSlot, key: string | number, date: Date) {
     return (
       <button
         key={key}
         type="button"
-        onClick={() => setSelectedSlot(slot)}
+        onClick={() => {
+          setSelectedSlot(slot);
+          setSelectedSlotDate(date);
+        }}
         style={{
           display: 'block',
           width: '100%',
@@ -105,7 +131,7 @@ export default function SchedulePage() {
               <Card key={day} padded>
                 <h3 style={{ fontSize: 13.5, margin: '0 0 8px', color: 'var(--color-text-muted)' }}>{day}</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(byDay.get(day) ?? []).map((slot, i) => slotCard(slot, i))}
+                  {(byDay.get(day) ?? []).map((slot, i) => slotCard(slot, i, dateForWeekdayThisWeek(day)))}
                   {(byDay.get(day) ?? []).length === 0 ? (
                     <p style={{ fontSize: 12.5, color: 'var(--color-text-faint)' }}>Aucun cours.</p>
                   ) : null}
@@ -161,7 +187,10 @@ export default function SchedulePage() {
                       <button
                         key={i}
                         type="button"
-                        onClick={() => setSelectedSlot(slot)}
+                        onClick={() => {
+                          setSelectedSlot(slot);
+                          setSelectedSlotDate(date);
+                        }}
                         style={{
                           fontSize: 11,
                           textAlign: 'left',
@@ -185,7 +214,14 @@ export default function SchedulePage() {
         )}
       </StateView>
 
-      <SlotDetailSheet slot={selectedSlot} onClose={() => setSelectedSlot(null)} />
+      <SlotDetailSheet
+        slot={selectedSlot}
+        slotDate={selectedSlotDate}
+        onClose={() => {
+          setSelectedSlot(null);
+          setSelectedSlotDate(null);
+        }}
+      />
     </div>
   );
 }
