@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
@@ -16,12 +16,12 @@ import {
   type Column,
 } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import type { Grade } from '@/types/domain';
+import type { AssessmentType, Grade, StudentRosterEntry } from '@/types/domain';
 
 /** Barème standard des notes — une note modifiée ne peut jamais le dépasser. */
 const BAREME_STANDARD = 20;
 
-const TYPE_LABEL: Record<string, string> = {
+const TYPE_LABEL: Record<AssessmentType, string> = {
   devoir1: 'Devoir 1',
   devoir2: 'Devoir 2',
   composition: 'Composition',
@@ -35,6 +35,13 @@ const TYPE_LABEL: Record<string, string> = {
   expose: 'Exposé',
   stage: 'Stage',
 };
+/** Ordre d'affichage des colonnes — même ordre que `GradeEntryPage` (TYPES). */
+const TYPE_ORDER = Object.keys(TYPE_LABEL) as AssessmentType[];
+
+/** Clé stable pour l'état d'édition d'une cellule (une cellule = un élève × un type d'évaluation). */
+function cellKey(studentId: string, type: string): string {
+  return `${studentId}|${type}`;
+}
 
 export default function ClassGradesPage() {
   const { myClasses, subjects, grades } = useServices();
@@ -47,7 +54,7 @@ export default function ClassGradesPage() {
   const [subjectId, setSubjectId] = useState('');
   const [semestre, setSemestre] = useState(1);
 
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCellKey, setEditingCellKey] = useState<string | null>(null);
   const [draftValeur, setDraftValeur] = useState('');
   const [draftCommentaire, setDraftCommentaire] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -73,11 +80,29 @@ export default function ClassGradesPage() {
   const nameById = new Map((rosterQuery.data ?? []).map((s) => [s.id, `${s.prenom} ${s.nom}`]));
   const historyGrade = (gradesQuery.data ?? []).find((g) => g.id === historyGradeId) ?? null;
 
+  // Pivot : une colonne par type d'évaluation RÉELLEMENT saisi pour cette
+  // classe/matière/semestre (demande explicite) — si seul "devoir1" a été
+  // saisi, une seule colonne "Devoir 1" apparaît ; dès que "devoir2" est
+  // saisi, sa colonne apparaît à son tour, dans l'ordre canonique `TYPE_ORDER`.
+  const presentTypes = useMemo(
+    () => TYPE_ORDER.filter((t) => (gradesQuery.data ?? []).some((g) => g.type === t)),
+    [gradesQuery.data],
+  );
+  const gradeByStudentAndType = useMemo(() => {
+    const map = new Map<string, Map<string, Grade>>();
+    for (const g of gradesQuery.data ?? []) {
+      const byType = map.get(g.studentId) ?? new Map<string, Grade>();
+      byType.set(g.type, g);
+      map.set(g.studentId, byType);
+    }
+    return map;
+  }, [gradesQuery.data]);
+
   const updateMutation = useMutation({
     mutationFn: (input: { gradeId: string; valeur: number; commentaire?: string }) =>
       grades.update(input.gradeId, input.valeur, input.commentaire),
     onSuccess: () => {
-      setEditingId(null);
+      setEditingCellKey(null);
       setSaveError(null);
       queryClient.invalidateQueries({ queryKey: ['grades', classId, subjectId, semestre] });
     },
@@ -85,14 +110,14 @@ export default function ClassGradesPage() {
   });
 
   function startEdit(g: Grade) {
-    setEditingId(g.id);
+    setEditingCellKey(cellKey(g.studentId, g.type));
     setDraftValeur(String(g.valeur));
     setDraftCommentaire(g.commentaire ?? '');
     setSaveError(null);
   }
 
   function cancelEdit() {
-    setEditingId(null);
+    setEditingCellKey(null);
     setSaveError(null);
   }
 
@@ -105,71 +130,65 @@ export default function ClassGradesPage() {
     updateMutation.mutate({ gradeId: g.id, valeur: n, commentaire: draftCommentaire || undefined });
   }
 
-  const columns: Column<Grade>[] = [
-    { key: 'eleve', header: 'Élève', render: (g) => nameById.get(g.studentId) ?? g.studentId },
-    { key: 'type', header: 'Évaluation', render: (g) => TYPE_LABEL[g.type] ?? g.type },
-    { key: 'coefficient', header: 'Coef.', render: (g) => String(g.coefficient) },
-    {
-      key: 'valeur',
-      header: 'Note',
-      render: (g) =>
-        editingId === g.id ? (
-          <Input
-            type="number"
-            min={0}
-            max={BAREME_STANDARD}
-            step={0.25}
-            value={draftValeur}
-            onChange={(e) => setDraftValeur(e.target.value)}
-            style={{ width: 80 }}
-          />
-        ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            {g.valeur}/{BAREME_STANDARD}
-            {g.verrouillee ? <Badge tone="neutral">Verrouillée</Badge> : null}
-          </span>
-        ),
-    },
-    {
-      key: 'commentaire',
-      header: 'Commentaire',
-      render: (g) =>
-        editingId === g.id ? (
-          <Textarea
-            rows={2}
-            value={draftCommentaire}
-            onChange={(e) => setDraftCommentaire(e.target.value)}
-            style={{ minWidth: 180 }}
-          />
-        ) : (
-          g.commentaire ?? '—'
-        ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (g) => (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {editingId === g.id ? (
-            <>
-              <Button variant="primary" size="sm" loading={updateMutation.isPending} onClick={() => saveEdit(g)}>
-                Enregistrer
+  const columns: Column<StudentRosterEntry>[] = [
+    { key: 'eleve', header: 'Élève', render: (s) => `${s.prenom} ${s.nom}` },
+    ...presentTypes.map((type) => ({
+      key: type,
+      header: TYPE_LABEL[type] ?? type,
+      render: (s: StudentRosterEntry) => {
+        const g = gradeByStudentAndType.get(s.id)?.get(type);
+        if (!g) return <span style={{ color: 'var(--color-text-faint)' }}>—</span>;
+        const key = cellKey(s.id, type);
+        if (editingCellKey === key) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 }}>
+              <Input
+                type="number"
+                min={0}
+                max={BAREME_STANDARD}
+                step={0.25}
+                value={draftValeur}
+                onChange={(e) => setDraftValeur(e.target.value)}
+                style={{ width: 80 }}
+              />
+              <Textarea
+                rows={2}
+                value={draftCommentaire}
+                onChange={(e) => setDraftCommentaire(e.target.value)}
+                placeholder="Commentaire (facultatif)"
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Button variant="primary" size="sm" loading={updateMutation.isPending} onClick={() => saveEdit(g)}>
+                  Enregistrer
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 140 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {g.valeur}/{BAREME_STANDARD}
+              {g.verrouillee ? <Badge tone="neutral">Verrouillée</Badge> : null}
+            </span>
+            {g.commentaire ? (
+              <span style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>{g.commentaire}</span>
+            ) : null}
+            <div style={{ display: 'flex', gap: 4 }}>
+              <Button variant="ghost" size="sm" disabled={g.verrouillee} onClick={() => startEdit(g)}>
+                Modifier
               </Button>
-              <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                Annuler
+              <Button variant="ghost" size="sm" onClick={() => setHistoryGradeId(g.id)}>
+                Historique
               </Button>
-            </>
-          ) : (
-            <Button variant="ghost" size="sm" disabled={g.verrouillee} onClick={() => startEdit(g)}>
-              Modifier
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => setHistoryGradeId(g.id)}>
-            Historique
-          </Button>
-        </div>
-      ),
-    },
+            </div>
+          </div>
+        );
+      },
+    })),
   ];
 
   return (
@@ -213,8 +232,13 @@ export default function ClassGradesPage() {
 
       <Card>
         {saveError ? <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{saveError}</p> : null}
-        <StateView loading={gradesQuery.isLoading} error={gradesQuery.error} empty={classId !== '' && subjectId !== '' && gradesQuery.data?.length === 0}>
-          <Table columns={columns} rows={gradesQuery.data ?? []} rowKey={(g) => g.id} />
+        <StateView
+          loading={gradesQuery.isLoading || rosterQuery.isLoading}
+          error={gradesQuery.error ?? rosterQuery.error}
+          empty={classId !== '' && subjectId !== '' && presentTypes.length === 0}
+          emptyLabel="Aucune note saisie pour cette classe/matière/semestre — utilisez « Saisie des notes »."
+        >
+          <Table columns={columns} rows={rosterQuery.data ?? []} rowKey={(s) => s.id} />
         </StateView>
       </Card>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Card, CardHeader, Field, Input, Select, StateView } from '@/components/ui';
@@ -51,6 +51,26 @@ export default function GradeEntryPage() {
     enabled: classId !== '',
   });
 
+  // Types déjà saisis pour cette classe/matière/semestre — demande
+  // explicite : ne pas permettre de ressaisir un type déjà enregistré (qui
+  // écraserait silencieusement les notes existantes, voir `enterBulk`).
+  const existingGradesQuery = useQuery({
+    queryKey: ['grades', classId, subjectId, semestre],
+    queryFn: () => grades.listForClass(classId, subjectId, semestre),
+    enabled: classId !== '' && subjectId !== '',
+  });
+  const usedTypes = new Set((existingGradesQuery.data ?? []).map((g) => g.type));
+  const availableTypes = TYPES.filter((t) => !usedTypes.has(t));
+
+  // Si le type sélectionné vient d'être pris (changement de classe/matière/
+  // semestre révélant qu'il est déjà saisi), on retombe sur le premier type
+  // encore disponible plutôt que de laisser une sélection invalide.
+  useEffect(() => {
+    if (availableTypes.length > 0 && !availableTypes.includes(type)) {
+      setType(availableTypes[0]!);
+    }
+  }, [classId, subjectId, semestre, existingGradesQuery.data]);
+
   const entries = useMemo(
     () =>
       (rosterQuery.data ?? []).map((s) => ({
@@ -73,6 +93,10 @@ export default function GradeEntryPage() {
   function onSubmit() {
     if (!classId || !subjectId) {
       setError('Classe et matière sont obligatoires.');
+      return;
+    }
+    if (usedTypes.has(type)) {
+      setError(`« ${TYPE_LABEL[type]} » a déjà été saisi pour cette classe/matière/semestre.`);
       return;
     }
     if (coefficient === null) {
@@ -124,13 +148,26 @@ export default function GradeEntryPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Type">
-            <Select value={type} onChange={(e) => setType(e.target.value as AssessmentType)} style={{ width: 170 }}>
-              {TYPES.map((t) => (
+          <Field
+            label="Type"
+            hint={
+              classId && subjectId && availableTypes.length === 0
+                ? 'Tous les types ont déjà été saisis pour cette sélection.'
+                : undefined
+            }
+          >
+            <Select
+              value={type}
+              onChange={(e) => setType(e.target.value as AssessmentType)}
+              style={{ width: 170 }}
+              disabled={availableTypes.length === 0}
+            >
+              {availableTypes.map((t) => (
                 <option key={t} value={t}>
                   {TYPE_LABEL[t]}
                 </option>
               ))}
+              {availableTypes.length === 0 ? <option value={type}>{TYPE_LABEL[type]}</option> : null}
             </Select>
           </Field>
           <Field label="Coefficient">
@@ -159,7 +196,13 @@ export default function GradeEntryPage() {
           <CardHeader
             title="Notes des élèves"
             action={
-              <Button variant="primary" size="sm" loading={saveMutation.isPending} onClick={onSubmit}>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={saveMutation.isPending}
+                disabled={availableTypes.length === 0}
+                onClick={onSubmit}
+              >
                 Enregistrer
               </Button>
             }
