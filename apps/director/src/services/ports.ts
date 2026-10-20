@@ -489,8 +489,15 @@ export interface GradeDisputesPort {
 }
 
 export interface LeavesPort {
+  /** Demandes en attente d'une décision (seules celles-ci remontent du serveur). */
   list(): Promise<LeaveRequest[]>;
-  review(leaveId: string, approve: boolean): Promise<LeaveRequest>;
+  /**
+   * `replacementTeacherId` est obligatoire pour approuver côté serveur (voir
+   * `ScheduleServiceImpl.reviewLeave`) : l'écran transmet par défaut le
+   * remplaçant déjà proposé par l'enseignant (`LeaveRequest.remplacant`) à
+   * l'approbation ; le directeur peut le changer avant de valider.
+   */
+  review(leaveId: string, approve: boolean, replacementTeacherId?: string | null): Promise<LeaveRequest>;
 }
 
 /**

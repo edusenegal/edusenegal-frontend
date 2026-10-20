@@ -301,7 +301,14 @@ export interface LeaveRequest {
   dateFin: string;
   motif: string;
   statut: LeaveStatus;
+  /** Nom du remplaçant proposé, pour affichage. */
   remplacant: string | null;
+  /**
+   * Id du remplaçant proposé -- requis par le serveur pour approuver (voir
+   * `LeavesPort.review`) ; `null` si l'enseignant n'en a proposé aucun, `undefined`
+   * pour les sources qui ne distinguent pas id et nom (mock).
+   */
+  remplacantId?: string | null;
   pieceJointe: { nom: string } | null;
 }
 

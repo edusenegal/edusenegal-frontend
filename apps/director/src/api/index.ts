@@ -3,6 +3,7 @@ import { createAuthApi } from '@/api/auth.api';
 import { createBilanAnnuelApi } from '@/api/bilanAnnuel.api';
 import { createExpensesApi } from '@/api/expenses.api';
 import { createGradeDisputesApi } from '@/api/gradeDisputes.api';
+import { createLeavesApi } from '@/api/leaves.api';
 import { createClassesApi } from '@/api/classes.api';
 import { createDashboardApi } from '@/api/dashboard.api';
 import { createPaymentsApi } from '@/api/payments.api';
@@ -92,5 +93,11 @@ export function createApiServices(): Services {
     // seul canal que le mock connaissait. Voir le commentaire de
     // `createSalaryRequestsApi`.
     salaryRequests: createSalaryRequestsApi(),
+    // CORRECTION (signalé) — restait sur le mock : une demande de congé
+    // déposée depuis l'application enseignant (`/api/v1/leaves`,
+    // schedule-service) n'atteignait jamais le directeur, qui ne voyait
+    // que les demandes fictives du mock. Voir le commentaire de
+    // `createLeavesApi`.
+    leaves: createLeavesApi(),
   };
 }

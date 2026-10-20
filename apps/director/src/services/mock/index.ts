@@ -935,10 +935,13 @@ export function createMockServices(): Services {
       async list(): Promise<LeaveRequest[]> {
         return respond(state.leaveRequests);
       },
-      async review(leaveId, approve): Promise<LeaveRequest> {
+      async review(leaveId, approve, replacementTeacherId): Promise<LeaveRequest> {
         const found = state.leaveRequests.find((l) => l.id === leaveId);
         if (!found) notFound('Demande de congé');
         found.statut = approve ? 'approuve' : 'rejete';
+        if (approve && replacementTeacherId) {
+          found.remplacant = replacementTeacherId;
+        }
         return respond(found, 300);
       },
     },

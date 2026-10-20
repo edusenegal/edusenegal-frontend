@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { AppError } from '@/services/errors';
 import type { LeaveRequest } from '@/types/domain';
 
 const STATUS_TONE = { en_attente: 'warning', approuve: 'success', rejete: 'danger' } as const;
@@ -10,12 +12,22 @@ const STATUS_LABEL = { en_attente: 'En attente', approuve: 'Approuvé', rejete: 
 export default function LeavesPage() {
   const { leaves } = useServices();
   const queryClient = useQueryClient();
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const list = useQuery({ queryKey: ['leaves'], queryFn: () => leaves.list() });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ id, approve }: { id: string; approve: boolean }) => leaves.review(id, approve),
+    mutationFn: ({ id, approve, remplacantId }: { id: string; approve: boolean; remplacantId?: string | null }) => {
+      setReviewError(null);
+      return leaves.review(id, approve, remplacantId);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leaves'] }),
+    onError: (err: unknown) =>
+      setReviewError(
+        err instanceof AppError
+          ? err.message
+          : "Impossible d'enregistrer la décision. Réessaie.",
+      ),
   });
 
   const columns: Column<LeaveRequest>[] = [
@@ -43,7 +55,12 @@ export default function LeavesPage() {
       render: (l) =>
         l.statut === 'en_attente' ? (
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            <Button variant="secondary" size="sm" loading={reviewMutation.isPending} onClick={() => reviewMutation.mutate({ id: l.id, approve: true })}>
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={reviewMutation.isPending}
+              onClick={() => reviewMutation.mutate({ id: l.id, approve: true, remplacantId: l.remplacantId })}
+            >
               Approuver
             </Button>
             <Button variant="ghost" size="sm" onClick={() => reviewMutation.mutate({ id: l.id, approve: false })}>
@@ -58,6 +75,7 @@ export default function LeavesPage() {
     <div>
       <PageHeader title="Congés & absences" subtitle="Demandes de congé du personnel, avec les pièces jointes transmises." />
       <Card>
+        {reviewError ? <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 0 }}>{reviewError}</p> : null}
         <StateView loading={list.isLoading} error={list.error} empty={list.data?.length === 0}>
           <Table columns={columns} rows={list.data ?? []} rowKey={(l) => l.id} />
         </StateView>

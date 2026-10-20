@@ -1084,3 +1084,31 @@ export interface LedgerResponseDto {
   balanceFcfa: number;
   lastUpdatedAt: string;
 }
+
+/** Statut d'une demande de congé — `schedule-service`, `LeaveStatus`. */
+export type ApiLeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** `schedule-service`, `LeaveRequestResponse` (`/api/v1/leaves/...`). */
+export interface LeaveRequestResponseDto {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  academicYearId: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  documentUrls: string[];
+  status: ApiLeaveStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  replacementTeacherId: string | null;
+  createdAt: string;
+}
+
+/** `schedule-service`, `ReviewLeaveRequest` (`PUT /api/v1/leaves/{id}/review`). */
+export interface ReviewLeaveRequestDto {
+  status: 'APPROVED' | 'REJECTED';
+  note?: string;
+  replacementTeacherId?: string;
+}
