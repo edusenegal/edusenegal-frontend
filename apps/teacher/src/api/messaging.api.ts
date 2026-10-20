@@ -1,4 +1,5 @@
 import { request, sessionContext } from '@/api/client';
+import { fetchSchoolClasses } from '@/api/context';
 import type { ApiGroupType, ApiMessageType, DiscussionGroupResponseDto, MessageResponseDto } from '@/types/api';
 import type { MessagingPort } from '@/services/ports';
 import type { DiscussionGroup, GroupKind, GroupMessage, MessageKind } from '@/types/domain';
@@ -46,8 +47,34 @@ function fromMessageResponse(dto: MessageResponseDto): GroupMessage {
 /** Groupes de discussion et messagerie — `messaging-service`, `/api/v1/groups`. */
 export function createMessagingApi(): MessagingPort {
   return {
+    /**
+     * `GET /groups/my?classId=` ne fait pas que lire : côté backend il
+     * appelle `ensureClassGroup` qui (re)synchronise l'appartenance du
+     * groupe de la classe (élèves + professeur·e) avant de répondre
+     * (`MessagingServiceImpl#getUserGroups`), mais renvoie déjà la liste
+     * complète des groupes de l'utilisateur, pas seulement celui de la
+     * classe. On appelle donc cette route une fois par classe enseignée
+     * (best-effort — un échec isolé ne doit pas casser la liste), puis on
+     * refait un appel simple sans `classId` pour le résultat final, au cas
+     * où la dernière réponse "sync" daterait d'avant la création d'un
+     * groupe non lié à une classe enseignée.
+     */
     async myGroups(): Promise<DiscussionGroup[]> {
-      const { schoolId } = sessionContext();
+      const { schoolId, userId } = sessionContext();
+      let myClassIds: string[] = [];
+      try {
+        const classes = await fetchSchoolClasses(schoolId);
+        myClassIds = classes.filter((c) => c.teacherIds.includes(userId)).map((c) => c.id);
+      } catch {
+        myClassIds = [];
+      }
+      await Promise.all(
+        myClassIds.map((classId) =>
+          request<DiscussionGroupResponseDto[]>('/api/v1/groups/my', { query: { schoolId, classId } }).catch(
+            () => undefined,
+          ),
+        ),
+      );
       const dtos = await request<DiscussionGroupResponseDto[]>('/api/v1/groups/my', { query: { schoolId } });
       return dtos.map(fromGroupResponse);
     },
