@@ -1,13 +1,15 @@
 import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
 import { AppError } from '@/services/errors';
+import { fromApiTransaction } from '@/api/payments.api';
 import type {
   ApiPaymentChannel,
   CashSessionResponseDto,
   CloseCashSessionRequestDto,
+  PaymentTransactionResponseDto,
 } from '@/types/api';
 import type { CashSessionsPort } from '@/services/ports';
-import type { CashSession, CashSessionIncomeLine, PaymentChannel } from '@/types/domain';
+import type { CashIncomeEntry, CashSession, CashSessionIncomeLine, PaymentChannel } from '@/types/domain';
 import { frToISO, isoToFR } from '@/utils/format';
 
 const CHANNEL_FROM_API: Record<ApiPaymentChannel, PaymentChannel> = {
@@ -96,6 +98,16 @@ export function createCashSessionsApi(): CashSessionsPort {
         query: { schoolId, from: frToISO(from), to: frToISO(to) },
       });
       return list.map(fromApiCashSession);
+    },
+
+    async listTodayIncomes(): Promise<CashIncomeEntry[]> {
+      const { schoolId } = sessionContext();
+      const academicYearId = await resolveYearId();
+      const list = await request<PaymentTransactionResponseDto[]>(
+        `/api/v1/payments/school/${encodeURIComponent(schoolId)}/today`,
+        { query: { academicYearId } },
+      );
+      return list.map((dto) => ({ ...fromApiTransaction(dto), studentId: dto.studentId }));
     },
   };
 }

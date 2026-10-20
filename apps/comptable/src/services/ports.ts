@@ -1,5 +1,6 @@
 import type {
   AccountantProfile,
+  CashIncomeEntry,
   CashSession,
   Expense,
   ExpenseCategory,
@@ -105,6 +106,11 @@ export interface CashSessionsPort {
   getCurrent(): Promise<CashSession | null>;
   /** Backend : `GET /api/v1/accounting/cash-sessions/history?from=&to=` (dd/mm/yyyy ici, converti en ISO). */
   getHistory(from: string, to: string): Promise<CashSession[]>;
+  /**
+   * Encaissements complétés du jour (tous canaux), pour affichage pendant que
+   * la caisse est ouverte. Backend : `GET /api/v1/payments/school/{schoolId}/today?academicYearId=`.
+   */
+  listTodayIncomes(): Promise<CashIncomeEntry[]>;
 }
 
 /**

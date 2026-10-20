@@ -47,7 +47,7 @@ function isoDateTimeToFR(iso: string | null): string | null {
   return timePart ? `${isoToFR(datePart)} ${timePart}` : isoToFR(datePart);
 }
 
-function fromApiTransaction(dto: PaymentTransactionResponseDto): PaymentTransaction {
+export function fromApiTransaction(dto: PaymentTransactionResponseDto): PaymentTransaction {
   return {
     id: dto.id,
     type: TYPE_FROM_API[dto.type] ?? 'mensuel',

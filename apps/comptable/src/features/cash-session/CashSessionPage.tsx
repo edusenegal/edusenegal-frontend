@@ -9,6 +9,7 @@ import {
   DateInput,
   Field,
   Input,
+  Select,
   Sheet,
   StateView,
   StatTile,
@@ -20,7 +21,29 @@ import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { sessionContext } from '@/api/client';
 import { fmtXOF, isoToFR, todayISO } from '@/utils/format';
-import type { CashSession, PaymentChannel } from '@/types/domain';
+import type { CashIncomeEntry, CashSession, PaymentChannel, PaymentType, StudentPickerEntry } from '@/types/domain';
+
+const TYPE_LABEL: Record<PaymentType, string> = {
+  inscription_seule: 'Inscription seule',
+  mensuel: 'Mensuel',
+  trimestriel: 'Trimestriel',
+  annuel: 'Annuel',
+  inscription_mensuel: 'Inscription + mensuel',
+  inscription_trimestriel: 'Inscription + trimestriel',
+  inscription_annuel: 'Inscription + annuel',
+  bourse: 'Bourse',
+};
+
+/** Types sélectionnables pour un encaissement manuel — "bourse" est calculé automatiquement, jamais saisi. */
+const RECORDABLE_TYPES: PaymentType[] = [
+  'inscription_seule',
+  'mensuel',
+  'trimestriel',
+  'annuel',
+  'inscription_mensuel',
+  'inscription_trimestriel',
+  'inscription_annuel',
+];
 
 const CHANNEL_LABEL: Record<PaymentChannel, string> = {
   wave: 'Wave',
@@ -36,7 +59,7 @@ function firstDayOfMonthISO(): string {
 }
 
 export default function CashSessionPage() {
-  const { cashSessions } = useServices();
+  const { cashSessions, payments, students } = useServices();
   const queryClient = useQueryClient();
   const { userId } = sessionContext();
 
@@ -49,10 +72,43 @@ export default function CashSessionPage() {
   const [historyFrom, setHistoryFrom] = useState(firstDayOfMonthISO());
   const [historyTo, setHistoryTo] = useState(todayISO());
 
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [recordSearchQuery, setRecordSearchQuery] = useState('');
+  const [recordStudent, setRecordStudent] = useState<StudentPickerEntry | null>(null);
+  const [recordType, setRecordType] = useState<PaymentType>('mensuel');
+  const [recordAmount, setRecordAmount] = useState('');
+  const [recordPeriod, setRecordPeriod] = useState('');
+  const [recordNote, setRecordNote] = useState('');
+  const [recordError, setRecordError] = useState<string | null>(null);
+
   const current = useQuery({ queryKey: ['cash-session', 'current'], queryFn: () => cashSessions.getCurrent() });
   const history = useQuery({
     queryKey: ['cash-session', 'history', historyFrom, historyTo],
     queryFn: () => cashSessions.getHistory(isoToFR(historyFrom), isoToFR(historyTo)),
+  });
+
+  const session = current.data ?? null;
+
+  const todayIncomes = useQuery({
+    queryKey: ['cash-session', 'today-incomes'],
+    queryFn: () => cashSessions.listTodayIncomes(),
+    enabled: session != null,
+  });
+  const allStudents = useQuery({
+    queryKey: ['students-all'],
+    queryFn: () => students.listAll(),
+    enabled: session != null,
+  });
+  const studentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of allStudents.data ?? []) map.set(s.id, s.nom);
+    return map;
+  }, [allStudents.data]);
+
+  const recordSearch = useQuery({
+    queryKey: ['students-search', recordSearchQuery],
+    queryFn: () => students.search(recordSearchQuery),
+    enabled: recordSearchQuery.trim().length >= 2,
   });
 
   function invalidateCurrent() {
@@ -84,7 +140,44 @@ export default function CashSessionPage() {
     },
   });
 
-  const session = current.data ?? null;
+  function resetRecordForm() {
+    setRecordSearchQuery('');
+    setRecordStudent(null);
+    setRecordType('mensuel');
+    setRecordAmount('');
+    setRecordPeriod('');
+    setRecordNote('');
+    setRecordError(null);
+  }
+
+  const recordMutation = useMutation({
+    mutationFn: () =>
+      payments.recordCash({
+        studentId: recordStudent!.id,
+        type: recordType,
+        amountFcfa: Number(recordAmount),
+        period: recordPeriod.trim() || undefined,
+        installmentNumber: 1,
+        totalInstallments: 1,
+        note: recordNote.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setRecordOpen(false);
+      resetRecordForm();
+      queryClient.invalidateQueries({ queryKey: ['cash-session', 'today-incomes'] });
+    },
+    onError: (err: unknown) => {
+      setRecordError(err instanceof AppError ? err.message : 'Encaissement impossible.');
+    },
+  });
+
+  const todayIncomeColumns: Column<CashIncomeEntry>[] = [
+    { key: 'heure', header: 'Heure', render: (r) => r.dateCreation.slice(-5) },
+    { key: 'eleve', header: 'Élève', render: (r) => studentNameById.get(r.studentId) ?? `#${r.studentId.slice(-6)}` },
+    { key: 'type', header: 'Type', render: (r) => TYPE_LABEL[r.type] },
+    { key: 'montant', header: 'Montant', align: 'right', render: (r) => fmtXOF(r.montantNetFcfa) },
+    { key: 'canal', header: 'Canal', render: (r) => CHANNEL_LABEL[r.canal] },
+  ];
 
   const historyColumns: Column<CashSession>[] = useMemo(
     () => [
@@ -147,6 +240,7 @@ export default function CashSessionPage() {
 
       <StateView loading={current.isLoading} error={current.error} onRetry={() => current.refetch()}>
         {session ? (
+          <>
           <Card padded>
             <CardHeader
               title={
@@ -155,15 +249,34 @@ export default function CashSessionPage() {
                 </>
               }
               action={
-                <Button variant="primary" onClick={() => setCloseOpen(true)}>
-                  Clôturer la caisse
-                </Button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button variant="secondary" onClick={() => setRecordOpen(true)}>
+                    Nouvel encaissement
+                  </Button>
+                  <Button variant="primary" onClick={() => setCloseOpen(true)}>
+                    Clôturer la caisse
+                  </Button>
+                </div>
               }
             />
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
               Ouverte à {session.ouvertureLe}. Les totaux du jour sont calculés au moment de la clôture.
             </p>
           </Card>
+
+          <Card style={{ marginTop: 12 }}>
+            <CardHeader title="Encaissements du jour" />
+            <StateView
+              loading={todayIncomes.isLoading}
+              error={todayIncomes.error}
+              empty={(todayIncomes.data ?? []).length === 0}
+              emptyLabel="Aucun encaissement enregistré aujourd'hui."
+              onRetry={() => todayIncomes.refetch()}
+            >
+              <Table columns={todayIncomeColumns} rows={todayIncomes.data ?? []} rowKey={(r) => r.id} />
+            </StateView>
+          </Card>
+          </>
         ) : (
           <Card padded>
             <CardHeader title="Aucune session de caisse ouverte aujourd'hui" />
@@ -275,6 +388,116 @@ export default function CashSessionPage() {
           </Field>
           {closeError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{closeError}</p> : null}
         </div>
+      </Sheet>
+
+      <Sheet
+        title="Nouvel encaissement"
+        open={recordOpen}
+        onClose={() => {
+          setRecordOpen(false);
+          resetRecordForm();
+        }}
+        width="sm"
+        footer={
+          recordStudent ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setRecordOpen(false);
+                  resetRecordForm();
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="primary"
+                loading={recordMutation.isPending}
+                disabled={!recordAmount}
+                onClick={() => recordMutation.mutate()}
+              >
+                Encaisser
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {recordStudent ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <p style={{ fontSize: 13, margin: '0 0 4px' }}>
+              {recordStudent.nom} — {recordStudent.classe}{' '}
+              <button
+                type="button"
+                onClick={() => setRecordStudent(null)}
+                style={{ color: 'var(--brand-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}
+              >
+                Changer
+              </button>
+            </p>
+            <Field label="Type de paiement" required>
+              <Select value={recordType} onChange={(e) => setRecordType(e.target.value as PaymentType)}>
+                {RECORDABLE_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {TYPE_LABEL[t]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Montant (FCFA)" required>
+              <Input type="number" min={0} value={recordAmount} onChange={(e) => setRecordAmount(e.target.value)} />
+            </Field>
+            <Field label="Période" hint='Facultatif, ex. "Trimestre 1".'>
+              <Input value={recordPeriod} onChange={(e) => setRecordPeriod(e.target.value)} />
+            </Field>
+            <Field label="Note" hint="Facultatif.">
+              <Textarea value={recordNote} onChange={(e) => setRecordNote(e.target.value)} rows={2} />
+            </Field>
+            {recordError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{recordError}</p> : null}
+          </div>
+        ) : (
+          <div>
+            <Field label="Rechercher un élève (nom ou prénom)">
+              <Input
+                value={recordSearchQuery}
+                onChange={(e) => setRecordSearchQuery(e.target.value)}
+                placeholder="Ex: Awa Diop"
+              />
+            </Field>
+            {recordSearchQuery.trim().length >= 2 ? (
+              <StateView
+                loading={recordSearch.isLoading}
+                error={recordSearch.error}
+                empty={(recordSearch.data ?? []).length === 0}
+                emptyLabel="Aucun élève trouvé."
+                onRetry={() => recordSearch.refetch()}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                  {(recordSearch.data ?? []).map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setRecordStudent(s)}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 8,
+                        background: 'var(--color-surface)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        font: 'inherit',
+                      }}
+                    >
+                      <span>{s.nom}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>{s.classe}</span>
+                    </button>
+                  ))}
+                </div>
+              </StateView>
+            ) : null}
+          </div>
+        )}
       </Sheet>
     </div>
   );

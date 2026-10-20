@@ -782,6 +782,15 @@ export interface PaymentTransaction {
   dateCreation: string; // dd/mm/yyyy hh:mm
 }
 
+/**
+ * Encaissement du jour affiché dans l'écran Caisse — `PaymentTransaction`
+ * enrichi de l'identifiant de l'élève concerné (la caisse n'est pas scopée à
+ * un seul élève, contrairement à l'écran Paiements).
+ */
+export interface CashIncomeEntry extends PaymentTransaction {
+  studentId: string;
+}
+
 /** Traduit `RestoTicketStatus` (payment-service) : ISSUED, REDEEMED, EXPIRED, CANCELLED. */
 export type RestoTicketStatus = 'emis' | 'utilise' | 'expire' | 'annule';
 
