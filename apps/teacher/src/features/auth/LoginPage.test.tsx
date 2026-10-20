@@ -29,7 +29,7 @@ describe('LoginPage', () => {
   it('affiche le message d’erreur du service en cas d’échec', async () => {
     const login = vi.fn().mockRejectedValue(new AppError('validation', 'Identifiant ou mot de passe incorrect.', 400));
     renderWithProviders(<LoginPage />, {
-      services: { auth: { login, logout: vi.fn(), currentTeacher: vi.fn(), changePassword: vi.fn(), switchSchool: vi.fn(), updateMyPhoto: vi.fn() } },
+      services: { auth: { login, logout: vi.fn(), currentTeacher: vi.fn(), changePassword: vi.fn(), switchSchool: vi.fn(), updateMyPhoto: vi.fn(), updateMyEmail: vi.fn() } },
     });
 
     const user = userEvent.setup();
@@ -43,7 +43,7 @@ describe('LoginPage', () => {
   it('connecte avec succès et transmet les identifiants saisis', async () => {
     const login = vi.fn().mockResolvedValue(TEACHER);
     renderWithProviders(<LoginPage />, {
-      services: { auth: { login, logout: vi.fn(), currentTeacher: vi.fn(), changePassword: vi.fn(), switchSchool: vi.fn(), updateMyPhoto: vi.fn() } },
+      services: { auth: { login, logout: vi.fn(), currentTeacher: vi.fn(), changePassword: vi.fn(), switchSchool: vi.fn(), updateMyPhoto: vi.fn(), updateMyEmail: vi.fn() } },
     });
 
     const user = userEvent.setup();

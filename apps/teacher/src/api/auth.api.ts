@@ -110,6 +110,17 @@ export function createAuthApi(): AuthPort {
       useAuthStore.getState().setTeacher(teacher);
       return teacher;
     },
+
+    async updateMyEmail(email: string): Promise<TeacherProfile> {
+      const userId = useAuthStore.getState().session?.userId ?? '';
+      const dto = await request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(userId)}`, {
+        method: 'PUT',
+        body: { email },
+      });
+      const teacher = toTeacherProfile(dto);
+      useAuthStore.getState().setTeacher(teacher);
+      return teacher;
+    },
   };
 }
 

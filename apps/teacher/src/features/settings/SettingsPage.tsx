@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Avatar, Button, Card, CardHeader, Field, Input } from '@/components/ui';
+import { Avatar, Button, Card, CardHeader, Field, Input, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/auth.store';
+import type { School } from '@/types/domain';
 
 /**
  * Aperçu d'un fichier choisi mais pas encore envoyé — révoqué dès qu'il
@@ -28,11 +29,34 @@ export default function SettingsPage() {
   const { auth, school } = useServices();
   const teacher = useAuthStore((s) => s.teacher);
   const setTeacher = useAuthStore((s) => s.setTeacher);
+  const schoolIds = useAuthStore((s) => s.session?.schools ?? []);
 
   // Les couleurs viennent toujours de l'école ACTIVE (même requête que
   // `BrandingGate`, qui les applique déjà à l'interface) — jamais modifiables
   // ici : seule la direction gère le branding de son établissement.
   const schoolQuery = useQuery({ queryKey: ['school'], queryFn: () => school.getSchool() });
+
+  // Écoles où l'enseignant a un profil actif — un professeur peut enseigner
+  // dans plusieurs établissements, voir `SchoolSelectionPage`. Simple liste
+  // en lecture ici ; le changement d'école actif se fait depuis cet écran-là.
+  const mySchoolsQuery = useQuery({
+    queryKey: ['auth', 'mySchools', schoolIds],
+    queryFn: () => Promise.all(schoolIds.map((id) => school.getSchoolById(id))),
+    enabled: schoolIds.length > 0,
+  });
+
+  const [emailValue, setEmailValue] = useState(teacher?.email ?? '');
+  const [emailEditing, setEmailEditing] = useState(false);
+  useEffect(() => {
+    if (!emailEditing) setEmailValue(teacher?.email ?? '');
+  }, [teacher?.email, emailEditing]);
+  const emailMutation = useMutation({
+    mutationFn: () => auth.updateMyEmail(emailValue.trim()),
+    onSuccess: (updated) => {
+      setTeacher(updated);
+      setEmailEditing(false);
+    },
+  });
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const photoPreviewUrl = useFilePreview(photoFile);
@@ -122,6 +146,68 @@ export default function SettingsPage() {
         >
           Enregistrer la photo
         </Button>
+
+        <Field label="Adresse e-mail" hint="Utilisée pour vous identifier et pour les notifications.">
+          <div style={{ display: 'flex', gap: 8, maxWidth: 360 }}>
+            <Input
+              type="email"
+              value={emailValue}
+              onChange={(e) => {
+                setEmailEditing(true);
+                setEmailValue(e.target.value);
+              }}
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              loading={emailMutation.isPending}
+              disabled={!emailValue.trim() || emailValue.trim() === (teacher?.email ?? '')}
+              onClick={() => emailMutation.mutate()}
+            >
+              Enregistrer
+            </Button>
+          </div>
+          {emailMutation.isSuccess && !emailEditing ? (
+            <p style={{ fontSize: 12, color: 'var(--color-success)', marginTop: 6 }}>E-mail mis à jour.</p>
+          ) : null}
+          {emailMutation.isError ? (
+            <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>
+              Impossible de mettre à jour l'e-mail.
+            </p>
+          ) : null}
+        </Field>
+      </Card>
+
+      <Card padded style={{ marginBottom: 16 }}>
+        <CardHeader title="Mes établissements" />
+        <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+          {schoolIds.length > 1
+            ? 'Écoles où vous enseignez — basculez depuis l\'écran de choix d\'école à la connexion.'
+            : 'École où vous enseignez.'}
+        </p>
+        <StateView loading={mySchoolsQuery.isLoading} error={mySchoolsQuery.error} onRetry={() => mySchoolsQuery.refetch()}>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(mySchoolsQuery.data ?? []).map((item: School) => (
+              <li
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                  background: item.id === schoolQuery.data?.id ? 'var(--color-surface-muted, #f6f6f6)' : undefined,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  {item.id === schoolQuery.data?.id ? 'Active' : item.region}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </StateView>
       </Card>
 
       <Card padded style={{ marginBottom: 16 }}>

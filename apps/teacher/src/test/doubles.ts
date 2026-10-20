@@ -23,6 +23,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       changePassword: notStubbed('auth.changePassword'),
       switchSchool: notStubbed('auth.switchSchool'),
       updateMyPhoto: notStubbed('auth.updateMyPhoto'),
+      updateMyEmail: notStubbed('auth.updateMyEmail'),
     },
     school: {
       getSchool: notStubbed('school.getSchool'),

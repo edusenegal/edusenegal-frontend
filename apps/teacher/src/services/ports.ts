@@ -55,6 +55,8 @@ export interface AuthPort {
   switchSchool(schoolId: string): Promise<TeacherProfile>;
   /** Photo de profil de l'enseignant connecté — voir `UserServiceImpl#updateProfilePhoto`. */
   updateMyPhoto(file: File): Promise<TeacherProfile>;
+  /** `PUT /users/{userId}` (mise à jour partielle, voir `UserServiceImpl#updateUser`). */
+  updateMyEmail(email: string): Promise<TeacherProfile>;
 }
 
 /** Lecture seule — l'enseignant ne modifie ni le branding ni l'année scolaire. */
