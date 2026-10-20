@@ -73,7 +73,7 @@ export interface SubjectsPort {
 }
 
 export interface MyClassesPort {
-  /** Classes où le professeur connecté enseigne (principal ou itinérant). */
+  /** Classes où le professeur connecté enseigne (principal, itinérant, ou simplement un créneau à l'emploi du temps). */
   list(): Promise<MyClass[]>;
   /** Roster d'une classe — ids résolus en noms via `GET /users/{id}` (voir `myClasses.api.ts`). */
   roster(classId: string): Promise<StudentRosterEntry[]>;
