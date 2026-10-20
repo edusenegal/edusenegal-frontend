@@ -70,6 +70,10 @@ const PAYOUT_FROM_API: Record<string, PayoutStatus> = {
   PAID: 'paye',
   FAILED: 'echec',
   AWAITING_CASH_CONFIRMATION: 'attente_confirmation_cash',
+  // Le professeur a contesté avoir reçu ce paiement en espèces — voir
+  // PayoutStatus.DISPUTED (payment-service) ; motifEchecPaiement (même
+  // champ que l'échec Wave/Orange Money) porte alors son motif.
+  DISPUTED: 'conteste',
 };
 
 const DECISION_TO_API: Record<ExpenseDecision, ApiValidationDecision> = {

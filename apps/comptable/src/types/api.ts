@@ -708,6 +708,22 @@ export interface LedgerResponseDto {
   lastUpdatedAt: string | null; // ISO LocalDateTime
 }
 
+/** Calqué sur `LedgerHistoryPoint` (payment-service). */
+export interface LedgerHistoryPointDto {
+  period: string;
+  incomesFcfa: number;
+  expensesFcfa: number;
+}
+
+/** Calqué sur `LedgerHistoryResponse` (payment-service) -- GET .../ledger/history. */
+export interface LedgerHistoryResponseDto {
+  granularity: string;
+  points: LedgerHistoryPointDto[];
+  totalIncomesFcfa: number;
+  totalExpensesFcfa: number;
+  balanceFcfa: number;
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // payment-service — SalaryPaymentController (/api/v1/accounting/salary-requests)
 // user-service — profil de rémunération (/api/v1/users/{id}/schools/{schoolId}/salary)
@@ -720,7 +736,7 @@ export type ApiSalaryMode = 'FIXED' | 'PER_WORKED_DAY' | 'PER_HOUR';
 export type ApiSalaryPaymentStatus = 'DRAFT' | 'PENDING_VALIDATION' | 'VALIDATED' | 'REJECTED' | 'CANCELLED';
 
 /** Calqué sur `PayoutStatus` (payment-service) — état du versement d'UNE ligne, distinct du statut de la demande. */
-export type ApiPayoutStatus = 'PENDING' | 'PAID' | 'FAILED' | 'AWAITING_CASH_CONFIRMATION';
+export type ApiPayoutStatus = 'PENDING' | 'PAID' | 'FAILED' | 'AWAITING_CASH_CONFIRMATION' | 'DISPUTED';
 
 /**
  * Réponse de `GET`/`PUT /api/v1/users/{userId}/schools/{schoolId}/salary`

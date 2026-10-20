@@ -261,7 +261,7 @@ export type SalaryRequestStatus = 'brouillon' | 'en_attente' | 'validee' | 'reje
 
 /** Une ligne de la demande — traduit `SalaryLineResponse`, un enseignant payé sur la période. */
 /** Traduit `PayoutStatus` (payment-service) — état d'EXÉCUTION du versement d'une ligne, distinct du statut de la demande. `null` tant que la demande n'a pas été validée par le comptable. */
-export type PayoutStatus = 'en_attente' | 'paye' | 'echec' | 'attente_confirmation_cash';
+export type PayoutStatus = 'en_attente' | 'paye' | 'echec' | 'attente_confirmation_cash' | 'conteste';
 
 export interface SalaryRequestLine {
   teacherId: string;

@@ -63,12 +63,14 @@ const PAYOUT_LABEL: Record<NonNullable<SalaryRequestLine['statutVersement']>, st
   paye: 'Payé',
   echec: 'Échec',
   attente_confirmation_cash: 'Attente confirmation (cash)',
+  conteste: 'Contesté par l\'enseignant',
 };
 const PAYOUT_TONE: Record<NonNullable<SalaryRequestLine['statutVersement']>, 'info' | 'warning' | 'success' | 'danger'> = {
   en_attente: 'info',
   paye: 'success',
   echec: 'danger',
   attente_confirmation_cash: 'warning',
+  conteste: 'danger',
 };
 
 function currentMonthValue(): string {
