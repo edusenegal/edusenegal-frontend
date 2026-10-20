@@ -67,6 +67,13 @@ export function SlotDetailSheet({ slot, slotDate, onClose }: SlotDetailSheetProp
       if (!file) throw new Error('Aucun fichier sélectionné.');
       if (!chapitre.trim()) throw new Error('Le chapitre est obligatoire.');
       return courseDocuments.upload({
+        // CORRECTION (signalé) -- classId manquait : le document se
+        // retrouvait sans classe (`classId` null côté document-service),
+        // donc invisible à la fois dans "Mes cours" et dans la liste par
+        // matière côté élève (`GET /documents/class/{classId}`), qui
+        // filtrent toutes les deux sur cette classe. Seul `GET /documents/
+        // slot/{slotId}` le retrouvait encore.
+        classId: slot!.classId,
         subjectId: slot!.subjectId ?? undefined,
         timetableSlotId: slot!.id,
         type: 'ressource',
