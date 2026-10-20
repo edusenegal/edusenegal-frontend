@@ -210,6 +210,79 @@ export interface SchoolSalaryProfileResponseDto {
   hourlyRateFcfa: number | null;
 }
 
+/** Calqué sur `PaymentChannel` (payment-service) — WAVE, ORANGE_MONEY, CASH, CHEQUE, VIREMENT_BANCAIRE. */
+export type ApiPaymentChannel = 'WAVE' | 'ORANGE_MONEY' | 'CASH' | 'CHEQUE' | 'VIREMENT_BANCAIRE';
+
+/** Calqué sur `SalaryPaymentStatus` (payment-service). */
+export type ApiSalaryPaymentStatus = 'DRAFT' | 'PENDING_VALIDATION' | 'VALIDATED' | 'REJECTED' | 'CANCELLED';
+
+/** Calqué sur `PayoutStatus` (payment-service). */
+export type ApiPayoutStatus = 'PENDING' | 'PAID' | 'FAILED' | 'AWAITING_CASH_CONFIRMATION' | 'DISPUTED';
+
+/** Une entrée de `CreateSalaryPaymentRequestDto.lines`. */
+export interface SalaryLineInputDto {
+  staffUserId: string;
+  workedDays?: number;
+  workedHours?: number;
+  paymentMethod?: ApiPaymentChannel;
+  payoutDestination?: string;
+}
+
+/** POST /api/v1/accounting/salary-requests (payment-service). */
+export interface CreateSalaryPaymentRequestDto {
+  schoolId: string;
+  academicYearId: string;
+  periodLabel: string; // "2026-10"
+  periodStart: string; // ISO LocalDate (yyyy-MM-dd)
+  periodEnd: string;
+  lines: SalaryLineInputDto[];
+}
+
+/** Calqué sur `SalaryLineResponse` (payment-service). */
+export interface SalaryLineResponseDto {
+  staffUserId: string;
+  staffFullName: string;
+  role: UserRole;
+  salaryMode: ApiSalaryMode;
+  fixedAmountFcfa: number | null;
+  dailyRateFcfa: number | null;
+  hourlyRateFcfa: number | null;
+  workedDays: number | null;
+  workedHours: number | null;
+  unjustifiedAbsenceDays: number | null;
+  computedAmountFcfa: number | null;
+  payerOwnership: SchoolOwnership;
+  expenseId: string | null;
+  payslipId: string | null;
+  paymentMethod: ApiPaymentChannel;
+  payoutDestination: string | null;
+  payoutStatus: ApiPayoutStatus;
+  payoutTransactionRef: string | null;
+  payoutFailureReason: string | null;
+}
+
+/** Calqué sur `SalaryPaymentRequestResponse` (payment-service). */
+export interface SalaryPaymentRequestResponseDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  periodLabel: string;
+  periodStart: string; // ISO LocalDate
+  periodEnd: string;
+  lines: SalaryLineResponseDto[];
+  totalAmountFcfa: number;
+  status: ApiSalaryPaymentStatus;
+  validationHistory: ApiValidationStep[] | null;
+  createdBy: string;
+  validatedBy: string | null;
+  validatedAt: string | null; // ISO LocalDateTime
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  splitFromRequestId: string | null;
+  splitIntoRequestId: string | null;
+}
+
 /** GET /api/v1/accounting/salary-requests/payslips (payment-service). */
 export interface PayslipResponseDto {
   id: string;

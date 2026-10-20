@@ -9,6 +9,7 @@ import { createPaymentsApi } from '@/api/payments.api';
 import { createPersonalDocumentsApi } from '@/api/personalDocuments.api';
 import { createPromotionsApi } from '@/api/promotions.api';
 import { createRoomsApi } from '@/api/rooms.api';
+import { createSalaryRequestsApi } from '@/api/salaryRequests.api';
 import { createSchoolApi } from '@/api/school.api';
 import { createSignerAssetsApi } from '@/api/signerAssets.api';
 import { createSignaturesApi } from '@/api/signatures.api';
@@ -84,5 +85,12 @@ export function createApiServices(): Services {
     // l'onglet Documents de l'application mobile élève). Voir le
     // commentaire de `createPersonalDocumentsApi`.
     personalDocuments: createPersonalDocumentsApi(),
+    // CORRECTION (signalé) — restait sur le mock alors que le port
+    // documente déjà les endpoints réels (`payment-service`) : une demande
+    // créée ici n'atteignait jamais le backend, et un règlement choisi en
+    // Wave/Orange Money ne pouvait ressortir qu'en espèces côté comptable,
+    // seul canal que le mock connaissait. Voir le commentaire de
+    // `createSalaryRequestsApi`.
+    salaryRequests: createSalaryRequestsApi(),
   };
 }
