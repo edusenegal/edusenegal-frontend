@@ -655,7 +655,13 @@ export interface PayslipResponseDto {
   paymentMethod?: string;
   paymentReference?: string;
   generatedBy: string;
-  generatedAt: string;
+  /**
+   * CORRECTION (signalé) -- `@CreatedDate` sans Mongo auditing actif côté
+   * payment-service laissait ce champ absent du JSON (voir `fromPayslipResponse`) ;
+   * nullable tant que les bulletins générés avant ce correctif n'ont pas été
+   * recrées.
+   */
+  generatedAt: string | null;
 }
 
 // ════════════════════════════════════════════════════════════════════════

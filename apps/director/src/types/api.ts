@@ -300,8 +300,13 @@ export interface PayslipResponseDto {
   paymentMethod?: string;
   paymentReference?: string;
   generatedBy: string;
-  /** ISO-8601 (`LocalDateTime` sérialisé par Jackson). */
-  generatedAt: string;
+  /**
+   * ISO-8601 (`LocalDateTime` sérialisé par Jackson). CORRECTION (signalé) :
+   * absent si le bulletin a été généré avant l'activation de l'auditing
+   * Mongo côté payment-service (voir `MongoConfig`) -- tous les bulletins
+   * existants, jusqu'à ce correctif.
+   */
+  generatedAt: string | null;
 }
 
 /** POST /api/v1/staff-absences (attendance-service). */

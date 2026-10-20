@@ -842,7 +842,7 @@ export interface PayslipResponseDto {
   paymentMethod: ApiPaymentChannel | null;
   paymentReference: string | null;
   generatedBy: string;
-  generatedAt: string; // ISO LocalDateTime
+  generatedAt: string | null; // ISO LocalDateTime -- CORRECTION (signalé) : absent si généré avant l'activation de l'auditing Mongo côté payment-service
 }
 
 // ── Portefeuille élève (WalletController, payment-service) ─────────────────

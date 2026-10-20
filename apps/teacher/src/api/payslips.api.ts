@@ -38,7 +38,7 @@ function fromPayslipResponse(dto: PayslipResponseDto): SalarySlip {
     joursAbsenceInjustifiee: dto.unjustifiedAbsenceDays,
     payeurEtat: dto.payerOwnership === 'PUBLIC',
     modePaiement: dto.paymentMethod ? CHANNEL_FROM_API[dto.paymentMethod] ?? null : null,
-    dateGeneration: dto.generatedAt.slice(0, 10).split('-').reverse().join('/'),
+    dateGeneration: dto.generatedAt ? dto.generatedAt.slice(0, 10).split('-').reverse().join('/') : '—',
   };
 }
 

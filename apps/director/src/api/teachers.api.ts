@@ -109,7 +109,7 @@ function fromPayslipResponse(dto: PayslipResponseDto): SalarySlip {
     heuresTravaillees: dto.workedHours ?? null,
     joursAbsenceInjustifiee: dto.unjustifiedAbsenceDays ?? null,
     payeurEtat: dto.payerOwnership === 'PUBLIC',
-    dateGeneration: isoToFR(dto.generatedAt.slice(0, 10)),
+    dateGeneration: dto.generatedAt ? isoToFR(dto.generatedAt.slice(0, 10)) : '—',
   };
 }
 
