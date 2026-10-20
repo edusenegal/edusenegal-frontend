@@ -23,6 +23,7 @@ function slotKind(dto: TimetableSlotResponseDto): ScheduleSlotKind {
 function toDomainSlot(dto: TimetableSlotResponseDto, className: string): TimetableSlot {
   return {
     id: dto.id,
+    classId: dto.classId,
     classe: className,
     subjectId: dto.subjectId,
     matiere: dto.subjectName,

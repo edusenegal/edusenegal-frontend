@@ -4,7 +4,28 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, CardHeader, Field, Input, Select, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { todayISO } from '@/utils/format';
-import type { AttendanceStatus, AttendanceStudentEntry } from '@/types/domain';
+import type { AttendanceStatus, AttendanceStudentEntry, TimetableSlot } from '@/types/domain';
+
+/** `Date#getDay()` (0 = dimanche) → libellé du jour -- même convention que `SchedulePage`. */
+const WEEKDAY_FROM_JS_DAY: Record<number, TimetableSlot['jour'] | null> = {
+  0: null, // dimanche — jamais de cours dans ce modèle
+  1: 'Lundi',
+  2: 'Mardi',
+  3: 'Mercredi',
+  4: 'Jeudi',
+  5: 'Vendredi',
+  6: 'Samedi',
+};
+
+/** Le créneau est-il celui en cours MAINTENANT (même jour, heure comprise dans [début, fin[) ? */
+function isSlotNow(slot: TimetableSlot, now: Date): boolean {
+  if (WEEKDAY_FROM_JS_DAY[now.getDay()] !== slot.jour) return false;
+  const [startH, startM] = slot.heureDebut.split(':').map(Number);
+  const [endH, endM] = slot.heureFin.split(':').map(Number);
+  if (startH === undefined || startM === undefined || endH === undefined || endM === undefined) return false;
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  return minutesNow >= startH * 60 + startM && minutesNow < endH * 60 + endM;
+}
 
 const STATUS_LABEL: Record<AttendanceStatus, string> = {
   present: 'Présent',
@@ -31,11 +52,18 @@ function isFutureSlot(date: string, period: string): boolean {
 }
 
 export default function AttendancePage() {
-  const { myClasses, subjects, attendance } = useServices();
+  const { myClasses, subjects, attendance, timetable } = useServices();
   const queryClient = useQueryClient();
 
   const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
   const subjectsQuery = useQuery({ queryKey: ['subjects', 'mine'], queryFn: () => subjects.listMine() });
+  // CORRECTION (demande explicite) — « Appel rapide » : le professeur qui a
+  // cours MAINTENANT (ex. Habib Gueye, 15h-17h, Seconde SA, à 15h56) n'a
+  // sinon qu'un sélecteur de classe/matière/créneau libre à remplir à la
+  // main, créneau qu'il doit déjà connaître. L'emploi du temps (déjà
+  // consommé par "Mon emploi du temps") donne tout ce qu'il faut pour le
+  // pré-remplir.
+  const timetableQuery = useQuery({ queryKey: ['timetable', 'mine'], queryFn: () => timetable.mine() });
 
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
@@ -44,6 +72,23 @@ export default function AttendancePage() {
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // "Cours" uniquement : une permanence (pas de matière) n'a rien à appeler.
+  const currentSlot = useMemo(() => {
+    const now = new Date();
+    return (timetableQuery.data ?? []).find((s) => s.subjectId && isSlotNow(s, now)) ?? null;
+  }, [timetableQuery.data]);
+
+  function startAttendanceForCurrentSlot() {
+    if (!currentSlot?.subjectId) return;
+    setClassId(currentSlot.classId);
+    setSubjectId(currentSlot.subjectId);
+    setDate(todayISO());
+    setPeriod(`${currentSlot.heureDebut}-${currentSlot.heureFin}`);
+    setStatuses({});
+    setSaved(false);
+    setError(null);
+  }
 
   const rosterQuery = useQuery({
     queryKey: ['roster', classId],
@@ -100,7 +145,21 @@ export default function AttendancePage() {
       <PageHeader title="Appel" subtitle="Saisissez la présence des élèves pour un créneau." />
 
       <Card padded style={{ marginBottom: 16 }}>
-        <CardHeader title="Créneau" />
+        <CardHeader
+          title="Créneau"
+          action={
+            currentSlot ? (
+              <Button variant="primary" size="sm" onClick={startAttendanceForCurrentSlot}>
+                Appel pour {currentSlot.classe} ({currentSlot.heureDebut}-{currentSlot.heureFin})
+              </Button>
+            ) : undefined
+          }
+        />
+        {!currentSlot && !timetableQuery.isLoading ? (
+          <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+            Aucun cours à l’emploi du temps en ce moment — choisissez la classe et le créneau manuellement.
+          </p>
+        ) : null}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
           <Field label="Classe" required>
             <Select value={classId} onChange={(e) => setClassId(e.target.value)} style={{ width: 200 }}>

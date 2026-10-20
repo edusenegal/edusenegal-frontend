@@ -75,6 +75,8 @@ export type ScheduleSlotKind = 'cours' | 'permanence' | 'remplacement';
 /** Traduit `TimetableSlotResponse` (schedule-service). */
 export interface TimetableSlot {
   id: string;
+  /** Brut -- pour pouvoir pré-sélectionner la classe (ex. "Appel" depuis le créneau en cours) sans la re-résoudre par son nom. */
+  classId: string;
   classe: string; // nom de classe résolu côté frontend
   /** Brut, pour le dépôt de fichiers rattachés — `matiere` n'est que le libellé résolu. */
   subjectId: string | null;
