@@ -9,6 +9,7 @@ import type {
   AppNotification,
   AssessmentType,
   AttendanceStudentEntry,
+  CashPaymentNotice,
   ClassRoom,
   Complaint,
   ComplaintType,
@@ -221,6 +222,12 @@ export interface PayslipsPort {
   mine(): Promise<SalarySlip[]>;
   /** Télécharge le PDF de la fiche de paie (déclenche l'enregistrement local). */
   downloadPdf(payslipId: string): Promise<void>;
+  /** Mes avis de paiement en espèces en attente de confirmation. */
+  pendingCashNotices(): Promise<CashPaymentNotice[]>;
+  /** Confirme la réception — génère le bulletin, voir `CashPaymentNotice`. */
+  confirmCashReceipt(requestId: string): Promise<void>;
+  /** Conteste la réception (argent non reçu) — aucun bulletin généré. */
+  rejectCashReceipt(requestId: string, reason?: string): Promise<void>;
 }
 
 export interface QuizPort {

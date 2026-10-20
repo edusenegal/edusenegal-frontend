@@ -86,6 +86,9 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
     payslips: {
       mine: notStubbed('payslips.mine'),
       downloadPdf: notStubbed('payslips.downloadPdf'),
+      pendingCashNotices: notStubbed('payslips.pendingCashNotices'),
+      confirmCashReceipt: notStubbed('payslips.confirmCashReceipt'),
+      rejectCashReceipt: notStubbed('payslips.rejectCashReceipt'),
     },
     quiz: {
       mine: notStubbed('quiz.mine'),

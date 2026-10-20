@@ -625,6 +625,15 @@ export interface LeaveRequestResponseDto {
 export type ApiSalaryMode = 'FIXED' | 'PER_WORKED_DAY' | 'PER_HOUR';
 
 /** GET /api/v1/accounting/salary-requests/payslips/me */
+/** Avis de paiement en espèces en attente de confirmation — `CashPaymentNoticeResponse` (payment-service). */
+export interface CashPaymentNoticeResponseDto {
+  requestId: string;
+  staffUserId: string;
+  periodLabel: string;
+  amountFcfa: number;
+  validatedAt?: string;
+}
+
 export interface PayslipResponseDto {
   id: string;
   schoolId: string;

@@ -349,6 +349,18 @@ export interface SalarySlip {
   dateGeneration: string; // dd/mm/yyyy
 }
 
+/**
+ * Avis de paiement en espèces en attente de ma confirmation — tant que je
+ * n'ai pas confirmé (ou contesté), AUCUN bulletin n'existe encore pour cette
+ * ligne : voir `PayslipsPort.confirmCashReceipt`/`rejectCashReceipt`.
+ */
+export interface CashPaymentNotice {
+  requestId: string;
+  periode: string; // periodLabel
+  montantFcfa: number;
+  valideLe: string | null; // dd/mm/yyyy, date de validation par le comptable
+}
+
 /** Traduit `GenerationStatus` (ai-service). */
 export type QuizGenerationStatus = 'en_cours' | 'prete' | 'echouee';
 
