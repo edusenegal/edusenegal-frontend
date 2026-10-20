@@ -29,6 +29,16 @@ export function StateView({ loading, error, empty, emptyLabel = 'Rien à affiche
   }
 
   if (error) {
+    // CORRECTION (demande explicite) -- jusqu'ici, une erreur qui n'est
+    // PAS une AppError (ex. une exception JS inattendue dans un mapping
+    // dto -> domaine) ne laissait absolument aucune trace : l'écran
+    // affichait juste "Une erreur est survenue", invisible même en ouvrant
+    // la console. Tous les écrans passant par StateView en bénéficient
+    // d'un coup, sans modifier chaque écran -- toujours loggé (pas
+    // seulement derrière le drapeau de debug des appels API dans
+    // client.ts, qui journalise chaque requête/réponse : ici c'est
+    // l'erreur elle-même, déjà peu bavarde).
+    console.error('[StateView] erreur affichee a l\'ecran :', error);
     const message = error instanceof AppError ? error.message : 'Une erreur est survenue.';
     return (
       <div className={styles.state}>

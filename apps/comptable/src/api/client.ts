@@ -49,10 +49,27 @@ const axiosInstance = axios.create({
 // CORRECTION — journalisation des appels API, demandée pour diagnostiquer
 // les écrans qui restent vides côté frontend alors que Postman obtient de
 // vraies réponses : méthode, URL, corps envoyé, statut et corps reçu.
-// Jamais l'en-tête Authorization. Uniquement en développement
-// (import.meta.env.DEV) : une build de production ne doit pas déverser les
-// réponses API en console.
-const API_LOG = import.meta.env.DEV;
+// Jamais l'en-tête Authorization.
+//
+// CORRECTION (demande explicite, répétée) — active par défaut en
+// développement (import.meta.env.DEV), mais un déploiement (démo, école
+// pilote...) où le bug ne se reproduit QUE là n'est jamais lancé avec
+// `npm run dev` : y rester muet rendait cette journalisation inutile
+// exactement là où elle servirait. Activable sans reconstruire depuis la
+// console du navigateur : localStorage.setItem('edusenegal:debug-api', '1')
+// (recharger la page ; retirer l'entrée pour revenir au silence par
+// défaut). Lu à chaque appel, pas une seule fois au chargement du module,
+// pour ne jamais exiger un rechargement supplémentaire après l'avoir posé.
+function apiLogEnabled(): boolean {
+  if (import.meta.env.DEV) return true;
+  try {
+    return localStorage.getItem('edusenegal:debug-api') === '1';
+  } catch {
+    // Stockage indisponible (navigation privée, quota...) : silence, comme
+    // si le drapeau n'était pas posé -- jamais une erreur qui remonte.
+    return false;
+  }
+}
 
 function shortLog(data: unknown): unknown {
   if (typeof data !== 'string') {
@@ -67,7 +84,7 @@ function tag(seq: number | undefined, retried: boolean | undefined): string {
 }
 
 function logRequest(seq: number | undefined, retried: boolean | undefined, method: string, url: string, body: unknown): void {
-  if (!API_LOG) return;
+  if (!apiLogEnabled()) return;
   // eslint-disable-next-line no-console
   console.log(`[API→ ${tag(seq, retried)}] ${method} ${url}`, body !== undefined ? { body: shortLog(body) } : '');
 }
@@ -81,13 +98,13 @@ function logResponse(
   status: number,
   data: unknown,
 ): void {
-  if (!API_LOG) return;
+  if (!apiLogEnabled()) return;
   // eslint-disable-next-line no-console
   console.log(`[API← ${tag(seq, retried)}] ${status} ${method} ${url} (${durationMs.toFixed(0)} ms)`, shortLog(data));
 }
 
 function logError(seq: number | undefined, retried: boolean | undefined, durationMs: number, method: string, url: string, error: unknown): void {
-  if (!API_LOG) return;
+  if (!apiLogEnabled()) return;
   console.error(`[API✗ ${tag(seq, retried)}] ${method} ${url} (${durationMs.toFixed(0)} ms)`, error);
 }
 
