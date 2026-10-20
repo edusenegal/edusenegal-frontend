@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, StateView, Textarea } from '@/components/ui';
+import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { fmtXOF, isoToFR, todayISO } from '@/utils/format';
-import type { SalaryMode, StaffStatus, Teacher } from '@/types/domain';
+import { buildDownloadFilename, fmtXOF, isoToFR, todayISO } from '@/utils/format';
+import type { SalaryMode, SignedDocument, StaffStatus, Teacher } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { TeacherFormSheet } from './TeacherFormSheet';
 import styles from './TeacherDetailPage.module.css';
@@ -235,10 +235,60 @@ function Row({ k, v }: { k: string; v: string }) {
  * déjà ici de soumettre les deux champs non pertinents.
  */
 function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: Teacher }) {
-  const { teachers } = useServices();
+  const { teachers, signatures } = useServices();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const payslips = useQuery({ queryKey: ['teacher-payslips', teacherId], queryFn: () => teachers.listPayslips(teacherId) });
+
+  // Signer/cacheter un bulletin de paie (demande explicite) -- même modèle
+  // que AcademicResultsPage pour les bulletins scolaires : tampon/signature
+  // du signataire requis au préalable (bouton grisé sinon), Signer et
+  // Cacheter indépendants l'un de l'autre.
+  const assetsQuery = useQuery({ queryKey: ['signer-assets'], queryFn: () => signatures.getMyAssets() });
+  const hasSignature = assetsQuery.data?.hasSignature ?? false;
+  const hasStamp = assetsQuery.data?.hasStamp ?? false;
+  const [assetDialog, setAssetDialog] = useState<'signature' | 'stamp' | null>(null);
+  function requireAsset(kind: 'signature' | 'stamp', ok: boolean, run: () => void) {
+    if (!ok) {
+      setAssetDialog(kind);
+      return;
+    }
+    run();
+  }
+
+  // `documentRef` est le `payslipId` (pas le `teacherId`) -- voir le
+  // doc-comment de `SignaturesPort.signPayslip` : un même enseignant a
+  // plusieurs bulletins de paie, chacun signé indépendamment.
+  const signedDocumentsQuery = useQuery({ queryKey: ['signed-documents'], queryFn: () => signatures.listDocuments() });
+  const payslipDocuments = (signedDocumentsQuery.data ?? []).filter(
+    (d) => d.type === 'Bulletin de paie' && d.documentRef,
+  );
+  const signedByPayslipId = new Map(
+    payslipDocuments.filter((d) => d.action !== 'CACHET').map((d) => [d.documentRef as string, d]),
+  );
+  const cachetedByPayslipId = new Map(
+    payslipDocuments.filter((d) => d.action === 'CACHET').map((d) => [d.documentRef as string, d]),
+  );
+  function invalidateSignedPayslips() {
+    queryClient.invalidateQueries({ queryKey: ['signed-documents'] });
+  }
+  const signPayslipMutation = useMutation({
+    mutationFn: (payslipId: string) => signatures.signPayslip(payslipId, teacherId, 'SIGNATURE'),
+    onSuccess: invalidateSignedPayslips,
+  });
+  const cachetPayslipMutation = useMutation({
+    mutationFn: (payslipId: string) => signatures.signPayslip(payslipId, teacherId, 'CACHET'),
+    onSuccess: invalidateSignedPayslips,
+  });
+  const [teacherFirstName, ...teacherLastNameParts] = teacher.nom.trim().split(/\s+/);
+  const downloadSignedPayslipMutation = useMutation({
+    mutationFn: (doc: SignedDocument) =>
+      signatures.downloadDocument(
+        doc.signatureHash ?? '',
+        buildDownloadFilename('fiche-de-paie', teacherFirstName ?? '', teacherLastNameParts.join(' ')),
+      ),
+  });
 
   const [mode, setMode] = useState<SalaryMode>(teacher.salaryMode ?? 'fixe');
   const [montant, setMontant] = useState<string>(
@@ -317,23 +367,109 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
               <th>Montant brut</th>
               <th>Payeur</th>
               <th>Généré le</th>
+              <th>Signature</th>
+              <th>Cachet</th>
             </tr>
           </thead>
           <tbody>
-            {payslips.data?.map((s) => (
-              <tr key={s.id}>
-                <td>{s.periode}</td>
-                <td>{SALARY_MODE_LABEL[s.salaryMode]}</td>
-                <td className={styles.mono}>{s.joursTravailles ?? s.heuresTravaillees ?? '—'}</td>
-                <td className={styles.mono}>{s.joursAbsenceInjustifiee ?? '—'}</td>
-                <td className={styles.mono}>{fmtXOF(s.montantBrut)}</td>
-                <td>{s.payeurEtat ? 'État' : 'École'}</td>
-                <td className={styles.mono}>{s.dateGeneration}</td>
-              </tr>
-            ))}
+            {payslips.data?.map((s) => {
+              const signedDoc = signedByPayslipId.get(s.id);
+              const cachetedDoc = cachetedByPayslipId.get(s.id);
+              return (
+                <tr key={s.id}>
+                  <td>{s.periode}</td>
+                  <td>{SALARY_MODE_LABEL[s.salaryMode]}</td>
+                  <td className={styles.mono}>{s.joursTravailles ?? s.heuresTravaillees ?? '—'}</td>
+                  <td className={styles.mono}>{s.joursAbsenceInjustifiee ?? '—'}</td>
+                  <td className={styles.mono}>{fmtXOF(s.montantBrut)}</td>
+                  <td>{s.payeurEtat ? 'État' : 'École'}</td>
+                  <td className={styles.mono}>{s.dateGeneration}</td>
+                  <td>
+                    {signedDoc ? (
+                      signedDoc.signatureHash ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={downloadSignedPayslipMutation.isPending && downloadSignedPayslipMutation.variables === signedDoc}
+                          onClick={() => downloadSignedPayslipMutation.mutate(signedDoc)}
+                        >
+                          ✅ Signé — télécharger
+                        </Button>
+                      ) : (
+                        <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Signé — lien indisponible</span>
+                      )
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={signPayslipMutation.isPending && signPayslipMutation.variables === s.id}
+                        style={!hasSignature ? { opacity: 0.5 } : undefined}
+                        aria-disabled={!hasSignature || undefined}
+                        onClick={() => requireAsset('signature', hasSignature, () => signPayslipMutation.mutate(s.id))}
+                      >
+                        Signer
+                      </Button>
+                    )}
+                  </td>
+                  <td>
+                    {cachetedDoc ? (
+                      cachetedDoc.signatureHash ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={downloadSignedPayslipMutation.isPending && downloadSignedPayslipMutation.variables === cachetedDoc}
+                          onClick={() => downloadSignedPayslipMutation.mutate(cachetedDoc)}
+                        >
+                          ✅ Cacheté — télécharger
+                        </Button>
+                      ) : (
+                        <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Cacheté — lien indisponible</span>
+                      )
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={cachetPayslipMutation.isPending && cachetPayslipMutation.variables === s.id}
+                        style={!hasStamp ? { opacity: 0.5 } : undefined}
+                        aria-disabled={!hasStamp || undefined}
+                        onClick={() => requireAsset('stamp', hasStamp, () => cachetPayslipMutation.mutate(s.id))}
+                      >
+                        Cacheter
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </StateView>
+
+      <Sheet
+        title={assetDialog === 'stamp' ? 'Aucun tampon déposé' : 'Aucune signature déposée'}
+        open={assetDialog !== null}
+        onClose={() => setAssetDialog(null)}
+      >
+        <p>
+          {assetDialog === 'stamp'
+            ? "Aucun tampon n'est enregistré pour votre compte — vous ne pouvez pas cacheter de bulletin de paie tant qu'il n'est pas déposé."
+            : "Aucune signature n'est enregistrée pour votre compte — vous ne pouvez pas signer de bulletin de paie tant qu'elle n'est pas déposée."}
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAssetDialog(null);
+              navigate('/parametres');
+            }}
+          >
+            Aller dans Paramètres
+          </Button>
+          <Button variant="secondary" onClick={() => setAssetDialog(null)}>
+            Fermer
+          </Button>
+        </div>
+      </Sheet>
     </>
   );
 }

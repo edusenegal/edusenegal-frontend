@@ -122,6 +122,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       listBulletinPeriods: notStubbed('signatures.listBulletinPeriods'),
       signForStudent: notStubbed('signatures.signForStudent'),
       signForStaff: notStubbed('signatures.signForStaff'),
+      signPayslip: notStubbed('signatures.signPayslip'),
       signBulk: notStubbed('signatures.signBulk'),
       importToSign: notStubbed('signatures.importToSign'),
       getMyAssets: notStubbed('signatures.getMyAssets'),

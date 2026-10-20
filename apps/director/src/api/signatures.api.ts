@@ -33,6 +33,7 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   ATTESTATION: 'Attestation',
   OFFICIAL: 'Document administratif',
   RELEVE_NOTES: 'Relevé de notes',
+  PAYSLIP: 'Bulletin de paie',
   OTHER: 'Document',
 };
 
@@ -108,6 +109,31 @@ async function fetchAdministrativeDocumentPdfBase64(path: string, targetUserId: 
   return blobToBase64(blob);
 }
 
+/** Bulletin de paie non signé — `payment-service` (déjà utilisé pour le bouton "Télécharger" côté comptable). */
+async function fetchPayslipPdfBase64(payslipId: string): Promise<string> {
+  const blob = await request<Blob>(
+    `/api/v1/accounting/salary-requests/payslips/${encodeURIComponent(payslipId)}/pdf`,
+    { responseType: 'blob' },
+  );
+  return blobToBase64(blob);
+}
+
+async function signPayslipDocument(
+  payslipId: string,
+  action: 'SIGNATURE' | 'CACHET' = 'SIGNATURE',
+): Promise<SignedDocumentResponseDto> {
+  const documentBytes = await fetchPayslipPdfBase64(payslipId);
+  const body: SignRequestDto = {
+    documentType: 'PAYSLIP',
+    // Référence le BULLETIN DE PAIE lui-même, pas le personnel -- voir le
+    // doc-comment de `SignaturesPort.signPayslip`.
+    documentRef: payslipId,
+    documentBytes,
+    action,
+  };
+  return request<SignedDocumentResponseDto>('/api/v1/signatures', { method: 'POST', body });
+}
+
 async function signGenericDocument(
   targetUserId: string,
   type: string,
@@ -147,7 +173,13 @@ async function resolveTargetLabel(
 
 export function createSignaturesApi(): Pick<
   SignaturesPort,
-  'listDocuments' | 'listBulletinPeriods' | 'signForStudent' | 'signForStaff' | 'signBulk' | 'downloadDocument'
+  | 'listDocuments'
+  | 'listBulletinPeriods'
+  | 'signForStudent'
+  | 'signForStaff'
+  | 'signPayslip'
+  | 'signBulk'
+  | 'downloadDocument'
 > {
   return {
     async listDocuments(): Promise<SignedDocument[]> {
@@ -229,6 +261,25 @@ export function createSignaturesApi(): Pick<
         date: new Date(dto.signedAt).toLocaleDateString('fr-FR'),
         signataire: dto.signerName,
         downloadUrl: dto.downloadUrl ?? null,
+        signatureHash: dto.signatureHash,
+        action,
+      };
+    },
+
+    async signPayslip(payslipId, staffId, action = 'SIGNATURE'): Promise<SignedDocument> {
+      const dto = await signPayslipDocument(payslipId, action);
+      const [staff] = await request<UserResponseDto[]>(
+        `/api/v1/users/school/${encodeURIComponent(sessionContext().schoolId)}?role=TEACHER`,
+      ).then((all) => all.filter((u) => u.id === staffId));
+      return {
+        serie: dto.serialNumber,
+        type: 'Bulletin de paie',
+        cible: staff ? `${staff.firstName} ${staff.lastName}` : staffId,
+        cibleKind: 'personnel',
+        date: new Date(dto.signedAt).toLocaleDateString('fr-FR'),
+        signataire: dto.signerName,
+        downloadUrl: dto.downloadUrl ?? null,
+        documentRef: payslipId,
         signatureHash: dto.signatureHash,
         action,
       };

@@ -82,6 +82,7 @@ const DOCUMENT_TYPE_LABEL: Record<ApiDocumentType, string> = {
   OFFICIAL: 'Document officiel',
   ATTESTATION: 'Attestation',
   RELEVE_NOTES: 'Relevé de notes',
+  PAYSLIP: 'Bulletin de paie',
   OTHER: 'Autre document',
 };
 

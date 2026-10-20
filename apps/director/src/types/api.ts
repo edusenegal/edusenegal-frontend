@@ -264,7 +264,7 @@ export interface StaffAbsenceSummaryResponseDto {
 }
 
 /** Calqué sur `signature-service` `DocumentType`. */
-export type ApiDocumentType = 'BULLETIN' | 'CERTIFICATE' | 'OFFICIAL' | 'ATTESTATION' | 'RELEVE_NOTES' | 'OTHER';
+export type ApiDocumentType = 'BULLETIN' | 'CERTIFICATE' | 'OFFICIAL' | 'ATTESTATION' | 'RELEVE_NOTES' | 'PAYSLIP' | 'OTHER';
 
 /** Réponse de `POST`/`GET /api/v1/signatures/assets` (signature-service). */
 export interface SignerAssetResponseDto {
@@ -332,6 +332,41 @@ export interface SignatureRecordResponseDto {
   action?: 'SIGNATURE' | 'CACHET' | null;
   /** URL présignée (1h) du PDF final signé -- `null`/absent si pas encore généré. */
   downloadUrl?: string | null;
+}
+
+/** Calqué sur `document-service` `PersonalDocumentType`. */
+export type ApiPersonalDocumentType = 'CNI' | 'DIPLOMA' | 'CERTIFICATION' | 'BIRTH_CERTIFICATE' | 'PARENT_CNI' | 'OTHER';
+
+/** Calqué sur `document-service` `PersonalDocumentOwnerType`. */
+export type ApiPersonalDocumentOwnerType = 'STAFF' | 'STUDENT';
+
+/** Corps JSON de la partie `data` de `POST /api/v1/personal-documents` (multipart). */
+export interface UploadPersonalDocumentRequestDto {
+  schoolId?: string;
+  ownerUserId: string;
+  ownerType: ApiPersonalDocumentOwnerType;
+  type: ApiPersonalDocumentType;
+  academicYearId?: string;
+  title: string;
+  description?: string;
+}
+
+/** Réponse de `POST`/`GET .../owner/{ownerUserId}` (`PersonalDocumentResponse`, document-service). */
+export interface PersonalDocumentResponseDto {
+  id: string;
+  schoolId: string;
+  ownerUserId: string;
+  ownerType: ApiPersonalDocumentOwnerType;
+  type: ApiPersonalDocumentType;
+  academicYearId?: string | null;
+  title: string;
+  description?: string | null;
+  downloadUrl: string;
+  contentUrl: string;
+  fileType: string;
+  fileSizeBytes: number;
+  uploadedByUserId: string;
+  createdAt: string;
 }
 
 /** Ventilation par élève de `ClassPaymentStatsDto` (task #208). */

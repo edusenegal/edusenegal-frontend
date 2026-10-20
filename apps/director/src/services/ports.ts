@@ -315,14 +315,26 @@ export interface StudentsPort {
    * filtré sur UNE classe, l'effectif reste assez petit pour que `list`
    * (non paginé) suffise, voir `StudentsListPage`.
    */
-  listPage(input: { page: number; size: number }): Promise<{ items: Student[]; totalElements: number; totalPages: number }>;
+  /**
+   * `search` (CORRECTION bug signalé) : filtre par nom sur l'ÉCOLE ENTIÈRE
+   * côté backend (`UserRepository#findBySchoolIdAndRoleAndNameContaining`),
+   * pas seulement sur les `size` lignes de la page courante.
+   */
+  listPage(input: { page: number; size: number; search?: string }): Promise<{ items: Student[]; totalElements: number; totalPages: number }>;
   get(studentId: string): Promise<Student>;
   get(studentId: string): Promise<Student>;
   create(input: {
     prenom: string;
     nom: string;
     sexe: Student['sexe'];
-    classeId: string;
+    /**
+     * Optionnelle (nouvelle demande direction) — un élève peut être créé
+     * sans classe depuis la liste « Élèves » et se la voir assigner ensuite
+     * depuis sa fiche détail (`StudentDetailPage`, action « Assigner une
+     * classe », `ClassesPort.enroll`). Reste obligatoire côté UI quand la
+     * création se fait depuis la fiche d'une classe (`defaultClassId`).
+     */
+    classeId?: string;
     dateNaissance: string;
     tel: string;
     parent: string;
@@ -584,6 +596,17 @@ export interface SignaturesPort {
     action?: 'SIGNATURE' | 'CACHET',
   ): Promise<SignedDocument>;
   signForStaff(staffId: string, type: string, action?: 'SIGNATURE' | 'CACHET'): Promise<SignedDocument>;
+  /**
+   * Cacheter/signer un bulletin de paie précis -- `documentRef` est
+   * l'identifiant du BULLETIN DE PAIE lui-même (`payslipId`), pas celui du
+   * personnel (contrairement à `signForStaff`) : un même enseignant a
+   * plusieurs bulletins de paie (un par période), chacun signé
+   * indépendamment. `staffId` ne sert qu'à construire le nom de fichier
+   * proposé au téléchargement (voir `SignatureServiceImpl`, résolution du
+   * nom à partir de `documentRef` en best-effort, qui échoue silencieusement
+   * ici puisque `documentRef` n'est pas un id utilisateur).
+   */
+  signPayslip(payslipId: string, staffId: string, action?: 'SIGNATURE' | 'CACHET'): Promise<SignedDocument>;
   signBulk(classId: string, period: BulletinPeriod['key'], action?: 'SIGNATURE' | 'CACHET'): Promise<{ signed: number }>;
   importToSign(targetKind: 'eleve' | 'personnel', targetId: string, fileName: string): Promise<SignedDocument>;
   /**

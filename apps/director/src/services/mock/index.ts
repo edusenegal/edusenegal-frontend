@@ -604,10 +604,17 @@ export function createMockServices(): Services {
         return respond(rows);
       },
       async listPage(input): Promise<{ items: Student[]; totalElements: number; totalPages: number }> {
-        const totalElements = state.students.length;
+        // CORRECTION (bug signalé) : la recherche doit porter sur l'école
+        // entière, pas sur la seule page déjà chargée — même comportement
+        // que le vrai backend (`findBySchoolIdAndRoleAndNameContaining`).
+        const q = input.search?.trim().toLowerCase();
+        const matching = q
+          ? state.students.filter((s) => `${s.prenom} ${s.nom}`.toLowerCase().includes(q))
+          : state.students;
+        const totalElements = matching.length;
         const totalPages = Math.max(1, Math.ceil(totalElements / input.size));
         const start = input.page * input.size;
-        return respond({ items: state.students.slice(start, start + input.size), totalElements, totalPages });
+        return respond({ items: matching.slice(start, start + input.size), totalElements, totalPages });
       },
       async get(studentId): Promise<Student> {
         const found = state.students.find((s) => s.id === studentId);
@@ -615,17 +622,20 @@ export function createMockServices(): Services {
         return respond(found);
       },
       async create(input): Promise<Student> {
-        const classe = state.classes.find((c) => c.id === input.classeId);
-        if (!classe) notFound('Classe');
-        if (classe.effectif >= classe.capacite) {
+        // Classe optionnelle (nouvelle demande direction) — voir le
+        // commentaire de `StudentsPort.create` : un élève peut être créé
+        // sans classe et se la voir assigner depuis sa fiche détail.
+        const classe = input.classeId ? state.classes.find((c) => c.id === input.classeId) : undefined;
+        if (input.classeId && !classe) notFound('Classe');
+        if (classe && classe.effectif >= classe.capacite) {
           throw new AppError('validation', `${classe.name} a atteint sa capacité (${classe.capacite}).`, 409);
         }
         const student: Student = {
           id: `std-${Date.now()}`,
           prenom: input.prenom,
           nom: input.nom,
-          classeId: classe.id,
-          classe: classe.name,
+          classeId: classe?.id ?? '',
+          classe: classe?.name ?? '—',
           dateNaissance: input.dateNaissance,
           sexe: input.sexe,
           parent: input.parent,
@@ -637,7 +647,11 @@ export function createMockServices(): Services {
           tauxPaiement: 0,
           photoUrl: null,
         };
-        state.students.push(student);
+        // CORRECTION (bug signalé) : un élève tout juste créé doit apparaître
+        // en premier (même comportement que le tri `createdAt desc` ajouté
+        // côté vrai backend) plutôt qu'en fin de liste, hors de la première
+        // page.
+        state.students.unshift(student);
         recomputeClassEffectifs();
         return respond(student, 350);
       },
@@ -1192,6 +1206,23 @@ export function createMockServices(): Services {
           date: new Date().toLocaleDateString('fr-FR'),
           signataire: `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`,
           downloadUrl: null,
+          action,
+        };
+        state.signedDocuments.unshift(doc);
+        return respond(doc, 450);
+      },
+      async signPayslip(payslipId, staffId, action = 'SIGNATURE'): Promise<SignedDocument> {
+        const staff = state.teachers.find((t) => t.id === staffId);
+        if (!staff) notFound('Membre du personnel');
+        const doc: SignedDocument = {
+          serie: `DOC-${Date.now()}`,
+          type: 'Bulletin de paie',
+          cible: staff.nom,
+          cibleKind: 'personnel',
+          date: new Date().toLocaleDateString('fr-FR'),
+          signataire: `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`,
+          downloadUrl: null,
+          documentRef: payslipId,
           action,
         };
         state.signedDocuments.unshift(doc);
