@@ -2,8 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, StateView } from '@/components/ui';
+import { Badge, Button, Card, Field, Select, Sheet, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { AppError } from '@/services/errors';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { StudentEditSheet } from './StudentEditSheet';
 import styles from './StudentDetailPage.module.css';
@@ -14,17 +15,55 @@ const STATUS_LABEL = { actif: 'Actif', suspendu: 'Suspendu', transfere: 'Transf�
 export default function StudentDetailPage() {
   const { studentId = '' } = useParams();
   const navigate = useNavigate();
-  const { students } = useServices();
+  const { students, classes } = useServices();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
+  // Assignation de classe (nouvelle demande direction) — un élève créé sans
+  // classe depuis la liste « Élèves » (voir `StudentFormSheet`) se la voit
+  // assigner ici, sans passer par l'assistant de transfert interne (prévu
+  // pour déplacer un élève d'une classe VERS une autre, pas pour en poser
+  // une première — voir `TransfersPage`).
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignClassId, setAssignClassId] = useState('');
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const studentQuery = useQuery({ queryKey: ['student', studentId], queryFn: () => students.get(studentId) });
   const s = studentQuery.data;
+
+  const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list(), enabled: assignOpen });
+
+  const assignMutation = useMutation({
+    mutationFn: (classId: string) => classes.enroll(classId, studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['class', assignClassId] });
+      setAssignOpen(false);
+      setAssignClassId('');
+      setAssignError(null);
+    },
+    onError: (err: unknown) => {
+      setAssignError(err instanceof AppError ? err.message : "Impossible d'assigner cette classe.");
+    },
+  });
+
+  function onAssign() {
+    if (!assignClassId) {
+      setAssignError('Choisissez une classe.');
+      return;
+    }
+    setAssignError(null);
+    assignMutation.mutate(assignClassId);
+  }
 
   const removeMutation = useMutation({
     mutationFn: () => students.remove(studentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      // Même correction que `StudentFormSheet`/`StudentEditSheet`.
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       navigate('/eleves');
     },
@@ -52,9 +91,15 @@ export default function StudentDetailPage() {
         subtitle={s ? `${s.classe} · ${STATUS_LABEL[s.statut]}` : undefined}
         action={
           <div className={styles.actions}>
-            <Button variant="secondary" onClick={onTransfer} disabled={!s}>
-              ⇄ Transférer
-            </Button>
+            {s && !s.classeId ? (
+              <Button variant="primary" onClick={() => setAssignOpen(true)}>
+                + Assigner une classe
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={onTransfer} disabled={!s}>
+                ⇄ Transférer
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => setEditOpen(true)} disabled={!s}>
               ✎ Modifier
             </Button>
@@ -99,6 +144,35 @@ export default function StudentDetailPage() {
       </StateView>
 
       <StudentEditSheet open={editOpen} onClose={() => setEditOpen(false)} student={s ?? null} />
+
+      <Sheet
+        title="Assigner une classe"
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setAssignOpen(false)}>
+              Annuler
+            </Button>
+            <Button variant="primary" onClick={onAssign} loading={assignMutation.isPending}>
+              Assigner
+            </Button>
+          </>
+        }
+      >
+        <Field label="Classe" required>
+          <Select value={assignClassId} onChange={(e) => setAssignClassId(e.target.value)}>
+            <option value="">— Choisir une classe —</option>
+            {classList.data?.map((c) => (
+              <option key={c.id} value={c.id} disabled={c.effectif >= c.capacite}>
+                {c.name} ({c.effectif}/{c.capacite}
+                {c.effectif >= c.capacite ? ' — complète' : ''})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {assignError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{assignError}</p> : null}
+      </Sheet>
     </div>
   );
 }

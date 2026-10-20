@@ -19,6 +19,21 @@ function toAccountantProfile(dto: UserResponseDto): AccountantProfile {
 /** `/auth/login` et `/auth/refresh` ne portent ni nom ni e-mail — seul `user-service` les a. */
 async function fetchAccountantProfile(userId: string): Promise<AccountantProfile> {
   const dto = await request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(userId)}`);
+  // CORRECTION (demande explicite) : la connexion valide les identifiants
+  // pour TOUT le monde (serveur d'auth central, partagé par tous les
+  // frontends) -- rien ici ne vérifiait que ce compte a bien le rôle
+  // ACCOUNTANT avant de le laisser entrer. `toAccountantProfile` ci-dessous
+  // affectait `role: 'ACCOUNTANT'` EN DUR, donc n'importe quel compte valide
+  // (directeur, enseignant, élève...) passait pour un comptable. Un compte
+  // sans ce rôle, même avec un bon mot de passe, est désormais refusé ici —
+  // avant que l'app ne s'ouvre, pas après.
+  if (dto.role !== 'ACCOUNTANT') {
+    throw new AppError(
+      'forbidden',
+      "Ce compte n'a pas accès à l'espace Comptabilité.",
+      403,
+    );
+  }
   return toAccountantProfile(dto);
 }
 

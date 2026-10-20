@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, Input, Segmented, Select, StateView, StatTile } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { StudentsTable } from '@/features/students/StudentsTable';
+import { StudentFormSheet } from '@/features/students/StudentFormSheet';
 import { MonthWeekPicker, mondayOf } from './MonthWeekPicker';
 import { PlanEventSheet } from './PlanEventSheet';
 import { ScheduleGrid } from './ScheduleGrid';
@@ -31,6 +32,8 @@ export default function ClassDetailPage() {
   const [homeroomDraft, setHomeroomDraft] = useState('');
   const [roomDraft, setRoomDraft] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
+  // Création d'élève directement dans cette classe (nouvelle demande direction).
+  const [studentFormOpen, setStudentFormOpen] = useState(false);
 
   const classQuery = useQuery({ queryKey: ['class', classId], queryFn: () => classes.get(classId) });
   const teacherList = useQuery({ queryKey: ['teachers'], queryFn: () => teachers.list() });
@@ -292,12 +295,17 @@ export default function ClassDetailPage() {
 
                 <div className={styles.calHead}>
                   <h3 className={styles.sectionTitle}>Élèves de la classe</h3>
-                  <Input
-                    value={studentSearch}
-                    onChange={(e) => setStudentSearch(e.target.value)}
-                    placeholder="Rechercher un élève…"
-                    style={{ maxWidth: 220 }}
-                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Input
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      placeholder="Rechercher un élève…"
+                      style={{ maxWidth: 220 }}
+                    />
+                    <Button variant="primary" size="sm" onClick={() => setStudentFormOpen(true)}>
+                      + Créer un élève
+                    </Button>
+                  </div>
                 </div>
                 <StateView
                   loading={roster.isLoading}
@@ -307,6 +315,7 @@ export default function ClassDetailPage() {
                 >
                   <StudentsTable students={filteredStudents} onRowClick={(s) => navigate(`/eleves/${s.id}`)} />
                 </StateView>
+                <StudentFormSheet open={studentFormOpen} onClose={() => setStudentFormOpen(false)} defaultClassId={classId} />
               </>
             ) : null}
 

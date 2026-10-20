@@ -5,6 +5,7 @@ import { StateView } from '@/components/ui';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import LoginPage from '@/features/auth/LoginPage';
 
+const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
 const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage'));
 const CashSessionPage = lazy(() => import('@/features/cash-session/CashSessionPage'));
 const LedgerPage = lazy(() => import('@/features/ledger/LedgerPage'));
@@ -22,7 +23,8 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route index element={<ExpensesPage />} />
+            <Route index element={<DashboardPage />} />
+            <Route path="depenses" element={<ExpensesPage />} />
             <Route path="caisse" element={<CashSessionPage />} />
             <Route path="grand-livre" element={<LedgerPage />} />
             <Route path="salaires" element={<SalaryPaymentsPage />} />

@@ -6,6 +6,7 @@ import { createGradeDisputesApi } from '@/api/gradeDisputes.api';
 import { createClassesApi } from '@/api/classes.api';
 import { createDashboardApi } from '@/api/dashboard.api';
 import { createPaymentsApi } from '@/api/payments.api';
+import { createPersonalDocumentsApi } from '@/api/personalDocuments.api';
 import { createPromotionsApi } from '@/api/promotions.api';
 import { createRoomsApi } from '@/api/rooms.api';
 import { createSchoolApi } from '@/api/school.api';
@@ -77,5 +78,11 @@ export function createApiServices(): Services {
     // Réclamations de notes (demande explicite) — décision directeur uniquement,
     // voir le commentaire de `createGradeDisputesApi`.
     gradeDisputes: createGradeDisputesApi(),
+    // CORRECTION (signalé) — restait sur le mock : un document personnel
+    // ajouté depuis la fiche enseignant/élève n'atteignait jamais
+    // document-service, donc n'apparaissait nulle part ailleurs (ex.
+    // l'onglet Documents de l'application mobile élève). Voir le
+    // commentaire de `createPersonalDocumentsApi`.
+    personalDocuments: createPersonalDocumentsApi(),
   };
 }

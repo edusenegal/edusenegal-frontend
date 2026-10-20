@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, DateInput, Field, Input, Select, Sheet } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
@@ -20,10 +21,18 @@ interface StudentFormSheetProps {
  * prénom/nom/sexe/date de naissance/téléphone/classe — un seul tuteur ici
  * (`parent`, texte libre), le backend acceptant jusqu'à 3 `parentIds` une
  * fois les comptes parents reliés, hors périmètre de cette branche mock.
+ *
+ * La classe est obligatoire quand on crée DEPUIS la fiche d'une classe
+ * (`defaultClassId` posé par `ClassDetailPage`), mais optionnelle depuis la
+ * liste « Élèves » générale (nouvelle demande direction) — dans ce dernier
+ * cas on bascule après coup sur la fiche détail du nouvel élève pour lui
+ * assigner une classe (`StudentDetailPage`, action « Assigner une classe »).
  */
 export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormSheetProps) {
   const { students, classes } = useServices();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const classRequired = Boolean(defaultClassId);
 
   const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list(), enabled: open });
 
@@ -57,17 +66,26 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
         prenom: prenom.trim(),
         nom: nom.trim(),
         sexe,
-        classeId,
+        classeId: classeId || undefined,
         dateNaissance: dateNaissance ? isoToFR(dateNaissance) : isoToFR(todayISO()),
         tel: tel.trim() || '—',
         parent: parent.trim() || '—',
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      // CORRECTION (bug signalé) : `StudentsListPage` (vue « Toutes les classes »)
+      // lit `['students-page', page]`, une clé que ['students'] ne préfixe pas
+      // -- l'élève créé restait invisible tant qu'on ne changeait pas de filtre
+      // de classe (qui bascule sur `['students', classFilter]`, lui bien invalidé).
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
-      queryClient.invalidateQueries({ queryKey: ['class', classeId] });
+      if (classeId) queryClient.invalidateQueries({ queryKey: ['class', classeId] });
       reset();
       onClose();
+      // Créé depuis la liste « Élèves » générale (pas de classe imposée) :
+      // on ouvre directement la fiche du nouvel élève pour lui assigner une
+      // classe (nouvelle demande direction).
+      if (!defaultClassId) navigate(`/eleves/${created.id}`);
     },
     onError: (err: unknown) => {
       setError(err instanceof AppError ? err.message : 'Création impossible.');
@@ -79,7 +97,7 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
       setError('Le prénom et le nom sont obligatoires.');
       return;
     }
-    if (!classeId) {
+    if (classRequired && !classeId) {
       setError('Choisissez la classe de l’élève.');
       return;
     }
@@ -114,9 +132,9 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
           <Input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Ex. Ndiaye" />
         </Field>
       </div>
-      <Field label="Classe" required>
+      <Field label="Classe" required={classRequired}>
         <Select value={classeId} onChange={(e) => setClasseId(e.target.value)}>
-          <option value="">— Choisir une classe —</option>
+          <option value="">{classRequired ? '— Choisir une classe —' : '— Sans classe pour le moment —'}</option>
           {classList.data?.map((c) => (
             <option key={c.id} value={c.id} disabled={c.effectif >= c.capacite}>
               {c.name} ({c.effectif}/{c.capacite}
@@ -124,6 +142,11 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
             </option>
           ))}
         </Select>
+        {!classRequired ? (
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
+            Vous pourrez assigner une classe depuis la fiche de l’élève juste après.
+          </p>
+        ) : null}
       </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Field label="Sexe" required>

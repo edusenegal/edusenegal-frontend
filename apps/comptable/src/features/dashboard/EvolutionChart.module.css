@@ -1,0 +1,163 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.lineKeySuccess,
+.lineKeyWarning {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.lineKeySuccess {
+  background: var(--color-success);
+}
+
+.lineKeyWarning {
+  background: var(--color-warning);
+}
+
+.toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.toggle:hover,
+.toggle:focus-visible {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.plotArea {
+  position: relative;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.gridline {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  font-size: 10.5px;
+  fill: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.crosshair {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+
+.lineSuccess,
+.lineWarning {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lineSuccess {
+  stroke: var(--color-success);
+}
+
+.lineWarning {
+  stroke: var(--color-warning);
+}
+
+.dotSuccess,
+.dotWarning {
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+
+.dotSuccess {
+  fill: var(--color-success);
+}
+
+.dotWarning {
+  fill: var(--color-warning);
+}
+
+.tooltip {
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  background: var(--color-text);
+  color: var(--color-text-invert);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: var(--text-xs);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  min-width: 150px;
+  z-index: 1;
+}
+
+.tooltipPeriod {
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: var(--color-text-invert);
+}
+
+.tooltipRow {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-invert);
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

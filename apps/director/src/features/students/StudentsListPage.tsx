@@ -25,11 +25,22 @@ export default function StudentsListPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [page, setPage] = useState(0);
 
-  // La page revient à 0 dès qu'on change de classe — une page de la classe A
-  // n'a aucun sens une fois basculé sur la classe B (ou sur « toutes »).
+  // CORRECTION (bug signalé) : la recherche sur la vue « Toutes les classes »
+  // ne filtrait que les `PAGE_SIZE` lignes déjà chargées -- un élève tout
+  // juste créé (ou simplement situé sur une autre page) restait introuvable
+  // même en tapant son nom. `debouncedSearch` est envoyé au backend, qui
+  // filtre sur l'ÉCOLE ENTIÈRE (voir `StudentsPort.listPage`).
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // La page revient à 0 dès qu'on change de classe ou de recherche — une
+  // page de résultats précédente n'a plus de sens une fois le filtre changé.
   useEffect(() => {
     setPage(0);
-  }, [classFilter]);
+  }, [classFilter, debouncedSearch]);
 
   const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list() });
 
@@ -41,8 +52,8 @@ export default function StudentsListPage() {
    * second cas ne pose pas de pagination (une seule page, voir `Pager`).
    */
   const pagedQuery = useQuery({
-    queryKey: ['students-page', page],
-    queryFn: () => students.listPage({ page, size: PAGE_SIZE }),
+    queryKey: ['students-page', page, debouncedSearch],
+    queryFn: () => students.listPage({ page, size: PAGE_SIZE, search: debouncedSearch || undefined }),
     enabled: !classFilter,
   });
   const classQuery = useQuery({
@@ -119,11 +130,15 @@ export default function StudentsListPage() {
     [baseStudents, moyenneByStudent, absenceCounts.data, paymentRatesByStudent.data],
   );
 
+  // Vue « une classe » : `students.list(classFilter)` charge toute la
+  // classe en un seul appel (petit effectif), donc le filtre texte reste
+  // local. Vue « toutes les classes » : déjà filtré côté serveur ci-dessus.
   const filtered = useMemo(() => {
+    if (!classFilter) return enriched;
     const q = search.trim().toLowerCase();
     if (!q) return enriched;
     return enriched.filter((s) => `${s.prenom} ${s.nom}`.toLowerCase().includes(q));
-  }, [enriched, search]);
+  }, [enriched, search, classFilter]);
 
   return (
     <div>
@@ -132,14 +147,14 @@ export default function StudentsListPage() {
         subtitle={
           classFilter
             ? `${filtered.length} élèves dans cette classe.`
-            : `${totalElements} élèves sur l’ensemble de l’établissement${search.trim() ? ` — ${filtered.length} sur cette page correspondent à la recherche` : ''}.`
+            : `${totalElements} élève${totalElements === 1 ? '' : 's'}${search.trim() ? ' correspondant à la recherche' : ' sur l’ensemble de l’établissement'}.`
         }
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={classFilter ? 'Rechercher un élève…' : 'Rechercher sur cette page…'}
+              placeholder="Rechercher un élève…"
               style={{ maxWidth: 220 }}
             />
             <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} style={{ maxWidth: 200 }}>

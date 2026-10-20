@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Card, CardHeader, Field, Input, Select, StateView, Table, type Column } from '@/components/ui';
+import { Button, Card, CardHeader, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { BulletinPeriod, SignedDocument } from '@/types/domain';
 import { buildDownloadFilename } from '@/utils/format';
@@ -18,6 +19,21 @@ const STAFF_DOC_TYPES = ['Attestation de travail', 'Certificat de présence', 'D
 export default function SignaturesPage() {
   const { signatures, classes, students, teachers } = useServices();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // CORRECTION (demande explicite) : les boutons « Signer » de cet écran
+  // restent grisés, par règle interne, tant qu'aucune signature n'est
+  // déposée -- voir le même commentaire dans AcademicResultsPage.tsx.
+  const assetsQuery = useQuery({ queryKey: ['signer-assets'], queryFn: () => signatures.getMyAssets() });
+  const hasSignature = assetsQuery.data?.hasSignature ?? false;
+  const [assetDialogOpen, setAssetDialogOpen] = useState(false);
+  function requireSignature(run: () => void) {
+    if (!hasSignature) {
+      setAssetDialogOpen(true);
+      return;
+    }
+    run();
+  }
 
   const documents = useQuery({ queryKey: ['signed-documents'], queryFn: () => signatures.listDocuments() });
   const periods = useQuery({ queryKey: ['bulletin-periods'], queryFn: () => signatures.listBulletinPeriods() });
@@ -137,7 +153,9 @@ export default function SignaturesPage() {
               variant="primary"
               disabled={!bulkClassId || !bulkPeriod}
               loading={signBulkMutation.isPending}
-              onClick={() => signBulkMutation.mutate()}
+              style={!hasSignature ? { opacity: 0.5 } : undefined}
+              aria-disabled={!hasSignature || undefined}
+              onClick={() => requireSignature(() => signBulkMutation.mutate())}
             >
               Signer tous les bulletins de la classe
             </Button>
@@ -235,7 +253,9 @@ export default function SignaturesPage() {
             variant="primary"
             disabled={mode === 'eleve' ? !indivStudentId || (indivType === 'Bulletin' && !indivPeriod) : !indivStaffId}
             loading={signIndivMutation.isPending}
-            onClick={() => signIndivMutation.mutate()}
+            style={!hasSignature ? { opacity: 0.5 } : undefined}
+            aria-disabled={!hasSignature || undefined}
+            onClick={() => requireSignature(() => signIndivMutation.mutate())}
           >
             Signer le document
           </Button>
@@ -261,6 +281,27 @@ export default function SignaturesPage() {
           <Table columns={columns} rows={filtered} rowKey={(d) => d.serie} />
         </StateView>
       </Card>
+
+      <Sheet title="Aucune signature déposée" open={assetDialogOpen} onClose={() => setAssetDialogOpen(false)}>
+        <p>
+          Aucune signature n'est enregistrée pour votre compte — vous ne pouvez pas signer de document tant
+          qu'elle n'est pas déposée.
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAssetDialogOpen(false);
+              navigate('/parametres');
+            }}
+          >
+            Aller dans Paramètres
+          </Button>
+          <Button variant="secondary" onClick={() => setAssetDialogOpen(false)}>
+            Fermer
+          </Button>
+        </div>
+      </Sheet>
     </div>
   );
 }

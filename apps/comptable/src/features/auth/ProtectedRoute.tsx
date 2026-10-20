@@ -3,11 +3,11 @@ import { StateView } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 /**
- * Un seul rôle existe dans cette application (DIRECTOR) : cette garde ne
- * vérifie donc que la présence d'une session, pas un rôle. Si l'espace
- * direction est un jour servi aux côtés d'autres rôles (comptable,
- * enseignant…) derrière la même session, c'est ici qu'une vérification de
- * rôle s'ajouterait — à l'image de `student/web`.
+ * Un seul rôle est censé arriver jusqu'ici (ACCOUNTANT) : cette garde ne
+ * vérifie donc que la présence d'une session, pas un rôle — le vrai
+ * filtrage par rôle se fait désormais à la connexion elle-même (voir
+ * `fetchAccountantProfile` dans `auth.api.ts`, qui refuse tout compte dont
+ * le rôle backend n'est pas ACCOUNTANT avant même d'ouvrir l'application).
  *
  * `idle`/`authenticating` : la restauration silencieuse de la session
  * (`AuthProvider`) est en cours — ni l'écran protégé ni la connexion ne

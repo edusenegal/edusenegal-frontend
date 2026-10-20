@@ -5,15 +5,27 @@ interface StatTileProps {
   value: string;
   delta?: string;
   tone?: 'success' | 'warning' | 'danger' | 'neutral';
+  /** Rend la tuile cliquable (ex. solde/dépenses -> détail) -- un <button>, jamais un <div onClick>. */
+  onClick?: () => void;
 }
 
 /** Tuile de synthèse du tableau de bord — une valeur, jamais un graphique nu. */
-export function StatTile({ label, value, delta, tone = 'neutral' }: StatTileProps) {
-  return (
-    <div className={styles.tile}>
+export function StatTile({ label, value, delta, tone = 'neutral', onClick }: StatTileProps) {
+  const content = (
+    <>
       <span className={styles.label}>{label}</span>
       <span className={styles.value}>{value}</span>
       {delta ? <span className={[styles.delta, styles[tone]].join(' ')}>{delta}</span> : null}
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" className={[styles.tile, styles.clickable].join(' ')} onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={styles.tile}>{content}</div>;
 }

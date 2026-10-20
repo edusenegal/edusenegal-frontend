@@ -1,8 +1,8 @@
 import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
-import type { LedgerResponseDto } from '@/types/api';
+import type { LedgerHistoryResponseDto, LedgerResponseDto } from '@/types/api';
 import type { LedgerPort } from '@/services/ports';
-import type { SchoolLedger } from '@/types/domain';
+import type { LedgerGranularity, LedgerHistory, SchoolLedger } from '@/types/domain';
 import { isoToFR } from '@/utils/format';
 
 /** "2026-11-05T10:30:00" → "05/11/2026 10:30". */
@@ -22,6 +22,20 @@ function fromApiLedger(dto: LedgerResponseDto): SchoolLedger {
   };
 }
 
+function fromApiHistory(dto: LedgerHistoryResponseDto): LedgerHistory {
+  return {
+    granularite: dto.granularity as LedgerGranularity,
+    points: dto.points.map((p) => ({
+      period: p.period,
+      entreesFcfa: p.incomesFcfa,
+      sortiesFcfa: p.expensesFcfa,
+    })),
+    totalEntreesFcfa: dto.totalIncomesFcfa,
+    totalSortiesFcfa: dto.totalExpensesFcfa,
+    solde: dto.balanceFcfa,
+  };
+}
+
 export function createLedgerApi(): LedgerPort {
   return {
     async get(): Promise<SchoolLedger> {
@@ -31,6 +45,15 @@ export function createLedgerApi(): LedgerPort {
         query: { schoolId, academicYearId },
       });
       return fromApiLedger(dto);
+    },
+
+    async getHistory(granularity: LedgerGranularity, from: string, to: string): Promise<LedgerHistory> {
+      const { schoolId } = sessionContext();
+      const academicYearId = await resolveYearId();
+      const dto = await request<LedgerHistoryResponseDto>('/api/v1/accounting/ledger/history', {
+        query: { schoolId, academicYearId, granularity, from, to },
+      });
+      return fromApiHistory(dto);
     },
   };
 }

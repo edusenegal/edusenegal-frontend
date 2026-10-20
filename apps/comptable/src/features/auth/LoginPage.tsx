@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Button, Field, Input } from '@/components/ui';
+import { Button, Field, Input, Sheet } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/auth.store';
 import { AppError } from '@/services/errors';
@@ -19,11 +19,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loginByPhone, setLoginByPhone] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // CORRECTION (demande explicite) : un compte valide mais sans le rôle
+  // ACCOUNTANT (voir `fetchAccountantProfile`) a droit à un popup qui dit
+  // clairement « vous n'avez pas accès », pas au message générique de
+  // connexion échouée affiché en ligne sous le formulaire.
+  const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => auth.login(email, password, loginByPhone),
     onMutate: () => {
       setError(null);
+      setAccessDenied(null);
       setAuthenticating();
     },
     onSuccess: (accountant) => {
@@ -32,6 +38,10 @@ export default function LoginPage() {
       navigate(from, { replace: true });
     },
     onError: (err: unknown) => {
+      if (err instanceof AppError && err.kind === 'forbidden') {
+        setAccessDenied(err.message);
+        return;
+      }
       setError(err instanceof AppError ? err.message : 'Connexion impossible.');
     },
   });
@@ -105,6 +115,13 @@ export default function LoginPage() {
           Se connecter
         </Button>
       </form>
+
+      <Sheet title="Accès refusé" open={accessDenied !== null} onClose={() => setAccessDenied(null)}>
+        <p>{accessDenied}</p>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
+          Connectez-vous avec un compte ayant le rôle Comptabilité, ou contactez votre établissement.
+        </p>
+      </Sheet>
     </div>
   );
 }

@@ -20,6 +20,21 @@ function toDirectorProfile(dto: UserResponseDto): DirectorProfile {
 /** `/auth/login` et `/auth/refresh` ne portent ni nom ni e-mail — seul `user-service` les a. */
 async function fetchDirectorProfile(userId: string): Promise<DirectorProfile> {
   const dto = await request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(userId)}`);
+  // CORRECTION (demande explicite) : la connexion valide les identifiants
+  // pour TOUT le monde (serveur d'auth central, partagé par tous les
+  // frontends) -- rien ici ne vérifiait que ce compte a bien le rôle
+  // DIRECTOR avant de le laisser entrer. `toDirectorProfile` ci-dessous
+  // affectait `role: 'DIRECTOR'` EN DUR, donc n'importe quel compte valide
+  // (comptable, enseignant, élève...) passait pour un directeur. Un compte
+  // sans ce rôle, même avec un bon mot de passe, est désormais refusé ici —
+  // avant que l'app ne s'ouvre, pas après.
+  if (dto.role !== 'DIRECTOR') {
+    throw new AppError(
+      'forbidden',
+      "Ce compte n'a pas accès à l'espace Direction.",
+      403,
+    );
+  }
   return toDirectorProfile(dto);
 }
 

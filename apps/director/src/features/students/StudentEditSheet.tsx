@@ -39,6 +39,9 @@ export function StudentEditSheet({ open, onClose, student }: StudentEditSheetPro
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      // Même correction que `StudentFormSheet` : la vue paginée « Toutes les
+      // classes » lit `['students-page', page]`, jamais invalidée sinon.
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
       onClose();
     },
   });

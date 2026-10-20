@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, CardHeader, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
@@ -56,7 +57,26 @@ const DECISION_TONES: Record<PromotionResult, BadgeTone> = {
 export default function AcademicResultsPage() {
   const { classes, subjects, academicResults, signatures } = useServices();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+
+  // CORRECTION (demande explicite) : Signer et Cacheter restent possibles
+  // côté backend sans tampon/signature déposés (Signer réussirait même
+  // sans image -- voir SignatureServiceImpl), mais la direction veut les
+  // deux boutons grisés tant que les DEUX images ne sont pas déposées,
+  // comme règle interne. Même requête que SettingsPage (`signer-assets`) :
+  // partagée en cache, pas de double appel en changeant d'écran.
+  const assetsQuery = useQuery({ queryKey: ['signer-assets'], queryFn: () => signatures.getMyAssets() });
+  const hasSignature = assetsQuery.data?.hasSignature ?? false;
+  const hasStamp = assetsQuery.data?.hasStamp ?? false;
+  const [assetDialog, setAssetDialog] = useState<'signature' | 'stamp' | null>(null);
+  function requireAsset(kind: 'signature' | 'stamp', ok: boolean, run: () => void) {
+    if (!ok) {
+      setAssetDialog(kind);
+      return;
+    }
+    run();
+  }
 
   const classesQuery = useQuery({ queryKey: ['classes'], queryFn: () => classes.list() });
   const subjectsQuery = useQuery({ queryKey: ['subjects'], queryFn: () => subjects.list() });
@@ -441,7 +461,13 @@ export default function AcademicResultsPage() {
                   variant="secondary"
                   loading={signClassBulletinsMutation.isPending}
                   disabled={!results.some((r) => r.bulletinGenere)}
-                  onClick={() => runMutation(() => signClassBulletinsMutation.mutateAsync())}
+                  style={!hasSignature ? { opacity: 0.5 } : undefined}
+                  aria-disabled={!hasSignature || undefined}
+                  onClick={() =>
+                    requireAsset('signature', hasSignature, () =>
+                      runMutation(() => signClassBulletinsMutation.mutateAsync()),
+                    )
+                  }
                 >
                   Signer tous les bulletins de la classe
                 </Button>
@@ -449,7 +475,13 @@ export default function AcademicResultsPage() {
                   variant="secondary"
                   loading={cachetClassBulletinsMutation.isPending}
                   disabled={!results.some((r) => r.bulletinGenere)}
-                  onClick={() => runMutation(() => cachetClassBulletinsMutation.mutateAsync())}
+                  style={!hasStamp ? { opacity: 0.5 } : undefined}
+                  aria-disabled={!hasStamp || undefined}
+                  onClick={() =>
+                    requireAsset('stamp', hasStamp, () =>
+                      runMutation(() => cachetClassBulletinsMutation.mutateAsync()),
+                    )
+                  }
                 >
                   Cacheter tous les bulletins de la classe
                 </Button>
@@ -531,7 +563,13 @@ export default function AcademicResultsPage() {
                                   <Button
                                     variant="secondary"
                                     loading={signMutation.isPending && signMutation.variables === row.studentId}
-                                    onClick={() => runMutation(() => signMutation.mutateAsync(row.studentId))}
+                                    style={!hasSignature ? { opacity: 0.5 } : undefined}
+                                    aria-disabled={!hasSignature || undefined}
+                                    onClick={() =>
+                                      requireAsset('signature', hasSignature, () =>
+                                        runMutation(() => signMutation.mutateAsync(row.studentId)),
+                                      )
+                                    }
                                   >
                                     Signer
                                   </Button>
@@ -556,7 +594,13 @@ export default function AcademicResultsPage() {
                                   <Button
                                     variant="secondary"
                                     loading={cachetMutation.isPending && cachetMutation.variables === row.studentId}
-                                    onClick={() => runMutation(() => cachetMutation.mutateAsync(row.studentId))}
+                                    style={!hasStamp ? { opacity: 0.5 } : undefined}
+                                    aria-disabled={!hasStamp || undefined}
+                                    onClick={() =>
+                                      requireAsset('stamp', hasStamp, () =>
+                                        runMutation(() => cachetMutation.mutateAsync(row.studentId)),
+                                      )
+                                    }
                                   >
                                     Cacheter
                                   </Button>
@@ -702,6 +746,32 @@ export default function AcademicResultsPage() {
           </div>
         )}
         {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 12 }}>{error}</p> : null}
+      </Sheet>
+
+      <Sheet
+        title={assetDialog === 'stamp' ? 'Aucun tampon déposé' : 'Aucune signature déposée'}
+        open={assetDialog !== null}
+        onClose={() => setAssetDialog(null)}
+      >
+        <p>
+          {assetDialog === 'stamp'
+            ? "Aucun tampon n'est enregistré pour votre compte — vous ne pouvez pas cacheter de bulletin tant qu'il n'est pas déposé."
+            : "Aucune signature n'est enregistrée pour votre compte — vous ne pouvez pas signer de bulletin tant qu'elle n'est pas déposée."}
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAssetDialog(null);
+              navigate('/parametres');
+            }}
+          >
+            Aller dans Paramètres
+          </Button>
+          <Button variant="secondary" onClick={() => setAssetDialog(null)}>
+            Fermer
+          </Button>
+        </div>
       </Sheet>
     </div>
   );

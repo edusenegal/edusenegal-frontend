@@ -21,7 +21,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Finances',
     items: [
-      { to: '/', label: 'Dépenses', icon: '💰' },
+      { to: '/', label: 'Tableau de bord', icon: '📊' },
+      { to: '/depenses', label: 'Dépenses', icon: '💰' },
       { to: '/caisse', label: 'Caisse', icon: '🧾' },
       { to: '/grand-livre', label: 'Grand livre', icon: '📒' },
       { to: '/salaires', label: 'Salaires', icon: '💵' },

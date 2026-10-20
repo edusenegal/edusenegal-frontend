@@ -122,7 +122,7 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
       const { schoolId } = sessionContext();
       const [pageDto, classesDtos] = await Promise.all([
         request<ApiPage<UserResponseDto>>(`/api/v1/users/school/${encodeURIComponent(schoolId)}/page`, {
-          query: { role: 'STUDENT', page: input.page, size: input.size },
+          query: { role: 'STUDENT', page: input.page, size: input.size, search: input.search || undefined },
         }),
         fetchSchoolClasses(schoolId),
       ]);
@@ -145,6 +145,13 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
 
     async create(input): Promise<Student> {
       const { schoolId } = sessionContext();
+      // CORRECTION (bug signalé) : `CreateUserRequest.classId` n'est lu par
+      // AUCUN code de user-service (vérifié — le champ n'existe que dans le
+      // DTO) ; l'élève était donc créé SANS JAMAIS être inscrit au roster
+      // réel de sa classe (`ClassGroup.studentIds`, class-service, seul
+      // maître de l'inscription — voir `ClassController`). L'inscription se
+      // fait maintenant explicitement via le même endpoint qu'utilise le
+      // transfert interne (`POST /classes/{classId}/students/{studentId}`).
       const body: CreateUserRequestDto = {
         schoolId,
         role: 'STUDENT',
@@ -153,11 +160,20 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
         phone: input.tel,
         sexe: input.sexe === 'M' ? 'MASCULIN' : 'FEMININ',
         birthDate: frToISO(input.dateNaissance),
-        classId: input.classeId,
         status: 'ACTIVE',
       };
-      const [dto, classInfo] = await Promise.all([
-        request<UserResponseDto>('/api/v1/users', { method: 'POST', body }),
+      const dto = await request<UserResponseDto>('/api/v1/users', { method: 'POST', body });
+
+      // Classe optionnelle (nouvelle demande direction) — un élève créé sans
+      // classe reste normalement listé (classe affichée « — ») et se la voit
+      // assigner plus tard depuis sa fiche détail.
+      if (!input.classeId) {
+        return fromUserResponse(dto, undefined);
+      }
+      const [, classInfo] = await Promise.all([
+        request<void>(`/api/v1/classes/${encodeURIComponent(input.classeId)}/students/${encodeURIComponent(dto.id)}`, {
+          method: 'POST',
+        }),
         request<{ id: string; fullName: string }>(`/api/v1/classes/${encodeURIComponent(input.classeId)}`),
       ]);
       return fromUserResponse(dto, { classeId: classInfo.id, classe: classInfo.fullName });
