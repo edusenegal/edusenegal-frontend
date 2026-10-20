@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Card, CardHeader, Field, Input, Select, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
@@ -8,11 +9,22 @@ import { CHANNEL_LABELS, TYPE_LABELS, emptyLevelPricingRow, totalFor } from './p
 import type { LevelPricing, PaymentChannel, PaymentType } from '@/types/domain';
 
 export default function PaymentConfigPage() {
-  const { paymentConfig } = useServices();
+  const { paymentConfig, school } = useServices();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const configQuery = useQuery({ queryKey: ['payment-config'], queryFn: () => paymentConfig.get() });
   const config = configQuery.data;
+
+  // CORRECTION (demande explicite) : la configuration des paiements ne doit
+  // être modifiable qu'au moment de l'ouverture d'une année (l'étape
+  // "Paiements" de l'assistant, voir OpenYearWizard) -- pas depuis cet écran
+  // autonome une fois l'année ouverte, pour éviter de changer les tarifs en
+  // cours d'année sur des élèves déjà facturés. Même requête que l'assistant
+  // (`['academic-years']`), partagée en cache.
+  const yearsQuery = useQuery({ queryKey: ['academic-years'], queryFn: () => school.listAcademicYears() });
+  const openYear = yearsQuery.data?.find((y) => y.statut === 'ouverte');
+  const locked = Boolean(openYear);
 
   const [type, setType] = useState<PaymentType>('inscription_trimestriel');
   const [levelPricings, setLevelPricings] = useState<LevelPricing[]>([]);
@@ -106,6 +118,19 @@ export default function PaymentConfigPage() {
       />
 
       <StateView loading={configQuery.isLoading} error={configQuery.error}>
+        {locked ? (
+          <Card padded style={{ marginBottom: 20, borderColor: 'var(--color-warning)' }}>
+            <p style={{ fontSize: 13, margin: 0 }}>
+              L'année scolaire <strong>{openYear?.label}</strong> est ouverte — la configuration des paiements est
+              verrouillée pour éviter de modifier les tarifs en cours d'année. Elle ne peut être reconfigurée qu'au
+              moment de l'ouverture de la prochaine année.
+            </p>
+            <Button variant="secondary" size="sm" style={{ marginTop: 10 }} onClick={() => navigate('/annee-scolaire/ouvrir')}>
+              Aller à l'assistant d'ouverture d'année
+            </Button>
+          </Card>
+        ) : null}
+        <fieldset disabled={locked} style={{ border: 'none', padding: 0, margin: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <Card padded>
             <CardHeader title="Mode de facturation" />
@@ -249,11 +274,12 @@ export default function PaymentConfigPage() {
           {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</p> : null}
           {success ? <p style={{ color: 'var(--color-success)', fontSize: 13 }}>{success}</p> : null}
           <div>
-            <Button variant="primary" loading={saveMutation.isPending} onClick={onSubmit}>
+            <Button variant="primary" loading={saveMutation.isPending} disabled={locked} onClick={onSubmit}>
               Enregistrer la configuration
             </Button>
           </div>
         </div>
+        </fieldset>
       </StateView>
     </div>
   );
