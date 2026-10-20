@@ -5,6 +5,8 @@ import type {
   ExpenseCategory,
   ExpenseDecision,
   ExpenseStatus,
+  LedgerGranularity,
+  LedgerHistory,
   PaymentChannel,
   PaymentTransaction,
   PaymentType,
@@ -73,6 +75,13 @@ export interface ExpensesPort {
   cancel(expenseId: string): Promise<Expense>;
   /** Backend : `POST /api/v1/accounting/expenses/{id}/attachments` (multipart). */
   attachFile(expenseId: string, file: File): Promise<Expense>;
+  /**
+   * Téléchargement authentifié d'un justificatif (fetch + téléchargement
+   * local), jamais le lien MinIO présigné brut (`Expense.piecesJointes`),
+   * qui peut être indisponible ou mal résolu depuis le navigateur.
+   * Backend : `GET /api/v1/accounting/expenses/{id}/attachments/{index}/download`.
+   */
+  downloadAttachment(expenseId: string, index: number, suggestedFilename: string): Promise<void>;
 }
 
 /**
@@ -106,6 +115,12 @@ export interface CashSessionsPort {
 export interface LedgerPort {
   /** Backend : `GET /api/v1/accounting/ledger`. */
   get(): Promise<SchoolLedger>;
+  /**
+   * Backend : `GET /api/v1/accounting/ledger/history` -- historique daté
+   * des entrées/sorties (dashboard comptable + export Excel, task #268/#269).
+   * `from`/`to` au format ISO `yyyy-MM-dd`.
+   */
+  getHistory(granularity: LedgerGranularity, from: string, to: string): Promise<LedgerHistory>;
 }
 
 /**
@@ -169,6 +184,13 @@ export interface SalaryPaymentsPort {
   cancel(requestId: string): Promise<SalaryRequest>;
   /** Backend : `GET /api/v1/accounting/salary-requests/payslips?schoolId&staffUserId`. */
   listPayslips(staffUserId: string): Promise<SalarySlip[]>;
+  /**
+   * Téléchargement du bulletin de paie en PDF — fetch + téléchargement local
+   * (comme les bulletins scolaires signés, `apps/director`), jamais un lien
+   * direct : le PDF est derrière un endpoint authentifié.
+   * Backend : `GET /api/v1/accounting/salary-requests/payslips/{id}/pdf`.
+   */
+  downloadPayslipPdf(payslip: SalarySlip): Promise<void>;
 }
 
 /**

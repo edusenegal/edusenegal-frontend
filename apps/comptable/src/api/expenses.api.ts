@@ -12,7 +12,7 @@ import type {
 } from '@/types/api';
 import type { ExpensesPort } from '@/services/ports';
 import type { Expense, ExpenseCategory, ExpenseDecision, ExpenseStatus, ExpenseValidationStep } from '@/types/domain';
-import { isoToFR, frToISO } from '@/utils/format';
+import { isoToFR, frToISO, downloadBlob } from '@/utils/format';
 
 const CATEGORY_TO_API: Record<ExpenseCategory, ApiExpenseCategory> = {
   salaires: 'SALAIRES',
@@ -172,6 +172,18 @@ export function createExpensesApi(): ExpensesPort {
         { method: 'POST', formData },
       );
       return fromApiExpense(dto);
+    },
+
+    // CORRECTION (demande explicite) : « Justificatifs » n'offrait qu'un
+    // <a href={urlPresignee}>, parfois indisponible ou mal résolu depuis le
+    // navigateur (même défaut déjà corrigé côté signatures). Octets récupérés
+    // directement via l'endpoint authentifié, jamais l'URL présignée.
+    async downloadAttachment(expenseId, index, suggestedFilename): Promise<void> {
+      const blob = await request<Blob>(
+        `/api/v1/accounting/expenses/${encodeURIComponent(expenseId)}/attachments/${index}/download`,
+        { responseType: 'blob' },
+      );
+      downloadBlob(blob, suggestedFilename);
     },
   };
 }

@@ -68,3 +68,95 @@ export function fmtBytes(bytes: number): string {
   const mo = ko / 1024;
   return `${mo.toFixed(mo < 10 ? 1 : 0)} Mo`;
 }
+
+/**
+ * Nombre compact pour un repère d'axe de graphique — "850", "25 K", "1,2 M".
+ * Jamais de devise ici (voir `fmtXOF`) : ceci habille un axe, pas une valeur lue isolément.
+ */
+export function fmtCompact(amount: number): string {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+  if (abs >= 1_000_000) {
+    const value = abs / 1_000_000;
+    return `${sign}${value.toFixed(Number.isInteger(value) ? 0 : 1).replace('.', ',')} M`;
+  }
+  if (abs >= 1_000) {
+    const value = abs / 1_000;
+    return `${sign}${value.toFixed(Number.isInteger(value) ? 0 : 1).replace('.', ',')} K`;
+  }
+  return `${sign}${Math.round(abs)}`;
+}
+
+const MONTHS_FR_SHORT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+/**
+ * Période renvoyée par l'historique du grand livre ("2026-10-05" en jour,
+ * "2026-W41" en semaine, "2026-10" en mois, "2026" en année) → libellé court,
+ * pour un axe de graphique sans le surcharger.
+ */
+export function periodLabelShort(period: string): string {
+  const dayMatch = period.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dayMatch) return `${dayMatch[3]}/${dayMatch[2]}`;
+  const weekMatch = period.match(/^(\d{4})-W(\d{2})$/);
+  if (weekMatch) return `S${weekMatch[2]}`;
+  const monthMatch = period.match(/^(\d{4})-(\d{2})$/);
+  if (monthMatch) {
+    const index = Number(monthMatch[2]) - 1;
+    const name = MONTHS_FR_SHORT[index];
+    return name ? `${name} ${(monthMatch[1] ?? '').slice(2)}` : period;
+  }
+  return period; // année seule, ex. "2026"
+}
+
+/**
+ * Même entrée que `periodLabelShort`, mais en libellé complet — pour
+ * l'infobulle du graphique, la vue tableau et l'export Excel.
+ */
+export function periodLabelFull(period: string): string {
+  const dayMatch = period.match(/^\d{4}-\d{2}-\d{2}$/);
+  if (dayMatch) return isoToFR(period);
+  const weekMatch = period.match(/^(\d{4})-W(\d{2})$/);
+  if (weekMatch) return `Semaine ${weekMatch[2]} — ${weekMatch[1]}`;
+  const monthMatch = period.match(/^(\d{4})-(\d{2})$/);
+  if (monthMatch) return monthValueToFR(`${monthMatch[1]}-${monthMatch[2]}`);
+  return period; // année seule, ex. "2026"
+}
+
+/** "Aïssatou Ndiaye-Fall" → "aissatou-ndiaye-fall" — sans accent ni espace, sûr pour un nom de fichier. */
+function slugifyNamePart(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9-]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Nom de fichier pour un téléchargement PDF : `{type}_{prenom}_{nom}_{date}.pdf`.
+ *
+ * Volontairement construit à partir d'éléments lisibles (prénom/nom/date) et
+ * JAMAIS de l'id technique du document : cet id se retrouverait tel quel
+ * dans le nom de fichier téléchargé (historique du navigateur, captures
+ * d'écran, email de transfert...), ce qui l'expose inutilement. Même
+ * fonction que `apps/teacher`/`apps/director` (`buildDownloadFilename`).
+ */
+export function buildDownloadFilename(type: string, firstName: string, lastName: string, date?: string): string {
+  const base = [type, slugifyNamePart(firstName), slugifyNamePart(lastName), date ?? todayISO()]
+    .filter(Boolean)
+    .join('_');
+  return `${base}.pdf`;
+}
+
+/** Déclenche le téléchargement d'un blob dans le navigateur (lien temporaire). */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

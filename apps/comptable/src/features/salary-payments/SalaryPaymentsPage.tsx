@@ -25,6 +25,7 @@ import type {
   SalaryRequest,
   SalaryRequestLine,
   SalaryRequestStatus,
+  SalarySlip,
 } from '@/types/domain';
 
 const STATUS_LABEL: Record<SalaryRequestStatus, string> = {
@@ -118,6 +119,7 @@ export default function SalaryPaymentsPage() {
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
   const [payslipStaffId, setPayslipStaffId] = useState<string>('');
+  const [payslipDownloadError, setPayslipDownloadError] = useState<string | null>(null);
 
   const list = useQuery({ queryKey: ['salary-requests'], queryFn: () => salaryPayments.list() });
   const staff = useQuery({ queryKey: ['payroll-staff'], queryFn: () => salaryPayments.listPayableStaff() });
@@ -126,6 +128,14 @@ export default function SalaryPaymentsPage() {
     queryKey: ['payslips', payslipStaffId],
     queryFn: () => salaryPayments.listPayslips(payslipStaffId),
     enabled: view === 'bulletins' && payslipStaffId !== '',
+  });
+  // CORRECTION (demande explicite) : la liste n'offrait aucun moyen de voir
+  // ni de télécharger le bulletin -- seul le texte était affiché.
+  const downloadPayslipMutation = useMutation({
+    mutationFn: (payslip: SalarySlip) => salaryPayments.downloadPayslipPdf(payslip),
+    onSuccess: () => setPayslipDownloadError(null),
+    onError: (err: unknown) =>
+      setPayslipDownloadError(err instanceof AppError ? err.message : 'Téléchargement impossible.'),
   });
 
   const filtered = useMemo(() => {
@@ -341,11 +351,24 @@ export default function SalaryPaymentsPage() {
               emptyLabel="Aucun bulletin pour ce personnel."
               onRetry={() => payslips.refetch()}
             >
-              <ul style={{ margin: '12px 0 0', paddingLeft: 18, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {payslipDownloadError ? (
+                <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '8px 0 0' }}>{payslipDownloadError}</p>
+              ) : null}
+              <ul style={{ margin: '12px 0 0', paddingLeft: 0, listStyle: 'none', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {(payslips.data ?? []).map((p) => (
-                  <li key={p.id}>
-                    <strong>{p.periode}</strong> — {fmtXOF(p.montantBrut)} ({p.payeurEtat ? 'payé par l’État' : 'payé par l’école'}),
-                    généré le {p.dateGeneration}
+                  <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <span>
+                      <strong>{p.periode}</strong> — {fmtXOF(p.montantBrut)} ({p.payeurEtat ? 'payé par l’État' : 'payé par l’école'}),
+                      généré le {p.dateGeneration}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={downloadPayslipMutation.isPending && downloadPayslipMutation.variables === p}
+                      onClick={() => downloadPayslipMutation.mutate(p)}
+                    >
+                      Télécharger
+                    </Button>
                   </li>
                 ))}
               </ul>

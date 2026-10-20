@@ -153,6 +153,8 @@ export interface StaffAbsenceSummary {
 export interface SalarySlip {
   id: string;
   teacherId: string;
+  /** staffFullName — pour construire un nom de fichier lisible au téléchargement. */
+  teacherNom: string;
   periode: string; // periodLabel, ex. "Octobre 2026"
   salaryMode: SalaryMode;
   montantBrut: number; // grossAmountFcfa
@@ -662,6 +664,25 @@ export interface SchoolLedger {
   totalDepenses: number;
   solde: number;
   derniereMajLe: string | null; // dd/mm/yyyy hh:mm
+}
+
+/** Granularité d'agrégation de l'historique du ledger (dashboard, export Excel). */
+export type LedgerGranularity = 'day' | 'week' | 'month' | 'year';
+
+/** Un point d'évolution -- un bucket temporel avec ses entrées et sorties. */
+export interface LedgerHistoryPoint {
+  period: string;
+  entreesFcfa: number;
+  sortiesFcfa: number;
+}
+
+/** Historique daté des entrées/sorties -- alimente le dashboard et l'export Excel. */
+export interface LedgerHistory {
+  granularite: LedgerGranularity;
+  points: LedgerHistoryPoint[];
+  totalEntreesFcfa: number;
+  totalSortiesFcfa: number;
+  solde: number;
 }
 
 /**

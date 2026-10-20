@@ -27,7 +27,7 @@ import type {
   SalarySlip,
   SalaryValidationStep,
 } from '@/types/domain';
-import { frToISO, isoToFR } from '@/utils/format';
+import { buildDownloadFilename, downloadBlob, frToISO, isoToFR } from '@/utils/format';
 
 const SALARY_MODE_FROM_API: Record<ApiSalaryMode, SalaryMode> = {
   FIXED: 'fixe',
@@ -139,6 +139,7 @@ function fromApiPayslip(dto: PayslipResponseDto): SalarySlip {
   return {
     id: dto.id,
     teacherId: dto.staffUserId,
+    teacherNom: dto.staffFullName,
     periode: dto.periodLabel,
     salaryMode: SALARY_MODE_FROM_API[dto.salaryMode] ?? 'fixe',
     montantBrut: dto.grossAmountFcfa,
@@ -274,6 +275,18 @@ export function createSalaryPaymentsApi(): SalaryPaymentsPort {
         query: { schoolId, staffUserId },
       });
       return list.map(fromApiPayslip);
+    },
+
+    // CORRECTION (demande explicite) : la vue "Bulletins de paie" n'offrait
+    // aucun moyen de voir/télécharger le PDF -- le même endpoint que celui
+    // déjà utilisé par `apps/teacher` (PayslipsPage), jamais un lien direct.
+    async downloadPayslipPdf(payslip): Promise<void> {
+      const blob = await request<Blob>(
+        `/api/v1/accounting/salary-requests/payslips/${encodeURIComponent(payslip.id)}/pdf`,
+        { responseType: 'blob' },
+      );
+      const [firstName, ...rest] = payslip.teacherNom.trim().split(/\s+/);
+      downloadBlob(blob, buildDownloadFilename('fiche_de_paie', firstName ?? '', rest.join(' ')));
     },
   };
 }

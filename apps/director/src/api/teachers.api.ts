@@ -142,7 +142,13 @@ async function fetchSalaryProfile(teacherId: string, schoolId: string): Promise<
     return await request<SchoolSalaryProfileResponseDto>(
       `/api/v1/users/${encodeURIComponent(teacherId)}/schools/${encodeURIComponent(schoolId)}/salary`,
     );
-  } catch {
+  } catch (err) {
+    // Repli volontaire (voir le commentaire ci-dessus) -- mais une erreur ici
+    // n'est plus censée masquer un enregistrement réussi : `updateSalary`
+    // n'en dépend plus pour afficher le salaire qu'il vient de sauvegarder.
+    // Le console.error garde une trace de ce cas "impossible" s'il se
+    // reproduit, plutôt que de disparaître silencieusement.
+    console.error('fetchSalaryProfile a échoué (repli sur "non configuré")', err);
     return undefined;
   }
 }
@@ -285,11 +291,25 @@ export function createTeachersApi(): TeachersPort {
         dailyRateFcfa: input.salaryMode === 'par_jour' ? input.tauxJournalier ?? undefined : undefined,
         hourlyRateFcfa: input.salaryMode === 'par_heure' ? input.tauxHoraire ?? undefined : undefined,
       };
-      await request<SchoolSalaryProfileResponseDto>(
+      const saved = await request<SchoolSalaryProfileResponseDto>(
         `/api/v1/users/${encodeURIComponent(teacherId)}/schools/${encodeURIComponent(schoolId)}/salary`,
         { method: 'PUT', body },
       );
-      return getOne(teacherId);
+      const teacher = await getOne(teacherId);
+      // CORRECTION (bug signalé, écoles privées) : `getOne` relit le salaire via
+      // `fetchSalaryProfile`, qui avale TOUTE erreur de lecture (voir son
+      // commentaire) -- une erreur transitoire sur cette seule relecture donnait
+      // l'impression que l'enregistrement n'avait pas eu lieu, alors que le PUT
+      // ci-dessus avait bien réussi. La réponse du PUT EST la confirmation
+      // serveur de ce qui vient d'être écrit ; on lui fait confiance plutôt qu'à
+      // une relecture qui peut échouer indépendamment.
+      return {
+        ...teacher,
+        salaryMode: fromSalaryModeDto(saved.salaryMode),
+        salaireFixe: saved.fixedAmountFcfa ?? null,
+        tauxJournalier: saved.dailyRateFcfa ?? null,
+        tauxHoraire: saved.hourlyRateFcfa ?? null,
+      };
     },
 
     /** Backend : `GET /api/v1/accounting/salary-requests/payslips?schoolId&staffUserId` (payment-service). */

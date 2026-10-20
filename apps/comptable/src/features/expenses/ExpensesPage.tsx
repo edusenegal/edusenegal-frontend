@@ -150,6 +150,27 @@ export default function ExpensesPage() {
     },
   });
 
+  // CORRECTION (demande explicite) : téléchargement authentifié d'un
+  // justificatif -- jamais le lien MinIO présigné brut (voir downloadAttachment).
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const downloadAttachmentMutation = useMutation({
+    mutationFn: ({ id, index, filename }: { id: string; index: number; filename: string }) =>
+      expenses.downloadAttachment(id, index, filename),
+    onSuccess: () => setAttachmentError(null),
+    onError: (err: unknown) => setAttachmentError(err instanceof AppError ? err.message : 'Téléchargement impossible.'),
+  });
+
+  /** Nom de fichier lisible à partir de l'URL présignée (qui porte encore le nom d'origine dans son chemin). */
+  function filenameFromAttachmentUrl(url: string, index: number): string {
+    try {
+      const last = new URL(url).pathname.split('/').pop() ?? '';
+      const cleaned = decodeURIComponent(last).replace(/^[0-9a-f]{8}_/, '');
+      return cleaned || `justificatif_${index + 1}`;
+    } catch {
+      return `justificatif_${index + 1}`;
+    }
+  }
+
   function submitCreate() {
     setFormError(null);
     if (!form.libelle.trim() || !form.montant || Number(form.montant) <= 0) {
@@ -345,17 +366,33 @@ export default function ExpensesPage() {
 
             <div>
               <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 6px' }}>Justificatifs</p>
+              {attachmentError ? (
+                <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 6px' }}>{attachmentError}</p>
+              ) : null}
               {detail.piecesJointes.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Aucun justificatif déposé.</p>
               ) : (
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                  {detail.piecesJointes.map((url) => (
-                    <li key={url}>
-                      <a href={url} target="_blank" rel="noreferrer">
-                        Télécharger
-                      </a>
-                    </li>
-                  ))}
+                <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {detail.piecesJointes.map((url, index) => {
+                    const filename = filenameFromAttachmentUrl(url, index);
+                    const isPending =
+                      downloadAttachmentMutation.isPending &&
+                      downloadAttachmentMutation.variables?.id === detail.id &&
+                      downloadAttachmentMutation.variables?.index === index;
+                    return (
+                      <li key={url} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{filename}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={isPending}
+                          onClick={() => downloadAttachmentMutation.mutate({ id: detail.id, index, filename })}
+                        >
+                          Télécharger
+                        </Button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {detail.statut !== 'annulee' ? (
