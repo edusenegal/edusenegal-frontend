@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Card, Field, Input, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
-import type { GradeDispute } from '@/types/domain';
+import type { GradeDispute, StudentRosterEntry } from '@/types/domain';
 
 const TYPE_LABEL: Record<string, string> = {
   devoir1: 'Devoir 1',
@@ -25,12 +25,46 @@ const TYPE_LABEL: Record<string, string> = {
 const BUSINESS_RULE_STATUS = 422;
 
 export default function GradeDisputesPage() {
-  const { gradeDisputes } = useServices();
+  const { gradeDisputes, myClasses } = useServices();
   const queryClient = useQueryClient();
   const list = useQuery({ queryKey: ['grade-disputes', 'pending'], queryFn: () => gradeDisputes.listPending() });
 
   const [newValues, setNewValues] = useState<Record<string, string>>({});
   const [lockedMessage, setLockedMessage] = useState<string | null>(null);
+
+  // Élève/classe concernés — `GradeDispute` ne porte que des ids, résolus
+  // ici via les classes/effectifs du professeur (demande explicite : les
+  // voir dans la liste des réclamations). Best-effort par classe, comme le
+  // reste de l'écran "aucune réclamation" reste affichable même si une
+  // classe échoue à se résoudre.
+  const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
+  const classNameById = new Map((classesQuery.data ?? []).map((c) => [c.id, c.nom]));
+
+  const disputeClassIds = useMemo(
+    () => Array.from(new Set((list.data ?? []).map((d) => d.classId))),
+    [list.data],
+  );
+  const rostersQuery = useQuery({
+    queryKey: ['grade-disputes-rosters', disputeClassIds],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        disputeClassIds.map(async (classId) => {
+          try {
+            return [classId, await myClasses.roster(classId)] as const;
+          } catch {
+            return [classId, [] as StudentRosterEntry[]] as const;
+          }
+        }),
+      );
+      return new Map(entries);
+    },
+    enabled: disputeClassIds.length > 0,
+  });
+
+  function studentName(d: GradeDispute): string {
+    const student = rostersQuery.data?.get(d.classId)?.find((s) => s.id === d.studentId);
+    return student ? `${student.prenom} ${student.nom}` : d.studentId;
+  }
 
   const decideMutation = useMutation({
     mutationFn: ({ id, approuve }: { id: string; approuve: boolean }) =>
@@ -55,6 +89,8 @@ export default function GradeDisputesPage() {
   });
 
   const columns: Column<GradeDispute>[] = [
+    { key: 'eleve', header: 'Élève', render: (d) => studentName(d) },
+    { key: 'classe', header: 'Classe', render: (d) => classNameById.get(d.classId) ?? d.classId },
     { key: 'matiere', header: 'Matière', render: (d) => d.subjectNom ?? '—' },
     { key: 'type', header: 'Évaluation', render: (d) => (d.type ? TYPE_LABEL[d.type] ?? d.type : '—') },
     { key: 'actuelle', header: 'Note actuelle', render: (d) => (d.valeurActuelle != null ? `${d.valeurActuelle}/20` : '—') },
