@@ -53,7 +53,12 @@ function fromDto(dto: PersonalDocumentResponseDto): PersonalDocument {
     // suffit à garder l'info traçable sans appel supplémentaire à user-service
     // pour résoudre un nom d'affichage.
     deposePar: dto.uploadedByUserId,
-    dateDepot: isoToFR(dto.createdAt.slice(0, 10)),
+    // `createdAt` peut manquer (voir le commentaire sur
+    // `PersonalDocumentResponseDto.createdAt`) pour un document deja
+    // existant avant l'activation de l'audit Mongo -- sans ce garde,
+    // `.slice(...)` sur `undefined` plantait TOUTE la liste ("Une erreur
+    // est survenue").
+    dateDepot: dto.createdAt ? isoToFR(dto.createdAt.slice(0, 10)) : '—',
   };
 }
 

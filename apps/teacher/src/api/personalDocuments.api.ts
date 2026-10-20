@@ -37,7 +37,12 @@ function fromPersonalDocumentResponse(dto: PersonalDocumentResponseDto): Persona
     fileSizeBytes: dto.fileSizeBytes,
     downloadUrl: dto.downloadUrl,
     deposePar: dto.uploadedByUserId,
-    dateDepot: isoToFR(dto.createdAt.slice(0, 10)),
+    // `createdAt` peut manquer (voir le commentaire sur
+    // `PersonalDocumentResponseDto.createdAt`) pour un document deja
+    // existant avant l'activation de l'audit Mongo -- sans ce garde,
+    // `.slice(...)` sur `undefined` plantait TOUTE la liste ("Une erreur
+    // est survenue").
+    dateDepot: dto.createdAt ? isoToFR(dto.createdAt.slice(0, 10)) : '—',
   };
 }
 

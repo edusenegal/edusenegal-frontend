@@ -439,7 +439,12 @@ export interface PersonalDocumentResponseDto {
   fileType: string;
   fileSizeBytes: number;
   uploadedByUserId: string;
-  createdAt: string;
+  /**
+   * `@JsonInclude(NON_NULL)` côté backend : absent (pas `null`) pour les
+   * documents créés avant l'activation de l'audit Mongo sur document-service
+   * (`@CreatedDate` restait inerte) -- voir `fromPersonalDocumentResponse`.
+   */
+  createdAt?: string | null;
 }
 
 /** Ventilation par élève de `ClassPaymentStatsDto` (task #208). */
