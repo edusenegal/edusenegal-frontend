@@ -1,0 +1,68 @@
+.picker {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: var(--space-md);
+  max-width: 320px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.monthLabel {
+  font-size: 13.5px;
+}
+
+.daysHead {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.weekRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px 0;
+}
+
+.weekRow:hover {
+  background: var(--color-surface-muted);
+}
+
+.weekSelected {
+  background: var(--brand-primary);
+}
+
+.weekSelected .day {
+  color: #fff;
+}
+
+.day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  font-size: 12.5px;
+  border-radius: var(--radius-sm);
+}
+
+.outside {
+  opacity: 0.35;
+}
+
+.today {
+  font-weight: 700;
+  text-decoration: underline;
+}

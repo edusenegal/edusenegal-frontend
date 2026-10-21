@@ -1,0 +1,107 @@
+.back {
+  display: inline-block;
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--brand-primary);
+}
+
+.body {
+  padding: var(--space-lg);
+}
+
+.rows,
+.row {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+
+.rows .row:last-child {
+  border-bottom: none;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-md);
+}
+
+.classList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.classRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.addRow {
+  display: flex;
+  gap: var(--space-xs);
+  max-width: 420px;
+}
+
+.addRow > :first-child {
+  flex: 1;
+}
+
+.calHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.sectionTitle {
+  font-size: var(--text-md);
+  margin: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th {
+  text-align: left;
+  padding: 8px 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mono {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: var(--text-xs);
+}

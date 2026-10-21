@@ -1,0 +1,26 @@
+.back {
+  display: inline-block;
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--brand-primary);
+}
+
+.toolbar {
+  margin-bottom: var(--space-md);
+}
+
+.actionRow {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-md);
+}

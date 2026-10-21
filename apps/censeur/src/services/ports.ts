@@ -1,0 +1,808 @@
+/**
+ * Frontières entre l'interface et les données.
+ *
+ * Les écrans ne connaissent que ces interfaces. La branche `mock` les
+ * implémente avec des données de démonstration en mémoire
+ * (`src/services/mock/`) ; une future branche `api` les implémenterait avec
+ * le client HTTP (`src/api/`, voir le README). Aucun composant ne change
+ * d'une branche à l'autre.
+ */
+
+import type {
+  AbsenceRequestSummary,
+  AbsenceReviewStatus,
+  AbsentStudentEntry,
+  AcademicPeriod,
+  AcademicPeriodType,
+  AcademicYear,
+  AcademicYearConfig,
+  BilanAnnuel,
+  ClassAttendanceRate,
+  SchoolAttendanceOverview,
+  BulletinPeriod,
+  ClassEvent,
+  ClassGroup,
+  CourseDocument,
+  CourseDocumentType,
+  DashboardSnapshot,
+  DirectorProfile,
+  Expense,
+  ExpenseCategory,
+  InternalTransferMapping,
+  InternalTransferPreview,
+  InternalTransferResult,
+  LeaveRequest,
+  GradeDispute,
+  Notice,
+  NoticeDestType,
+  PaymentChannel,
+  PaymentConfig,
+  ClassRoom,
+  PersonalDocument,
+  PersonalDocumentOwnerType,
+  PersonalDocumentType,
+  PromotionOverride,
+  RoomAvailability,
+  SalaryMode,
+  SalaryRequest,
+  SalarySlip,
+  ScheduleSlot,
+  School,
+  SemesterResult,
+  SignedDocument,
+  SignerAssets,
+  StaffAbsence,
+  StaffAbsenceSummary,
+  Student,
+  Subject,
+  SubjectCoefficient,
+  Teacher,
+  TeacherLookupResult,
+  TransferRequest,
+  YearResult,
+} from '@/types/domain';
+
+export interface AuthPort {
+  /**
+   * `loginByPhone` dit à la passerelle si `identifier` est un numéro de
+   * téléphone (ex. "+221771234567" ou "771234567") ou un matricule école
+   * (ex. "CEMT-LG-DR-0000013") — l'écran de connexion expose ce choix
+   * explicitement, voir `LoginPage`.
+   */
+  login(identifier: string, password: string, loginByPhone: boolean): Promise<DirectorProfile>;
+  logout(): Promise<void>;
+  currentDirector(): Promise<DirectorProfile>;
+  /** Photo de profil du directeur connecté — voir `UserServiceImpl#updateProfilePhoto`. */
+  updateMyPhoto(file: File): Promise<DirectorProfile>;
+}
+
+/** Une classe à créer pour la nouvelle année — saisie à l'étape « Classes » de l'assistant. */
+export interface OpenYearClassInput {
+  level: ClassGroup['level'];
+  series: string | null;
+  tag: string | null;
+  capacite: number;
+}
+
+/**
+ * Coefficient d'une matière pour un couple niveau/série — saisi à l'étape
+ * « Matières & coefficients ». Résolu en vraies classes (et vrais
+ * `classeId`) au moment de l'ouverture : toutes les classes qui partagent ce
+ * niveau/série (divisions A/B…) reçoivent le même coefficient.
+ */
+export interface OpenYearSubjectCoefInput {
+  level: ClassGroup['level'];
+  series: string | null;
+  valeur: number;
+  enseignee: boolean;
+}
+
+export interface OpenYearSubjectInput {
+  code: string;
+  nom: string;
+  optionnelle: boolean;
+  coefficients: OpenYearSubjectCoefInput[];
+}
+
+export interface OpenAcademicYearInput {
+  label: string;
+  dateDebut: string;
+  dateFin: string;
+  classes: OpenYearClassInput[];
+  subjects: OpenYearSubjectInput[];
+  paymentConfig: Omit<PaymentConfig, 'id' | 'updatedAt'>;
+}
+
+export interface SchoolPort {
+  getSchool(): Promise<School>;
+  updateBranding(patch: Partial<Pick<School, 'logoUrl' | 'primaryColor' | 'secondaryColor'>>): Promise<School>;
+  /**
+   * Upload réel du logo — distinct de `updateBranding` (qui reste pour les
+   * couleurs, un simple patch de chaîne) parce que le backend attend un
+   * fichier multipart (`PUT /{schoolId}/logo`, voir `SignaturesPort.updateMyAssets`
+   * pour le même motif cachet/signature).
+   */
+  uploadLogo(file: File): Promise<School>;
+  /**
+   * Téléphone/e-mail de l'établissement — `PUT /{schoolId}` (school-service),
+   * mise à jour partielle (un champ omis reste inchangé côté backend).
+   */
+  updateContactInfo(patch: { telephone?: string; email?: string }): Promise<School>;
+  listAcademicYears(): Promise<AcademicYear[]>;
+  /**
+   * Ouverture d'une nouvelle année scolaire — un seul envoi pour tout
+   * l'assistant (Classes → Matières & coefficients → Paiements), comme
+   * l'assistant d'onboarding de référence. Backend réel
+   * (year-opening-service orchestrant plusieurs services) :
+   *  1. `POST /year-opening/years` — création (statut `DRAFT`)
+   *  2. `POST /year-opening/periods` — découpage en trimestres ; cette
+   *     page ne propose pas d'étape dédiée, des valeurs par défaut
+   *     raisonnables (trimestres répartis entre `dateDebut`/`dateFin`,
+   *     pondérations standard D1/D2/Composition) seraient envoyées ici
+   *  3. `POST /classes` — une fois par classe de `classes`
+   *  4. `PUT /subjects/{id}/coefficients` — une fois par matière, sur les
+   *     classes nouvellement créées qui partagent son niveau/série, **et**
+   *     `POST /year-opening/subjects` pour satisfaire la checklist de
+   *     complétude de l'année (ce sont deux registres distincts côté
+   *     backend : le premier sert aux bulletins, le second ne fait que
+   *     conditionner l'ouverture)
+   *  5. `POST /payments/config` — `paymentConfig`
+   *  6. `POST /year-opening/enrollment` — fenêtre d'inscription ; pas
+   *     d'étape dédiée non plus ici, valeurs par défaut (ouverte dès
+   *     `dateDebut`)
+   *  7. `POST /year-opening/open` — n'aboutit, côté vrai backend, que si
+   *     les 5 points de la checklist ci-dessus sont réunis (classes,
+   *     matières, paiements, périodes, inscriptions) ; les valeurs par
+   *     défaut des points 2 et 6 existent précisément pour que cet appel
+   *     réussisse malgré l'absence d'écran dédié pour ces deux points.
+   */
+  openAcademicYear(input: OpenAcademicYearInput): Promise<AcademicYear>;
+  /** Clôture explicite — backend : `POST /year-opening/years/{yearId}/close`. */
+  closeAcademicYear(yearId: string): Promise<AcademicYear>;
+}
+
+export interface DashboardPort {
+  getSnapshot(): Promise<DashboardSnapshot>;
+}
+
+/**
+ * Présence/absence/retard des élèves — tableau de bord directeur (#400) et
+ * file de revue/verrouillage des absences (#402).
+ */
+export interface StudentAttendancePort {
+  getSchoolStats(from: string, to: string): Promise<SchoolAttendanceOverview>;
+  getClassesStats(from: string, to: string): Promise<ClassAttendanceRate[]>;
+  getAbsentStudents(classId: string, from: string, to: string): Promise<AbsentStudentEntry[]>;
+  /** File de revue — sans filtre, renvoie tous les statuts. */
+  listSchoolAbsences(status?: AbsenceReviewStatus): Promise<AbsenceRequestSummary[]>;
+  /**
+   * `LOCKED` : verrouille une absence PENDING (l'élève ne peut plus la
+   * justifier). `APPROVED`/`REJECTED` : décision finale, possible depuis
+   * PENDING ou LOCKED. Réservé au surveillant général, au censeur et au
+   * directeur.
+   */
+  reviewAbsence(absenceId: string, status: 'APPROVED' | 'REJECTED' | 'LOCKED'): Promise<AbsenceRequestSummary>;
+}
+
+export interface BilanAnnuelPort {
+  getBilan(): Promise<BilanAnnuel>;
+}
+
+export interface ClassesPort {
+  list(): Promise<ClassGroup[]>;
+  get(classId: string): Promise<ClassGroup>;
+  create(input: {
+    level: ClassGroup['level'];
+    series: string | null;
+    tag: string | null;
+    capacite: number;
+    homeroomTeacherId?: string | null;
+  }): Promise<ClassGroup>;
+  /**
+   * Backend : `PUT /classes/{classId}/homeroom-teacher/{teacherId}`. `null` retire le professeur principal.
+   * Les professeurs itinérants d'une classe se gèrent depuis la fiche enseignant
+   * (`TeachersPort.addClass`/`removeClass`, mêmes routes `class-service`).
+   */
+  setHomeroomTeacher(classId: string, teacherId: string | null): Promise<ClassGroup>;
+  /**
+   * Salle de classe par défaut (task #229) — Backend :
+   * `PUT /api/v1/classes/{classId}/room/{roomId}` (class-service). `null`
+   * retire le rattachement. N'empêche pas de choisir une AUTRE salle pour un
+   * créneau/examen ponctuel (voir `PlanEventSheet`/`AddScheduleSlotForm`) —
+   * une simple valeur pré-remplie par défaut.
+   */
+  setDefaultRoom(classId: string, roomId: string | null): Promise<ClassGroup>;
+  /** Backend : `GET /api/v1/exams/class/{classId}` (schedule-service). */
+  listEvents(classId: string): Promise<ClassEvent[]>;
+  /**
+   * Backend : `POST /api/v1/exams` (schedule-service) — déclenche une
+   * notification (Kafka `exam.scheduled`) aux élèves de la classe, au
+   * professeur et au CENSEUR/SUPERVISOR de l'établissement.
+   */
+  planEvent(input: Omit<ClassEvent, 'id' | 'matiere' | 'professeur'>): Promise<ClassEvent>;
+  /**
+   * Backend : `DELETE /api/v1/exams/{examId}` (schedule-service) — déclenche
+   * une notification (Kafka `exam.cancelled`) aux mêmes destinataires.
+   */
+  cancelEvent(eventId: string): Promise<void>;
+  /** Backend : `GET /api/v1/timetables/class/{classId}/active` (schedule-service). */
+  getWeeklySchedule(classId: string): Promise<ScheduleSlot[]>;
+  /** Backend : `POST /api/v1/timetables/class/{classId}/slots` (schedule-service). */
+  addScheduleSlot(classId: string, slot: ScheduleSlot): Promise<ScheduleSlot[]>;
+  /** Backend : `DELETE /api/v1/timetables/class/{classId}/slots` (schedule-service), par créneau jour+heure. */
+  removeScheduleSlot(classId: string, slot: Pick<ScheduleSlot, 'jour' | 'heureDebut'>): Promise<ScheduleSlot[]>;
+  /**
+   * Modifier un créneau (nouvelle demande direction — créneau cliquable
+   * dans la grille). Pas de route dédiée côté backend : même mécanisme que
+   * `addScheduleSlot`/`removeScheduleSlot` (lire la liste active, la
+   * modifier, republier une nouvelle version complète via `POST /timetables`).
+   */
+  updateScheduleSlot(
+    classId: string,
+    oldKey: Pick<ScheduleSlot, 'jour' | 'heureDebut'>,
+    slot: ScheduleSlot,
+  ): Promise<ScheduleSlot[]>;
+  /**
+   * Backend : `POST /api/v1/classes/{classId}/students/{studentId}` (class-service) —
+   * utilisé pour finaliser un transfert interne (task #214/#215), après
+   * `TransfersPort.executeInternal` : ce dernier ne touche qu'aux notes,
+   * jamais à l'inscription (aucune propagation de jeton entre services ici).
+   */
+  enroll(classId: string, studentId: string): Promise<void>;
+  /** Backend : `DELETE /api/v1/classes/{classId}/students/{studentId}` (class-service). */
+  unenroll(classId: string, studentId: string): Promise<void>;
+}
+
+export interface TeachersPort {
+  list(): Promise<Teacher[]>;
+  get(teacherId: string): Promise<Teacher>;
+  /**
+   * La rémunération ne se saisit pas à la création — un enseignant nouvellement
+   * créé n'a aucun salaire configuré côté backend (`SchoolSalaryProfileResponse`
+   * n'existe qu'après un premier appel à `updateSalary`) ; c'est un acte distinct,
+   * volontaire, depuis la fiche de l'enseignant.
+   */
+  create(input: Omit<Teacher, 'id' | 'classes' | 'statut' | 'salaryMode' | 'salaireFixe' | 'tauxJournalier' | 'tauxHoraire' | 'photoUrl'>): Promise<Teacher>;
+  /**
+   * Recherche par téléphone — étape obligatoire AVANT de créer un nouvel
+   * enseignant : évite un doublon si la personne existe déjà (potentiellement
+   * rattachée à une autre école). `null` si aucun utilisateur ne porte ce
+   * numéro. Backend : `GET /api/v1/users/by-phone/{phone}` (user-service).
+   */
+  findByPhone(tel: string): Promise<TeacherLookupResult | null>;
+  /**
+   * Rattache un utilisateur EXISTANT (trouvé par téléphone) à cet
+   * établissement, sans salaire — la direction configure ensuite sa
+   * rémunération comme pour un enseignant nouvellement créé.
+   * Backend : `POST /api/v1/users/{userId}/schools` (user-service).
+   */
+  attachExisting(userId: string, subjectIds: string[]): Promise<Teacher>;
+  update(teacherId: string, patch: Partial<Pick<Teacher, 'nom' | 'subjectIds' | 'tel' | 'email' | 'statut'>>): Promise<Teacher>;
+  /** Backend : `DELETE /users/{id}`. */
+  remove(teacherId: string): Promise<void>;
+  /**
+   * Rattache un professeur à une classe en tant qu'itinérant.
+   * Backend : `POST /api/v1/classes/{classId}/itinerant-teachers/{teacherId}` (class-service).
+   */
+  addClass(teacherId: string, classId: string): Promise<Teacher>;
+  /** Backend : `DELETE /api/v1/classes/{classId}/itinerant-teachers/{teacherId}` (class-service). */
+  removeClass(teacherId: string, classId: string): Promise<Teacher>;
+  /**
+   * Documents signés RATTACHÉS À cet enseignant (contrat, attestation…) —
+   * contrairement à `SignaturesPort`/`SignatureController./me`, qui ne sert
+   * que les documents du titulaire du jeton. Backend :
+   * `GET /api/v1/signatures/document/{schoolId}/{documentRef}`
+   * (signature-service) avec `documentRef = teacherId`.
+   */
+  listDocuments(teacherId: string): Promise<SignedDocument[]>;
+  /** Backend : `GET /api/v1/accounting/salary-requests/payslips?schoolId&staffUserId` (payment-service). */
+  listPayslips(teacherId: string): Promise<SalarySlip[]>;
+  /**
+   * PDF non signé d'un bulletin de paie, en mémoire — pour l'aperçu en
+   * popup avant de signer/cacheter/télécharger (voir `RemunerationTab`).
+   * Même route que celle que `signPayslip` utilise déjà pour embarquer le
+   * document dans la signature.
+   */
+  getPayslipPdfBlob(payslipId: string): Promise<Blob>;
+  /** Télécharge le PDF non signé d'un bulletin de paie (déclenche l'enregistrement local). */
+  downloadPayslipPdf(payslipId: string, teacherNom: string): Promise<void>;
+  /**
+   * Configure le mode et le montant de salaire de cet enseignant pour
+   * l'établissement du directeur connecté — un seul des trois montants est
+   * pertinent selon `salaryMode` (validé côté serveur, pas ici, pour un
+   * message métier clair plutôt qu'une erreur de validation générique).
+   * Backend : `PUT /api/v1/users/{userId}/schools/{schoolId}/salary` (user-service).
+   */
+  updateSalary(
+    teacherId: string,
+    input: { salaryMode: SalaryMode; salaireFixe: number | null; tauxJournalier: number | null; tauxHoraire: number | null },
+  ): Promise<Teacher>;
+}
+
+/**
+ * Absences du personnel enseignant, saisies par la direction — distinct de
+ * l'appel fait par un enseignant sur ses élèves (hors scope de cette
+ * application). Alimente le calcul d'une `SalaryRequest` en mode "par jour".
+ */
+export interface StaffAbsencesPort {
+  /** Backend : `GET /api/v1/staff-absences?schoolId&staffUserId` (attendance-service). */
+  list(teacherId: string): Promise<StaffAbsence[]>;
+  /** Backend : `POST /api/v1/staff-absences`. */
+  record(
+    teacherId: string,
+    input: { dateDebut: string; dateFin: string; justifiee: boolean; motif: string | null },
+  ): Promise<StaffAbsence>;
+  /** Backend : `DELETE /api/v1/staff-absences/{absenceId}`. */
+  remove(absenceId: string): Promise<void>;
+  /** Backend : `GET /api/v1/staff-absences/summary?schoolId&staffUserId&from&to`. */
+  getSummary(teacherId: string, dateDebut: string, dateFin: string): Promise<StaffAbsenceSummary>;
+}
+
+export interface StudentsPort {
+  list(classId?: string): Promise<Student[]>;
+  /**
+   * Variante paginée de `list` (nouvelle demande direction — l'écran
+   * « Élèves » chargeait l'effectif complet de l'école en un seul appel).
+   * Backend : `GET /users/school/{schoolId}/page?role=STUDENT&page=&size=`.
+   * Ne couvre QUE la vue « toutes les classes » (`classId` omis) — une fois
+   * filtré sur UNE classe, l'effectif reste assez petit pour que `list`
+   * (non paginé) suffise, voir `StudentsListPage`.
+   */
+  /**
+   * `search` (CORRECTION bug signalé) : filtre par nom sur l'ÉCOLE ENTIÈRE
+   * côté backend (`UserRepository#findBySchoolIdAndRoleAndNameContaining`),
+   * pas seulement sur les `size` lignes de la page courante.
+   */
+  listPage(input: { page: number; size: number; search?: string }): Promise<{ items: Student[]; totalElements: number; totalPages: number }>;
+  get(studentId: string): Promise<Student>;
+  get(studentId: string): Promise<Student>;
+  create(input: {
+    prenom: string;
+    nom: string;
+    sexe: Student['sexe'];
+    /**
+     * Optionnelle (nouvelle demande direction) — un élève peut être créé
+     * sans classe depuis la liste « Élèves » et se la voir assigner ensuite
+     * depuis sa fiche détail (`StudentDetailPage`, action « Assigner une
+     * classe », `ClassesPort.enroll`). Reste obligatoire côté UI quand la
+     * création se fait depuis la fiche d'une classe (`defaultClassId`).
+     */
+    classeId?: string;
+    dateNaissance: string;
+    tel: string;
+    parent: string;
+  }): Promise<Student>;
+  update(studentId: string, patch: Partial<Student>): Promise<Student>;
+  /** Backend : `DELETE /users/{id}`. */
+  remove(studentId: string): Promise<void>;
+  /**
+   * Nombre d'absences DE CHAQUE élève sur l'année en cours (task #207 —
+   * `GET /attendances/analytics/students/stats`, bulk). Non scindé par
+   * semestre : `AbsenceRequest` n'est indexé que par année académique côté
+   * attendance-service. Clé = studentId ; un élève sans aucune demande
+   * d'absence n'apparaît pas dans le résultat — l'appelant traite ce cas
+   * comme 0.
+   */
+  getAbsenceCounts(studentIds: string[]): Promise<Record<string, number>>;
+}
+
+export interface SubjectsPort {
+  list(): Promise<Subject[]>;
+  get(subjectId: string): Promise<Subject>;
+  /** Backend : `POST /subjects` — matière propre à l'établissement (`schoolId` renseigné, `global: false`). */
+  create(input: { code: string; nom: string; optionnelle: boolean }): Promise<Subject>;
+  /** Backend : `PUT /subjects/{subjectId}/coefficients` — remplace la liste complète des coefficients. */
+  setCoefficients(subjectId: string, coefficients: SubjectCoefficient[]): Promise<Subject>;
+  /** Backend : `DELETE /subjects/{subjectId}`. Réservé aux matières de l'établissement — le catalogue global ne se supprime pas depuis cet écran. */
+  remove(subjectId: string): Promise<void>;
+}
+
+export interface PaymentConfigPort {
+  /** Backend : `GET /payments/config/{schoolId}`. `null` tant qu'aucune configuration n'a été enregistrée (404 côté backend). */
+  get(): Promise<PaymentConfig | null>;
+  /** Backend : `POST /payments/config` — upsert, une seule configuration par établissement. */
+  save(input: Omit<PaymentConfig, 'id' | 'updatedAt'>): Promise<PaymentConfig>;
+  /**
+   * Taux de recouvrement pour un sous-ensemble d'élèves (ex. le roster
+   * d'une classe) — vue agrégée, pas de détail par élève. `null` si
+   * `studentIds` est vide. Backend : `GET /payments/stats/by-students`
+   * (ajouté pour cet usage — aucune route "par classe" n'existait avant).
+   */
+  /**
+   * `classId` optionnel (nouvelle demande direction) : quand l'appelant
+   * connaît la classe (le cas le plus courant — un roster d'UNE classe
+   * partage le même niveau/série), le montant dû par élève est résolu sur
+   * la grille tarifaire EXACTE de cette classe plutôt qu'une moyenne de
+   * toutes les grilles de l'école (backend : `GET /payments/stats/by-students`,
+   * `classId` ajouté à cet effet). Omis pour une liste qui mélange plusieurs
+   * classes (ex. l'écran « Élèves » toutes classes confondues) — la moyenne
+   * reste alors le seul calcul possible, voir le commentaire de
+   * `PaymentServiceImpl#resolveExpectedPerStudent` côté backend.
+   */
+  getCollectionRateForStudents(studentIds: string[], classId?: string): Promise<number | null>;
+  /**
+   * Taux de recouvrement DE CHAQUE élève (task #208 — `ClassPaymentStats.byStudent`,
+   * même route que ci-dessus). Clé = studentId, valeur = taux (%) ; un élève
+   * absent de la réponse (aucune transaction, config introuvable) n'apparaît
+   * pas dans le résultat — l'appelant traite ce cas comme 0%. `classId` : voir
+   * `getCollectionRateForStudents`.
+   */
+  getPaymentRatesForStudents(studentIds: string[], classId?: string): Promise<Record<string, number>>;
+}
+
+/**
+ * Demandes de paiement générales (dépenses) — traduit `ExpenseController`
+ * (payment-service), task #218. Côté direction : CRÉATION et CONSULTATION
+ * seulement — `ExpenseController.submit`/`.cancel`/`.attachFile` sont
+ * réservés au rôle ACCOUNTANT (voir ses `@PreAuthorize`) : une fois créée,
+ * la demande attend que la comptabilité la soumette au circuit de
+ * validation (voir `apps/comptable`, qui porte le port complet). La
+ * décision finale (`validate`), elle, accepte aussi DIRECTOR — absente
+ * d'ici tout de même : ce port reste volontairement limité à ce que la
+ * direction fait réellement depuis cette fiche (demander), pas à tout ce
+ * que le jeton autoriserait.
+ *
+ * Une dépense de catégorie « salaires » est refusée à la création pour un
+ * établissement PUBLIC (miroir du garde posé côté `ExpenseServiceImpl`,
+ * même règle que `SalaryRequestsPort` pour le circuit dédié).
+ */
+export interface ExpensesPort {
+  /** Backend : `GET /api/v1/accounting/expenses?schoolId&academicYearId`. */
+  list(): Promise<Expense[]>;
+  /**
+   * Variante paginée de `list` (nouvelle demande direction — `list`
+   * demandait `size: 200` pour tout charger en un appel ; une école avec
+   * plus de dépenses que ça perdait silencieusement les plus anciennes).
+   * Backend déjà paginé (`page`/`size`, voir `ExpenseController#list`) —
+   * seul le front se contentait d'une grande page unique jusqu'ici.
+   */
+  listPage(input: { page: number; size: number }): Promise<{ items: Expense[]; totalElements: number; totalPages: number }>;
+  /**
+   * Backend : `POST /api/v1/accounting/expenses`. Statut `brouillon` à la
+   * création — reste à la charge de la comptabilité de la soumettre.
+   */
+  create(input: {
+    categorie: ExpenseCategory;
+    libelle: string;
+    montantFcfa: number;
+    dateDepense: string; // dd/mm/yyyy
+    fournisseur?: string;
+  }): Promise<Expense>;
+  /**
+   * Tâche #239 — Backend : `POST /api/v1/accounting/expenses/{id}/attachments`
+   * (multipart, champ `file`). Refusé par `ExpenseServiceImpl` une fois la
+   * dépense validée/rejetée/annulée (statut figé) — même règle appliquée
+   * côté écran (bouton masqué) pour ne pas afficher une erreur évitable.
+   */
+  attachFile(expenseId: string, file: File): Promise<Expense>;
+}
+
+export interface PromotionsPort {
+  promoteClass(fromClassId: string, toClassId: string): Promise<{ moved: number }>;
+  promoteStudent(studentId: string, toClassId: string): Promise<void>;
+}
+
+export interface TransfersPort {
+  list(): Promise<TransferRequest[]>;
+  /**
+   * Tâche #238 (vue détail depuis la liste) — aucun endpoint dédié : le
+   * backend n'a pas de notion de « demande de transfert » persistée (ni
+   * pour l'interne, exécuté directement, ni pour l'externe — voir le
+   * commentaire sur `requestExternal` ci-dessous). Reste donc sur le mock,
+   * comme `list`/`requestExternal` — voir le commentaire de
+   * `createTransfersApi` dans `api/index.ts`.
+   */
+  get(transferId: string): Promise<TransferRequest>;
+  requestExternal(studentId: string, region: string, schoolName: string): Promise<TransferRequest>;
+  /**
+   * Transfert interne (task #214/#215) — étape 1 : compare les matières de
+   * `fromClassId` et `toClassId` (même école). Backend : academic-service
+   * `GET /api/v1/academic/transfers/internal/preview`. N'exécute rien — à
+   * appeler avant `executeInternal`.
+   */
+  previewInternal(studentId: string, fromClassId: string, toClassId: string): Promise<InternalTransferPreview>;
+  /**
+   * Transfert interne — étape 2 : reporte les notes selon les mappings
+   * choisis pour les matières orphelines. Backend : academic-service
+   * `POST /api/v1/academic/transfers/internal/execute`. Ne change PAS
+   * l'inscription de l'élève — enchaîner avec `ClassesPort.unenroll`/`enroll`.
+   */
+  executeInternal(
+    studentId: string,
+    fromClassId: string,
+    toClassId: string,
+    mappings: InternalTransferMapping[],
+  ): Promise<InternalTransferResult>;
+}
+
+export interface GradeDisputesPort {
+  /** Réclamations en attente d'une décision du directeur (niveau 3). */
+  listPendingDirector(): Promise<GradeDispute[]>;
+  decide(disputeId: string, action: 'reject' | 'order_correction', comment?: string): Promise<GradeDispute>;
+}
+
+export interface LeavesPort {
+  /** Demandes en attente d'une décision (seules celles-ci remontent du serveur). */
+  list(): Promise<LeaveRequest[]>;
+  /**
+   * `replacementTeacherId` est obligatoire pour approuver côté serveur (voir
+   * `ScheduleServiceImpl.reviewLeave`) : l'écran transmet par défaut le
+   * remplaçant déjà proposé par l'enseignant (`LeaveRequest.remplacant`) à
+   * l'approbation ; le directeur peut le changer avant de valider.
+   */
+  review(leaveId: string, approve: boolean, replacementTeacherId?: string | null): Promise<LeaveRequest>;
+}
+
+/**
+ * Demandes de paiement de salaire — traduit `SalaryPaymentController`
+ * (payment-service). Mêmes rôles que les dépenses : la création/soumission
+ * comme la décision finale reviennent indifféremment au directeur ou au
+ * comptable selon le circuit de l'école ; cette application ne propose que
+ * le rôle directeur, qui peut donc enchaîner les quatre étapes lui-même.
+ */
+/**
+ * Côté frontend/director : CRÉATION et SOUMISSION seulement — la validation
+ * (vérification du solde, choix du mode de règlement effectif, cashout
+ * mobile money, confirmation de réception cash) revient au COMPTABLE
+ * (`POST .../{id}/validate`, en attente de son propre frontend, à venir).
+ * Volontairement absent de ce port : l'exposer ici inviterait le directeur à
+ * déclencher un paiement réel sans l'écran de contrôle de solde que ce
+ * endpoint suppose désormais côté comptable.
+ */
+export interface SalaryRequestsPort {
+  /** Backend : `GET /api/v1/accounting/salary-requests?schoolId&academicYearId`. */
+  list(): Promise<SalaryRequest[]>;
+  /**
+   * Crée une demande en statut brouillon — une ligne par enseignant choisi,
+   * avec le mode de règlement souhaité. Le montant de chaque ligne est
+   * calculé côté serveur à partir de son profil de salaire et, en mode "par
+   * jour", de ses absences non justifiées sur la période ; jamais saisi ici.
+   * Backend : `POST /api/v1/accounting/salary-requests`.
+   */
+  create(input: {
+    periode: string;
+    dateDebut: string;
+    dateFin: string;
+    lignes: {
+      teacherId: string;
+      joursTravailles?: number;
+      heuresTravaillees?: number;
+      /** cash par défaut si omis (voir `SalaryLineInput.paymentMethod` côté backend). */
+      modePaiement?: PaymentChannel;
+      /** Numéro de téléphone pour wave/orange_money — celui du personnel par défaut si omis. */
+      destinationPaiement?: string;
+    }[];
+  }): Promise<SalaryRequest>;
+  /** Backend : `POST /api/v1/accounting/salary-requests/{id}/submit`. */
+  submit(requestId: string): Promise<SalaryRequest>;
+  /** Backend : `POST /api/v1/accounting/salary-requests/{id}/cancel`. Réservé aux demandes encore en brouillon. */
+  cancel(requestId: string): Promise<SalaryRequest>;
+}
+
+/**
+ * Documents personnels d'identité/qualification (CNI, diplôme, certification
+ * pour le personnel — CNI, acte de naissance, CNI des parents pour un
+ * élève). Permission appliquée côté serveur : propriétaire du document ou
+ * direction de l'école — jamais un tiers (pas même un autre enseignant).
+ * Backend : `document-service`, `/api/v1/personal-documents`.
+ */
+export interface PersonalDocumentsPort {
+  list(ownerId: string, ownerType: PersonalDocumentOwnerType): Promise<PersonalDocument[]>;
+  /** Backend : `POST /api/v1/personal-documents` (multipart). */
+  upload(input: {
+    ownerId: string;
+    ownerType: PersonalDocumentOwnerType;
+    type: PersonalDocumentType;
+    titre: string;
+    description?: string;
+    file: File;
+  }): Promise<PersonalDocument>;
+  /** Backend : `DELETE /api/v1/personal-documents/{id}` — retrait logique, pas de suppression physique. */
+  remove(documentId: string): Promise<void>;
+}
+
+/**
+ * Documents pédagogiques d'une matière (cours, exercices, corrigés, sujets
+ * d'examen, ressources) — déjà pris en charge côté backend
+ * (`document-service`, `/api/v1/documents`), simplement non exposés côté
+ * frontend avant cette fiche matière.
+ */
+export interface CourseDocumentsPort {
+  /** Backend : `GET /api/v1/documents/subject/{subjectId}`. */
+  list(subjectId: string): Promise<CourseDocument[]>;
+  /** Backend : `POST /api/v1/documents` (multipart). */
+  upload(input: {
+    subjectId: string;
+    type: CourseDocumentType;
+    titre: string;
+    description?: string;
+    file: File;
+  }): Promise<CourseDocument>;
+  /** Backend : `DELETE /api/v1/documents/{id}`. */
+  remove(documentId: string): Promise<void>;
+}
+
+export interface SignaturesPort {
+  listDocuments(): Promise<SignedDocument[]>;
+  listBulletinPeriods(): Promise<BulletinPeriod[]>;
+  /**
+   * `action` par défaut 'SIGNATURE' si omis (compat appelants antérieurs à
+   * la séparation Signer/Cacheter) -- voir le commentaire de `SignRequestDto.action`.
+   */
+  signForStudent(
+    studentId: string,
+    type: string,
+    period: BulletinPeriod['key'] | null,
+    action?: 'SIGNATURE' | 'CACHET',
+  ): Promise<SignedDocument>;
+  signForStaff(staffId: string, type: string, action?: 'SIGNATURE' | 'CACHET'): Promise<SignedDocument>;
+  /**
+   * Cacheter/signer un bulletin de paie précis -- `documentRef` est
+   * l'identifiant du BULLETIN DE PAIE lui-même (`payslipId`), pas celui du
+   * personnel (contrairement à `signForStaff`) : un même enseignant a
+   * plusieurs bulletins de paie (un par période), chacun signé
+   * indépendamment. `staffId` ne sert qu'à construire le nom de fichier
+   * proposé au téléchargement (voir `SignatureServiceImpl`, résolution du
+   * nom à partir de `documentRef` en best-effort, qui échoue silencieusement
+   * ici puisque `documentRef` n'est pas un id utilisateur).
+   */
+  signPayslip(payslipId: string, staffId: string, action?: 'SIGNATURE' | 'CACHET'): Promise<SignedDocument>;
+  signBulk(classId: string, period: BulletinPeriod['key'], action?: 'SIGNATURE' | 'CACHET'): Promise<{ signed: number }>;
+  importToSign(targetKind: 'eleve' | 'personnel', targetId: string, fileName: string): Promise<SignedDocument>;
+  /**
+   * CORRECTION (bug signalé) : téléchargement du PDF signé — remplace le lien
+   * direct vers `SignedDocument.downloadUrl` (redirection cassée côté
+   * navigateur) par un fetch + téléchargement local, exactement comme le
+   * bouton "Télécharger" des bulletins non signés. Backend :
+   * `GET /api/v1/signatures/{signatureHash}/download` (signature-service).
+   */
+  downloadDocument(signatureHash: string, filename: string): Promise<void>;
+  /**
+   * Tampon + signature manuscrite DU SIGNATAIRE CONNECTÉ (task #230) —
+   * Backend : `GET /api/v1/signatures/assets/me` (signature-service).
+   */
+  getMyAssets(): Promise<SignerAssets>;
+  /**
+   * Backend : `POST /api/v1/signatures/assets` (multipart, champs `stamp`/
+   * `signature`) — omettre un champ laisse l'enregistrement existant
+   * inchangé (le backend n'écrase que les parts reçues).
+   */
+  updateMyAssets(input: { stamp?: File | null; signature?: File | null }): Promise<SignerAssets>;
+}
+
+/**
+ * Pilotage des résultats et bulletins — réservé aux actes de DIRECTION
+ * (verrouiller, calculer, publier, générer, consulter). La saisie/modification
+ * d'une note (`POST /academic/grades`, `PUT /academic/grades/{id}`) est un
+ * acte ENSEIGNANT (`TEACHER`/`INSTITUTEUR`) côté backend et n'a volontairement
+ * pas d'écran ici — ce n'est pas le rôle de cette application.
+ *
+ * Deux systèmes de génération de bulletin existent côté backend
+ * (`academic-service` et `report-service`, génériques l'un comme l'autre
+ * pour la classe entière) ; ce port s'appuie uniquement sur `academic-service`
+ * car il est le seul branché sur le pipeline moyennes → résultats →
+ * publication, avec le contrôle « non visible élève/parent avant
+ * publication ». `report-service` reste la seule voie pour les stats école et
+ * le rapport paiements (hors scope de ce port, voir Phase 1).
+ */
+export interface AcademicResultsPort {
+  /** Backend : `GET /academic/config/effective`. `null` si aucune config n'a encore été posée pour cette portée. */
+  getEffectiveConfig(classId?: string): Promise<AcademicYearConfig | null>;
+  /** Backend : `POST /academic/config` — portée classe si `classId` fourni, sinon école entière. */
+  configure(input: {
+    classId: string | null;
+    periodType: AcademicPeriodType;
+    semesterCount: number;
+    periods: Omit<AcademicPeriod, 'verrouillee'>[];
+    d1Weight: number;
+    d2Weight: number;
+    compositionWeight: number;
+    minPassAverage: number;
+  }): Promise<AcademicYearConfig>;
+
+  /** Backend : `PUT /academic/grades/lock`. Verrouille les notes d'une matière pour une classe/semestre — préalable au calcul des moyennes. */
+  lockGrades(classId: string, subjectId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/averages/class/{classId}/semester/{semester}`. */
+  computeClassAverages(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/results/class/{classId}/semester/{semester}`. Calcule rangs/mentions à partir des moyennes déjà calculées. */
+  computeClassResults(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `GET /academic/results/class/{classId}/semester/{semester}`. Lit ce que `computeClassResults` a persisté — ne recalcule rien. */
+  getClassSemesterResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
+  /**
+   * Moyenne de la classe pour ce semestre — moyenne des moyennes générales
+   * de chaque élève (même route que `getClassSemesterResults`, sans le
+   * détail par élève ni la résolution des noms). `null` si aucun résultat
+   * n'est encore calculé/publié pour ce semestre.
+   */
+  getClassAverage(classId: string, semesterNumber: number): Promise<number | null>;
+  /** Backend : `PUT /academic/results/class/{classId}/semester/{semester}/publish`. Notifie élèves/parents (Kafka côté réel). */
+  publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
+  /** Backend : `POST /academic/bulletins/student/{studentId}/semester/{semester}`. */
+  generateStudentBulletin(studentId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/bulletins/class/{classId}/semester/{semester}` — asynchrone côté réel. */
+  generateClassBulletins(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `GET /academic/bulletins/student/{studentId}/semester/{semester}/pdf`. */
+  downloadBulletinPdf(studentId: string, semesterNumber: number): Promise<void>;
+
+  /** Backend : `GET /academic/results/class/{classId}/annual`. */
+  getClassYearResults(classId: string): Promise<YearResult[]>;
+  /**
+   * Backend : `POST /academic/year/close`. Clôture les résultats de l'année — distincte de
+   * `SchoolPort.closeAcademicYear` (year-opening-service) et de la clôture école
+   * (`PUT /schools/{id}/year/close`) ; les trois orchestrations ne sont pas encore reliées
+   * dans ce prototype.
+   *
+   * `overrides` (task #234) : décisions forcées — typiquement un passage exceptionnel pour
+   * un élève dont la moyenne annuelle est sous la moyenne de passage, à la discrétion du
+   * directeur. Les élèves non listés suivent la décision calculée automatiquement.
+   */
+  closeResultsYear(overrides?: PromotionOverride[]): Promise<void>;
+}
+
+export interface NoticesPort {
+  list(): Promise<Notice[]>;
+  create(input: {
+    titre: string;
+    corps: string;
+    destType: NoticeDestType;
+    destLabel: string;
+    date: string;
+  }): Promise<Notice>;
+}
+
+/** Point d'assemblage unique — c'est le seul objet que changerait une branche `api`. */
+export interface RoomsPort {
+  list(): Promise<ClassRoom[]>;
+  /**
+   * `classeId` (nouvelle demande direction) : lie la salle à une classe dès
+   * sa création — backend `CreateClassRoomRequest.classId`, déjà présent
+   * côté schedule-service (task #217/#235) mais jamais exposé ici. Distinct
+   * de `ClassesPort.setDefaultRoom` (la salle PAR DÉFAUT d'une classe,
+   * modifiable depuis la fiche classe) : ce champ se pose à la création de
+   * LA SALLE, dans l'autre sens. `UpdateClassRoomRequest` ne le reprend pas
+   * côté backend — non modifiable depuis `update` ci-dessous.
+   */
+  create(input: { nom: string; capacite: number; classeId?: string }): Promise<ClassRoom>;
+  update(roomId: string, input: { nom: string; capacite: number }): Promise<ClassRoom>;
+  remove(roomId: string): Promise<void>;
+  /**
+   * Disponibilité de toutes les salles pour un créneau — fournir soit
+   * `jour` (créneau récurrent d'emploi du temps), soit `date` (ISO, pour
+   * un examen ponctuel), jamais les deux. Backend : schedule-service
+   * `GET /api/v1/rooms/availability`.
+   */
+  checkAvailability(input: {
+    jour?: ScheduleSlot['jour'];
+    date?: string;
+    heureDebut: string;
+    heureFin: string;
+    excludeSlotId?: string;
+    excludeExamId?: string;
+  }): Promise<RoomAvailability[]>;
+}
+
+export interface Services {
+  auth: AuthPort;
+  school: SchoolPort;
+  dashboard: DashboardPort;
+  studentAttendance: StudentAttendancePort;
+  bilanAnnuel: BilanAnnuelPort;
+  classes: ClassesPort;
+  teachers: TeachersPort;
+  students: StudentsPort;
+  subjects: SubjectsPort;
+  paymentConfig: PaymentConfigPort;
+  promotions: PromotionsPort;
+  transfers: TransfersPort;
+  leaves: LeavesPort;
+  gradeDisputes: GradeDisputesPort;
+  staffAbsences: StaffAbsencesPort;
+  salaryRequests: SalaryRequestsPort;
+  expenses: ExpensesPort;
+  signatures: SignaturesPort;
+  notices: NoticesPort;
+  academicResults: AcademicResultsPort;
+  personalDocuments: PersonalDocumentsPort;
+  courseDocuments: CourseDocumentsPort;
+  rooms: RoomsPort;
+}
