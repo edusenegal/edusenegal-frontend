@@ -55,14 +55,36 @@ export function createMyClassesApi(): MyClassesPort {
     },
 
     /**
-     * Roster d'une classe : `GET /class/{classId}/students` (user-service)
-     * ne rend que des ids — chacun est résolu en nom via `GET /users/{id}`,
-     * route elle aussi ouverte au rôle enseignant sans restriction
-     * supplémentaire (voir `UserController#getUser`). Pas de route "bulk"
-     * côté backend à ce jour.
+     * Roster d'une classe.
+     *
+     * CORRECTION (signalé) — on lisait `GET /users/class/{classId}/students`
+     * (user-service), qui filtre sur `User.schoolProfiles[].classIds`. Ce
+     * champ n'est en réalité JAMAIS renseigné : `ClassServiceImpl#enrollStudent`
+     * / `unenrollStudent` (class-service) ne modifient que `SchoolClass.studentIds`
+     * et publient un événement Kafka ("class.student.enrolled") que
+     * user-service ne consomme nulle part (aucun `@KafkaListener` dessus) —
+     * donc la liste des élèves d'une classe était systématiquement vide ici
+     * (Appel, Saisie des notes, Résultats, Mes classes, litiges de notes),
+     * même quand la classe et son effectif s'affichaient correctement
+     * (ceux-ci viennent de `ClassInfo.studentIds`, côté class-service, qui
+     * lui est bien à jour).
+     *
+     * On lit donc directement `GET /classes/{classId}/students` (class-service),
+     * la même source que l'effectif déjà utilisé dans `list()` ci-dessus — pas
+     * de restriction de rôle sur cette route côté backend (voir
+     * `ClassController#getStudentIds`). Chaque id est ensuite résolu en nom
+     * via `GET /users/{id}`, route elle aussi ouverte au rôle enseignant sans
+     * restriction supplémentaire (voir `UserController#getUser`). Pas de
+     * route "bulk" côté backend à ce jour.
+     *
+     * Un correctif backend (consumer Kafka dans user-service tenant
+     * `schoolProfiles[].classIds` à jour) est traité séparément pour que les
+     * deux sources de vérité ne divergent plus — ce fix frontend reste
+     * nécessaire/correct même une fois ce consumer ajouté, puisque
+     * class-service est la source canonique de l'inscription.
      */
     async roster(classId: string): Promise<StudentRosterEntry[]> {
-      const studentIds = await request<string[]>(`/api/v1/users/class/${encodeURIComponent(classId)}/students`);
+      const studentIds = await request<string[]>(`/api/v1/classes/${encodeURIComponent(classId)}/students`);
       const students = await Promise.all(
         studentIds.map((id) => request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(id)}`)),
       );
