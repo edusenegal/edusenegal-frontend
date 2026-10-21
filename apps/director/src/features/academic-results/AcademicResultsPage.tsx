@@ -218,22 +218,33 @@ export default function AcademicResultsPage() {
   function invalidateSignedBulletins() {
     queryClient.invalidateQueries({ queryKey: ['signed-bulletins'] });
   }
-  const signMutation = useMutation({
-    mutationFn: (studentId: string) =>
-      signatures.signForStudent(studentId, 'Bulletin', `t${semesterNumber}` as BulletinPeriod['key'], 'SIGNATURE'),
+  // CORRECTION (signalé) — « je veux avoir une rubrique signer/cacheter qui
+  // permet à la fois de signer et cacheter » : une seule action, au lieu de
+  // deux boutons séparés. SIGNATURE et CACHET restent deux appels
+  // indépendants côté backend (SignatureAction), mais chacun ne refait que
+  // ce qui manque encore pour ce document — rejouer l'action sur un
+  // document déjà signé-et-cacheté ne fait donc rien d'inutile.
+  const signAndCachetMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      const period = `t${semesterNumber}` as BulletinPeriod['key'];
+      if (!signedBulletinByStudent.has(studentId)) {
+        await signatures.signForStudent(studentId, 'Bulletin', period, 'SIGNATURE');
+      }
+      if (!cachetedBulletinByStudent.has(studentId)) {
+        await signatures.signForStudent(studentId, 'Bulletin', period, 'CACHET');
+      }
+    },
     onSuccess: invalidateSignedBulletins,
   });
-  const cachetMutation = useMutation({
-    mutationFn: (studentId: string) =>
-      signatures.signForStudent(studentId, 'Bulletin', `t${semesterNumber}` as BulletinPeriod['key'], 'CACHET'),
-    onSuccess: invalidateSignedBulletins,
-  });
-  const signClassBulletinsMutation = useMutation({
-    mutationFn: () => signatures.signBulk(classId, `t${semesterNumber}` as BulletinPeriod['key'], 'SIGNATURE'),
-    onSuccess: invalidateSignedBulletins,
-  });
-  const cachetClassBulletinsMutation = useMutation({
-    mutationFn: () => signatures.signBulk(classId, `t${semesterNumber}` as BulletinPeriod['key'], 'CACHET'),
+  const signAndCachetClassBulletinsMutation = useMutation({
+    mutationFn: async () => {
+      const period = `t${semesterNumber}` as BulletinPeriod['key'];
+      const [sign, cachet] = await Promise.all([
+        signatures.signBulk(classId, period, 'SIGNATURE'),
+        signatures.signBulk(classId, period, 'CACHET'),
+      ]);
+      return { signed: sign.signed, cacheted: cachet.signed };
+    },
     onSuccess: invalidateSignedBulletins,
   });
   const closeYearMutation = useMutation({
@@ -459,31 +470,19 @@ export default function AcademicResultsPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  loading={signClassBulletinsMutation.isPending}
+                  loading={signAndCachetClassBulletinsMutation.isPending}
                   disabled={!results.some((r) => r.bulletinGenere)}
-                  style={!hasSignature ? { opacity: 0.5 } : undefined}
-                  aria-disabled={!hasSignature || undefined}
+                  style={!hasSignature || !hasStamp ? { opacity: 0.5 } : undefined}
+                  aria-disabled={!hasSignature || !hasStamp || undefined}
                   onClick={() =>
                     requireAsset('signature', hasSignature, () =>
-                      runMutation(() => signClassBulletinsMutation.mutateAsync()),
+                      requireAsset('stamp', hasStamp, () =>
+                        runMutation(() => signAndCachetClassBulletinsMutation.mutateAsync()),
+                      ),
                     )
                   }
                 >
-                  Signer tous les bulletins de la classe
-                </Button>
-                <Button
-                  variant="secondary"
-                  loading={cachetClassBulletinsMutation.isPending}
-                  disabled={!results.some((r) => r.bulletinGenere)}
-                  style={!hasStamp ? { opacity: 0.5 } : undefined}
-                  aria-disabled={!hasStamp || undefined}
-                  onClick={() =>
-                    requireAsset('stamp', hasStamp, () =>
-                      runMutation(() => cachetClassBulletinsMutation.mutateAsync()),
-                    )
-                  }
-                >
-                  Cacheter tous les bulletins de la classe
+                  Signer &amp; cacheter tous les bulletins de la classe
                 </Button>
               </div>
             </Card>
@@ -559,21 +558,7 @@ export default function AcademicResultsPage() {
                                       <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Signé — lien indisponible</span>
                                     );
                                   })()
-                                ) : (
-                                  <Button
-                                    variant="secondary"
-                                    loading={signMutation.isPending && signMutation.variables === row.studentId}
-                                    style={!hasSignature ? { opacity: 0.5 } : undefined}
-                                    aria-disabled={!hasSignature || undefined}
-                                    onClick={() =>
-                                      requireAsset('signature', hasSignature, () =>
-                                        runMutation(() => signMutation.mutateAsync(row.studentId)),
-                                      )
-                                    }
-                                  >
-                                    Signer
-                                  </Button>
-                                )}
+                                ) : null}
                                 {cachetedBulletinByStudent.has(row.studentId) ? (
                                   (() => {
                                     const doc = cachetedBulletinByStudent.get(row.studentId);
@@ -590,21 +575,32 @@ export default function AcademicResultsPage() {
                                       <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Cacheté — lien indisponible</span>
                                     );
                                   })()
-                                ) : (
+                                ) : null}
+                                {/*
+                                  CORRECTION (signalé) — « je veux avoir une rubrique
+                                  signer/cacheter qui permet à la fois de signer et
+                                  cacheter » : un seul bouton tant que l'une des deux
+                                  actions manque (il ne refait que ce qui manque,
+                                  voir signAndCachetMutation), plutôt que deux boutons
+                                  "Signer"/"Cacheter" séparés.
+                                */}
+                                {!signedBulletinByStudent.has(row.studentId) || !cachetedBulletinByStudent.has(row.studentId) ? (
                                   <Button
                                     variant="secondary"
-                                    loading={cachetMutation.isPending && cachetMutation.variables === row.studentId}
-                                    style={!hasStamp ? { opacity: 0.5 } : undefined}
-                                    aria-disabled={!hasStamp || undefined}
+                                    loading={signAndCachetMutation.isPending && signAndCachetMutation.variables === row.studentId}
+                                    style={!hasSignature || !hasStamp ? { opacity: 0.5 } : undefined}
+                                    aria-disabled={!hasSignature || !hasStamp || undefined}
                                     onClick={() =>
-                                      requireAsset('stamp', hasStamp, () =>
-                                        runMutation(() => cachetMutation.mutateAsync(row.studentId)),
+                                      requireAsset('signature', hasSignature, () =>
+                                        requireAsset('stamp', hasStamp, () =>
+                                          runMutation(() => signAndCachetMutation.mutateAsync(row.studentId)),
+                                        ),
                                       )
                                     }
                                   >
-                                    Cacheter
+                                    Signer &amp; cacheter
                                   </Button>
-                                )}
+                                ) : null}
                               </div>
                             )}
                           </td>
