@@ -69,6 +69,24 @@ function notFound(what: string): never {
 }
 
 /**
+ * PDF minimal mais valide (un objet Page vide) -- pour les aperçus en
+ * popup en mode mock (voir `getPayslipPdfBlob`) : juste assez pour qu'un
+ * lecteur PDF de navigateur l'ouvre sans erreur, sans prétendre produire un
+ * vrai bulletin de paie.
+ */
+function mockPdfBlob(): Blob {
+  const pdf = [
+    '%PDF-1.4',
+    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
+    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 260]>>endobj',
+    'trailer<</Size 4/Root 1 0 R>>',
+    '%%EOF',
+  ].join('\n');
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+
+/**
  * Construit un état isolé pour une session de services.
  *
  * `fixtures.buildAllStudents()` met son résultat en cache (même tableau,
@@ -570,6 +588,16 @@ export function createMockServices(): Services {
           .filter((s) => s.teacherId === teacherId)
           .sort((a, b) => frToISO(b.dateGeneration).localeCompare(frToISO(a.dateGeneration)));
         return respond(slips);
+      },
+      // Pas de vrai PDF en mode mock (même principe que `downloadDocument`
+      // ci-dessus) -- un PDF minimal mais valide, pour que l'aperçu en
+      // popup (iframe) ait quelque chose à afficher plutôt qu'une erreur.
+      async getPayslipPdfBlob(): Promise<Blob> {
+        await respond(undefined, 200);
+        return mockPdfBlob();
+      },
+      async downloadPayslipPdf(): Promise<void> {
+        return respond(undefined, 300);
       },
       /**
        * Un seul des trois montants est pertinent selon `salaryMode` — même

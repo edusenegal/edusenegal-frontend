@@ -274,6 +274,15 @@ export interface TeachersPort {
   /** Backend : `GET /api/v1/accounting/salary-requests/payslips?schoolId&staffUserId` (payment-service). */
   listPayslips(teacherId: string): Promise<SalarySlip[]>;
   /**
+   * PDF non signé d'un bulletin de paie, en mémoire — pour l'aperçu en
+   * popup avant de signer/cacheter/télécharger (voir `RemunerationTab`).
+   * Même route que celle que `signPayslip` utilise déjà pour embarquer le
+   * document dans la signature.
+   */
+  getPayslipPdfBlob(payslipId: string): Promise<Blob>;
+  /** Télécharge le PDF non signé d'un bulletin de paie (déclenche l'enregistrement local). */
+  downloadPayslipPdf(payslipId: string, teacherNom: string): Promise<void>;
+  /**
    * Configure le mode et le montant de salaire de cet enseignant pour
    * l'établissement du directeur connecté — un seul des trois montants est
    * pertinent selon `salaryMode` (validé côté serveur, pas ici, pour un

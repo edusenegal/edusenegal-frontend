@@ -17,7 +17,7 @@ import type {
 } from '@/types/api';
 import type { TeachersPort } from '@/services/ports';
 import type { SalaryMode, SalarySlip, SignedDocument, Teacher, TeacherLookupResult, StaffStatus } from '@/types/domain';
-import { frToISO, isoToFR } from '@/utils/format';
+import { buildDownloadFilename, downloadBlob, frToISO, isoToFR } from '@/utils/format';
 
 /**
  * `classes` (noms, pas des ids) est résolu en croisant `ClassInfoDto.teacherIds`
@@ -322,6 +322,29 @@ export function createTeachersApi(): TeachersPort {
       return dtos
         .map(fromPayslipResponse)
         .sort((a, b) => frToISO(b.dateGeneration).localeCompare(frToISO(a.dateGeneration)));
+    },
+
+    // CORRECTION (signalé) — « il doit pouvoir prévisualiser avec des
+    // options cacheter/signer/télécharger (avec ou sans cachet/signer) » :
+    // le PDF non signé, la même route que celle déjà utilisée pour
+    // embarquer le document dans la signature (`signatures.signPayslip`,
+    // voir `fetchPayslipPdfBase64`) et pour le bouton "Télécharger" côté
+    // comptable (`salaryPayments.api.ts#downloadPayslipPdf`) -- le rôle
+    // DIRECTOR est déjà autorisé dessus (voir
+    // PayslipPdfServiceImpl.STAFF_WIDE_ROLES côté backend).
+    async getPayslipPdfBlob(payslipId): Promise<Blob> {
+      return request<Blob>(`/api/v1/accounting/salary-requests/payslips/${encodeURIComponent(payslipId)}/pdf`, {
+        responseType: 'blob',
+      });
+    },
+
+    async downloadPayslipPdf(payslipId, teacherNom): Promise<void> {
+      const blob = await request<Blob>(
+        `/api/v1/accounting/salary-requests/payslips/${encodeURIComponent(payslipId)}/pdf`,
+        { responseType: 'blob' },
+      );
+      const [firstName, ...rest] = teacherNom.trim().split(/\s+/);
+      downloadBlob(blob, buildDownloadFilename('fiche_de_paie', firstName ?? '', rest.join(' ')));
     },
 
     async remove(teacherId: string): Promise<void> {

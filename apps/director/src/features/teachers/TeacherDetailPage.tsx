@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { buildDownloadFilename, fmtXOF, isoToFR, todayISO } from '@/utils/format';
+import { AppError } from '@/services/errors';
+import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO } from '@/utils/format';
 import type { SalaryMode, SignedDocument, StaffStatus, Teacher } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { TeacherFormSheet } from './TeacherFormSheet';
@@ -273,13 +274,36 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
   function invalidateSignedPayslips() {
     queryClient.invalidateQueries({ queryKey: ['signed-documents'] });
   }
+  // CORRECTION (signalé) — « s'il cachète ou signe rien ne se passe » :
+  // ces deux mutations pouvaient échouer (le plus souvent parce que
+  // `signPayslip` doit d'abord récupérer le PDF non signé pour l'embarquer
+  // dans la signature, voir `fetchPayslipPdfBase64`) sans qu'AUCUNE erreur
+  // ne soit affichée nulle part dans cet onglet -- le bouton revenait
+  // juste à son état normal, d'où l'impression que « rien ne se passe ».
+  // `actionError` est maintenant montré dans la popup d'aperçu ci-dessous.
+  const [actionError, setActionError] = useState<string | null>(null);
+  function describeActionError(e: unknown): string {
+    return e instanceof AppError && e.kind === 'validation'
+      ? "Le PDF du bulletin de paie n'a pas pu être généré. Réessayez dans un instant."
+      : e instanceof Error
+        ? e.message
+        : 'Une erreur est survenue.';
+  }
   const signPayslipMutation = useMutation({
     mutationFn: (payslipId: string) => signatures.signPayslip(payslipId, teacherId, 'SIGNATURE'),
-    onSuccess: invalidateSignedPayslips,
+    onSuccess: () => {
+      setActionError(null);
+      invalidateSignedPayslips();
+    },
+    onError: (e) => setActionError(describeActionError(e)),
   });
   const cachetPayslipMutation = useMutation({
     mutationFn: (payslipId: string) => signatures.signPayslip(payslipId, teacherId, 'CACHET'),
-    onSuccess: invalidateSignedPayslips,
+    onSuccess: () => {
+      setActionError(null);
+      invalidateSignedPayslips();
+    },
+    onError: (e) => setActionError(describeActionError(e)),
   });
   const [teacherFirstName, ...teacherLastNameParts] = teacher.nom.trim().split(/\s+/);
   const downloadSignedPayslipMutation = useMutation({
@@ -288,7 +312,51 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
         doc.signatureHash ?? '',
         buildDownloadFilename('fiche-de-paie', teacherFirstName ?? '', teacherLastNameParts.join(' ')),
       ),
+    onError: (e) => setActionError(describeActionError(e)),
   });
+
+  // CORRECTION (signalé) — « il doit pouvoir prévisualiser avec des options
+  // cacheter/signer/télécharger (avec ou sans cachet/signer) » : une seule
+  // popup d'aperçu par bulletin, au lieu des deux colonnes Signature/Cachet
+  // avec leurs boutons séparés -- le PDF non signé s'affiche dedans, et
+  // toutes les actions (signer, cacheter, télécharger la version plate OU
+  // la version déjà signée/cachetée) sont regroupées là.
+  const [previewPayslipId, setPreviewPayslipId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewBlobRef = useRef<Blob | null>(null);
+
+  async function openPayslipPreview(payslipId: string) {
+    setActionError(null);
+    setPreviewPayslipId(payslipId);
+    setPreviewLoading(true);
+    setPreviewUrl(null);
+    try {
+      const blob = await teachers.getPayslipPdfBlob(payslipId);
+      previewBlobRef.current = blob;
+      setPreviewUrl(URL.createObjectURL(blob));
+    } catch (e) {
+      setActionError(describeActionError(e));
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function closePayslipPreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewBlobRef.current = null;
+    setPreviewPayslipId(null);
+    setPreviewUrl(null);
+  }
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  function downloadPlainFromPreview() {
+    if (!previewBlobRef.current) return;
+    downloadBlob(previewBlobRef.current, buildDownloadFilename('fiche-de-paie', teacherFirstName ?? '', teacherLastNameParts.join(' ')));
+  }
 
   const [mode, setMode] = useState<SalaryMode>(teacher.salaryMode ?? 'fixe');
   const [montant, setMontant] = useState<string>(
@@ -369,6 +437,7 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
               <th>Généré le</th>
               <th>Signature</th>
               <th>Cachet</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -384,59 +453,26 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
                   <td className={styles.mono}>{fmtXOF(s.montantBrut)}</td>
                   <td>{s.payeurEtat ? 'État' : 'École'}</td>
                   <td className={styles.mono}>{s.dateGeneration}</td>
+                  <td>{signedDoc ? '✅' : '—'}</td>
+                  <td>{cachetedDoc ? '✅' : '—'}</td>
                   <td>
-                    {signedDoc ? (
-                      signedDoc.signatureHash ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          loading={downloadSignedPayslipMutation.isPending && downloadSignedPayslipMutation.variables === signedDoc}
-                          onClick={() => downloadSignedPayslipMutation.mutate(signedDoc)}
-                        >
-                          ✅ Signé — télécharger
-                        </Button>
-                      ) : (
-                        <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Signé — lien indisponible</span>
-                      )
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        loading={signPayslipMutation.isPending && signPayslipMutation.variables === s.id}
-                        style={!hasSignature ? { opacity: 0.5 } : undefined}
-                        aria-disabled={!hasSignature || undefined}
-                        onClick={() => requireAsset('signature', hasSignature, () => signPayslipMutation.mutate(s.id))}
-                      >
-                        Signer
-                      </Button>
-                    )}
-                  </td>
-                  <td>
-                    {cachetedDoc ? (
-                      cachetedDoc.signatureHash ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          loading={downloadSignedPayslipMutation.isPending && downloadSignedPayslipMutation.variables === cachetedDoc}
-                          onClick={() => downloadSignedPayslipMutation.mutate(cachetedDoc)}
-                        >
-                          ✅ Cacheté — télécharger
-                        </Button>
-                      ) : (
-                        <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Cacheté — lien indisponible</span>
-                      )
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        loading={cachetPayslipMutation.isPending && cachetPayslipMutation.variables === s.id}
-                        style={!hasStamp ? { opacity: 0.5 } : undefined}
-                        aria-disabled={!hasStamp || undefined}
-                        onClick={() => requireAsset('stamp', hasStamp, () => cachetPayslipMutation.mutate(s.id))}
-                      >
-                        Cacheter
-                      </Button>
-                    )}
+                    {/*
+                      CORRECTION (signalé) — « il doit pouvoir prévisualiser
+                      avec des options cacheter/signer/télécharger (avec ou
+                      sans cachet/signer) » : un seul bouton « Aperçu » qui
+                      ouvre une popup avec le PDF et toutes ces actions,
+                      plutôt que deux boutons Signer/Cacheter séparés qui
+                      n'offraient ni aperçu ni téléchargement de la version
+                      plate.
+                    */}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={previewLoading && previewPayslipId === s.id}
+                      onClick={() => openPayslipPreview(s.id)}
+                    >
+                      Aperçu
+                    </Button>
                   </td>
                 </tr>
               );
@@ -469,6 +505,85 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
             Fermer
           </Button>
         </div>
+      </Sheet>
+
+      <Sheet
+        title={previewPayslipId ? 'Aperçu du bulletin de paie' : 'Aperçu'}
+        open={previewPayslipId !== null}
+        onClose={closePayslipPreview}
+        width="lg"
+        footer={
+          previewPayslipId ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={downloadPlainFromPreview} disabled={!previewUrl}>
+                Télécharger (sans cachet/signature)
+              </Button>
+              {signedByPayslipId.has(previewPayslipId) ? (
+                (() => {
+                  const doc = signedByPayslipId.get(previewPayslipId);
+                  return doc?.signatureHash ? (
+                    <Button
+                      variant="ghost"
+                      loading={downloadSignedPayslipMutation.isPending && downloadSignedPayslipMutation.variables === doc}
+                      onClick={() => downloadSignedPayslipMutation.mutate(doc)}
+                    >
+                      ✅ Télécharger la version signée
+                    </Button>
+                  ) : (
+                    <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Signé — lien indisponible</span>
+                  );
+                })()
+              ) : (
+                <Button
+                  variant="secondary"
+                  loading={signPayslipMutation.isPending && signPayslipMutation.variables === previewPayslipId}
+                  style={!hasSignature ? { opacity: 0.5 } : undefined}
+                  aria-disabled={!hasSignature || undefined}
+                  onClick={() => requireAsset('signature', hasSignature, () => signPayslipMutation.mutate(previewPayslipId))}
+                >
+                  Signer
+                </Button>
+              )}
+              {cachetedByPayslipId.has(previewPayslipId) ? (
+                (() => {
+                  const doc = cachetedByPayslipId.get(previewPayslipId);
+                  return doc?.signatureHash ? (
+                    <Button
+                      variant="ghost"
+                      loading={downloadSignedPayslipMutation.isPending && downloadSignedPayslipMutation.variables === doc}
+                      onClick={() => downloadSignedPayslipMutation.mutate(doc)}
+                    >
+                      ✅ Télécharger la version cachetée
+                    </Button>
+                  ) : (
+                    <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Cacheté — lien indisponible</span>
+                  );
+                })()
+              ) : (
+                <Button
+                  variant="secondary"
+                  loading={cachetPayslipMutation.isPending && cachetPayslipMutation.variables === previewPayslipId}
+                  style={!hasStamp ? { opacity: 0.5 } : undefined}
+                  aria-disabled={!hasStamp || undefined}
+                  onClick={() => requireAsset('stamp', hasStamp, () => cachetPayslipMutation.mutate(previewPayslipId))}
+                >
+                  Cacheter
+                </Button>
+              )}
+            </div>
+          ) : undefined
+        }
+      >
+        {actionError ? <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 0 }}>{actionError}</p> : null}
+        {previewUrl ? (
+          <iframe
+            src={previewUrl}
+            title="Aperçu du bulletin de paie"
+            style={{ width: '100%', height: '65vh', border: 'none', display: 'block' }}
+          />
+        ) : !previewLoading && !actionError ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Chargement de l’aperçu…</p>
+        ) : null}
       </Sheet>
     </>
   );

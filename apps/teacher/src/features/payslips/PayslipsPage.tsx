@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Card, CardHeader, Sheet, StateView, Table, Textarea, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { AppError } from '@/services/errors';
 import { fmtXOF } from '@/utils/format';
 import type { CashPaymentNotice, PaymentChannel, SalarySlip } from '@/types/domain';
 
@@ -32,7 +33,23 @@ export default function PayslipsPage() {
   const downloadMutation = useMutation({
     mutationFn: (payslipId: string) => payslips.downloadPdf(payslipId),
     onSuccess: () => setDownloadError(null),
-    onError: (e) => setDownloadError(e instanceof Error ? e.message : 'Échec du téléchargement.'),
+    // CORRECTION (signalé) — « j'ai une erreur "Certaines informations sont
+    // incorrectes. Vérifiez le formulaire." » : ce message vient du
+    // libellé générique attaché au kind 'validation' (services/errors.ts),
+    // lui-même posé pour TOUT `BusinessException` backend (422, voir
+    // GlobalExceptionHandler#business côté payment-service) — y compris
+    // PAYSLIP_PDF_GENERATION_FAILED, qui n'a rien d'un formulaire à
+    // vérifier : c'est un téléchargement, sans aucun champ saisi. On
+    // affiche donc un message propre à cette action pour ce kind-là,
+    // plutôt que le texte "formulaire" trompeur.
+    onError: (e) =>
+      setDownloadError(
+        e instanceof AppError && e.kind === 'validation'
+          ? "Le PDF de la fiche de paie n'a pas pu être généré. Réessayez dans un instant, ou signalez-le à la direction si cela persiste."
+          : e instanceof Error
+            ? e.message
+            : 'Échec du téléchargement.',
+      ),
   });
 
   function refreshAfterDecision() {
