@@ -5,11 +5,13 @@ import { createSubjectsApi } from '@/api/subjects.api';
 import { createTeachersApi } from '@/api/teachers.api';
 import type {
   AbsenceRequestDto,
+  AttendanceSessionDetailResponseDto,
   AttendanceSessionResponseDto,
   AttendanceSheetResponseDto,
   AttendanceStatsResponseDto,
   AttendanceTrendPointResponseDto,
   ClassAttendanceStatsResponseDto,
+  StudentAttendanceDetailDto,
 } from '@/types/api';
 import type { StudentAttendancePort } from '@/services/ports';
 import type {
@@ -17,12 +19,14 @@ import type {
   AbsenceReviewStatus,
   AbsentStudentEntry,
   AttendanceSession,
+  AttendanceSessionDetail,
+  AttendanceSessionStudent,
   AttendanceTrendGranularity,
   AttendanceTrendPoint,
   ClassAttendanceRate,
   SchoolAttendanceOverview,
 } from '@/types/domain';
-import { isoToFR } from '@/utils/format';
+import { downloadBlob, isoToFR } from '@/utils/format';
 
 /**
  * Jour de la séance (#426) — `AttendanceRecord.dayOfWeek` : le commentaire
@@ -86,6 +90,67 @@ function toAttendanceTrendPoint(dto: AttendanceTrendPointResponseDto): Attendanc
     late: dto.late,
     attendanceRate: dto.attendanceRate,
   };
+}
+
+function toSessionStudent(dto: StudentAttendanceDetailDto, nameById: Map<string, string>): AttendanceSessionStudent {
+  return {
+    studentId: dto.studentId,
+    studentNom: nameById.get(dto.studentId) ?? dto.studentId,
+    status: dto.status,
+    note: dto.note,
+    absenceRequestId: dto.absenceRequestId,
+    absenceStatus: dto.absenceStatus,
+    absenceReason: dto.absenceReason,
+    hasJustification: dto.hasJustification,
+  };
+}
+
+/**
+ * Résout noms de classe/matière/professeur/élèves pour le détail d'une
+ * séance (#1, censeur) — comme le reste de cet écran, le backend ne renvoie
+ * que des ids ; factorisé ici car `getSessionDetail` et `updateStudentStatus`
+ * renvoient tous les deux ce même détail enrichi.
+ */
+async function toSessionDetail(dto: AttendanceSessionDetailResponseDto): Promise<AttendanceSessionDetail> {
+  const { schoolId } = sessionContext();
+  const [classesDtos, subjects, teachers, students] = await Promise.all([
+    fetchSchoolClasses(schoolId),
+    createSubjectsApi().list(),
+    createTeachersApi().list(),
+    createStudentsApi().list(dto.classId),
+  ]);
+  const classNameById = new Map(classesDtos.map((c) => [c.id, c.fullName]));
+  const subjectNameById = new Map(subjects.map((s) => [s.id, s.nom]));
+  const teacherNameById = new Map(teachers.map((t) => [t.id, t.nom]));
+  const studentNameById = new Map(students.map((s) => [s.id, `${s.prenom} ${s.nom}`]));
+
+  return {
+    id: dto.id,
+    classId: dto.classId,
+    className: classNameById.get(dto.classId) ?? dto.classId,
+    subjectId: dto.subjectId,
+    matiere: dto.subjectId ? subjectNameById.get(dto.subjectId) ?? dto.subjectId : null,
+    teacherId: dto.teacherId,
+    professeur: dto.teacherId ? teacherNameById.get(dto.teacherId) ?? dto.teacherId : null,
+    date: isoToFR(dto.date),
+    dayOfWeek: dayLabel(dto.dayOfWeek),
+    period: dto.period,
+    totalStudents: dto.totalStudents,
+    present: dto.present,
+    absent: dto.absent,
+    late: dto.late,
+    attendanceRate: dto.attendanceRate,
+    students: dto.students.map((s) => toSessionStudent(s, studentNameById)),
+  };
+}
+
+/** Extension plausible à partir du content-type MinIO — jamais bloquant si inconnu. */
+function extensionFor(contentType: string): string {
+  if (contentType.includes('pdf')) return 'pdf';
+  if (contentType.includes('png')) return 'png';
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpg';
+  if (contentType.includes('webp')) return 'webp';
+  return 'bin';
 }
 
 function fromAbsenceDto(dto: AbsenceRequestDto, nameById: Map<string, string>): AbsenceRequestSummary {
@@ -239,6 +304,33 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
         { query: { schoolId, from, to, granularity } },
       );
       return rows.map(toAttendanceTrendPoint);
+    },
+
+    async getSessionDetail(sessionId): Promise<AttendanceSessionDetail> {
+      const { schoolId } = sessionContext();
+      const dto = await request<AttendanceSessionDetailResponseDto>(
+        `/api/v1/attendances/analytics/session/${encodeURIComponent(sessionId)}`,
+        { query: { schoolId } },
+      );
+      return toSessionDetail(dto);
+    },
+
+    async updateStudentStatus(sessionId, studentId, status, note): Promise<AttendanceSessionDetail> {
+      const { schoolId } = sessionContext();
+      const dto = await request<AttendanceSessionDetailResponseDto>(
+        `/api/v1/attendances/analytics/session/${encodeURIComponent(sessionId)}/students/${encodeURIComponent(studentId)}`,
+        { method: 'PUT', query: { schoolId }, body: { status, note: note ?? null } },
+      );
+      return toSessionDetail(dto);
+    },
+
+    async downloadJustification(absenceRequestId, studentNom): Promise<void> {
+      const blob = await request<Blob>(
+        `/api/v1/attendances/absence/${encodeURIComponent(absenceRequestId)}/justification/download`,
+        { responseType: 'blob' },
+      );
+      const safeName = studentNom.trim().replace(/\s+/g, '_').toLowerCase() || 'eleve';
+      downloadBlob(blob, `justificatif_${safeName}_${absenceRequestId.slice(0, 8)}.${extensionFor(blob.type)}`);
     },
   };
 }

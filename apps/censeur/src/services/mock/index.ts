@@ -57,6 +57,8 @@ import type {
   TeacherLookupResult,
   TimetableLock,
   AttendanceSession,
+  AttendanceSessionDetail,
+  AttendanceSessionStudent,
   AttendanceTrendGranularity,
   AttendanceTrendPoint,
   TransferRequest,
@@ -230,6 +232,70 @@ function buildMockTrend(
     points.push({ periodStart, periodLabel, ...totals });
   }
   return points;
+}
+
+/**
+ * Détail synthétique d'une séance (#1, censeur) — régénère la liste des
+ * séances d'aujourd'hui (seule plage jamais demandée par les deux écrans
+ * "Par créneau") et y retrouve `sessionId`, plutôt que de le décoder : les
+ * identifiants de classe peuvent eux-mêmes contenir des tirets. Les élèves
+ * de la classe sont répartis PRESENT/ABSENT/LATE avec la même règle que
+ * `computeClassesStats` ; un absent reprend la demande à justifier
+ * existante pour lui dans `absenceRequests`, s'il y en a une (le mock ne
+ * modélise pas d'état "par créneau" persisté, voir `buildMockSessions`).
+ */
+function buildMockSessionDetail(
+  classes: ClassGroup[],
+  students: Student[],
+  absenceRequests: AbsenceRequestSummary[],
+  sessionId: string,
+): AttendanceSessionDetail | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const classesStats = computeClassesStats(classes, students);
+  const session = buildMockSessions(classes, classesStats, today, today).find((s) => s.id === sessionId);
+  if (!session) return null;
+
+  const sessionStudents: AttendanceSessionStudent[] = students
+    .filter((s) => s.classeId === session.classId)
+    .map((s) => {
+      const status: AttendanceSessionStudent['status'] = s.absences > 0 ? 'ABSENT' : s.retards > 0 ? 'LATE' : 'PRESENT';
+      const absence = status === 'ABSENT' ? absenceRequests.find((a) => a.studentId === s.id) : undefined;
+      return {
+        studentId: s.id,
+        studentNom: `${s.prenom} ${s.nom}`,
+        status,
+        note: null,
+        absenceRequestId: absence?.id ?? null,
+        absenceStatus: absence?.status ?? null,
+        absenceReason: absence?.reason ?? null,
+        hasJustification: absence?.hasJustification ?? false,
+      };
+    });
+
+  const total = sessionStudents.length;
+  const present = sessionStudents.filter((s) => s.status === 'PRESENT').length;
+  const late = sessionStudents.filter((s) => s.status === 'LATE').length;
+  const absent = total - present - late;
+  const rate = total === 0 ? 0 : Math.round((present * 1000) / total) / 10;
+
+  return {
+    id: session.id,
+    classId: session.classId,
+    className: session.className,
+    subjectId: session.subjectId,
+    matiere: session.matiere,
+    teacherId: session.teacherId,
+    professeur: session.professeur,
+    date: session.date,
+    dayOfWeek: session.dayOfWeek,
+    period: session.period,
+    totalStudents: total,
+    present,
+    absent,
+    late,
+    attendanceRate: rate,
+    students: sessionStudents,
+  };
 }
 
 function createInitialState() {
@@ -1231,6 +1297,62 @@ export function createMockServices(): Services {
         const stats = classesStats.find((c) => c.classId === classId);
         const totals = stats ?? { totalStudents: 0, present: 0, absent: 0, late: 0, attendanceRate: 0 };
         return respond(buildMockTrend(from, to, granularity, totals));
+      },
+      async getSessionDetail(sessionId: string): Promise<AttendanceSessionDetail> {
+        const detail = buildMockSessionDetail(state.classes, state.students, state.absenceRequests, sessionId);
+        if (!detail) notFound('Séance');
+        return respond(detail);
+      },
+      async updateStudentStatus(sessionId: string, studentId: string, status): Promise<AttendanceSessionDetail> {
+        const student = state.students.find((s) => s.id === studentId);
+        if (!student) notFound('Élève');
+        const wasAbsent = student.absences > 0;
+
+        // Même simulation que `computeClassesStats` : absences/retards sont
+        // les seuls compteurs qui dérivent le statut côté mock (pas d'état
+        // "par créneau" persisté, voir `buildMockSessionDetail`).
+        if (status === 'ABSENT') {
+          if (student.absences === 0) student.absences = 1;
+        } else if (status === 'LATE') {
+          student.absences = 0;
+          if (student.retards === 0) student.retards = 1;
+        } else {
+          student.absences = 0;
+          student.retards = 0;
+        }
+
+        if (status === 'ABSENT' && !wasAbsent && !state.absenceRequests.some((a) => a.studentId === studentId)) {
+          const todayFR = new Date().toLocaleDateString('fr-FR');
+          state.absenceRequests.push({
+            id: `absreq-auto-${studentId}-${Date.now()}`,
+            studentId,
+            studentNom: `${student.prenom} ${student.nom}`,
+            schoolId: fixtures.SCHOOL.id,
+            dateFrom: todayFR,
+            dateTo: todayFR,
+            reason: null,
+            hasJustification: false,
+            status: 'PENDING',
+            reviewedBy: null,
+            reviewedAt: null,
+          });
+        } else if (status !== 'ABSENT' && wasAbsent) {
+          // Retire la demande auto-créée UNIQUEMENT si personne ne l'a encore
+          // touchée (toujours PENDING, sans justification) — même règle que
+          // `AttendanceServiceImpl#reconcileAbsenceRequestsOnCorrection`.
+          state.absenceRequests = state.absenceRequests.filter(
+            (a) => !(a.studentId === studentId && a.status === 'PENDING' && !a.hasJustification),
+          );
+        }
+
+        const detail = buildMockSessionDetail(state.classes, state.students, state.absenceRequests, sessionId);
+        if (!detail) notFound('Séance');
+        return respond(detail, 300);
+      },
+      async downloadJustification(): Promise<void> {
+        // Pas de vrai fichier côté mock — rien à télécharger, mais ne doit
+        // jamais rejeter (le bouton reste cliquable en démo).
+        await respond(undefined, 150);
       },
     },
 

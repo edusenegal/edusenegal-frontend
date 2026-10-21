@@ -272,6 +272,47 @@ export interface AttendanceSession {
 }
 
 /**
+ * Un élève dans le détail d'une séance (#1, censeur) — `absence*` ne sont
+ * renseignés que si l'élève est (ou a été) marqué ABSENT sur ce créneau et
+ * qu'une demande à justifier existe pour ce couple date/matière ; `null`
+ * sinon.
+ */
+export interface AttendanceSessionStudent {
+  studentId: string;
+  studentNom: string;
+  status: 'ABSENT' | 'LATE' | 'PRESENT' | 'JUSTIFIED';
+  note: string | null;
+  absenceRequestId: string | null;
+  absenceStatus: AbsenceReviewStatus | null;
+  absenceReason: string | null;
+  hasJustification: boolean;
+}
+
+/**
+ * Détail complet d'une séance — clic sur un créneau depuis "Par créneau"
+ * (#1, censeur) : classe → créneau → liste nommée des élèves, avec pour
+ * chaque absent l'état de sa demande à justifier.
+ */
+export interface AttendanceSessionDetail {
+  id: string;
+  classId: string;
+  className: string;
+  subjectId: string | null;
+  matiere: string | null;
+  teacherId: string | null;
+  professeur: string | null;
+  date: string; // dd/mm/yyyy
+  dayOfWeek: string;
+  period: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+  students: AttendanceSessionStudent[];
+}
+
+/**
  * Un point de la courbe d'évolution du taux de présence/absence — un jour,
  * une semaine (lundi) ou un mois (1er du mois) selon la granularité
  * demandée (#426).

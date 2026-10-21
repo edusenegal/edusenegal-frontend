@@ -13,6 +13,8 @@ import type {
   AbsenceReviewStatus,
   AbsentStudentEntry,
   AttendanceSession,
+  AttendanceSessionDetail,
+  AttendanceSessionStudent,
   AttendanceTrendGranularity,
   AttendanceTrendPoint,
   AcademicPeriod,
@@ -203,6 +205,30 @@ export interface StudentAttendancePort {
     to: string,
     granularity: AttendanceTrendGranularity,
   ): Promise<AttendanceTrendPoint[]>;
+
+  /**
+   * Détail nommé d'une séance précise (#1, censeur) — clic sur un créneau
+   * depuis "Par créneau" : liste complète des élèves, et pour chaque absent
+   * l'état de sa demande à justifier.
+   */
+  getSessionDetail(sessionId: string): Promise<AttendanceSessionDetail>;
+
+  /**
+   * Corrige l'état d'UN SEUL élève sur une séance déjà saisie (clic sur un
+   * élève dans le détail d'un créneau) — répercute automatiquement sur sa
+   * demande à justifier (création si nouvel absent, suppression de la
+   * demande auto-créée si elle n'a jamais été touchée et qu'il n'est plus
+   * absent).
+   */
+  updateStudentStatus(
+    sessionId: string,
+    studentId: string,
+    status: AttendanceSessionStudent['status'],
+    note?: string | null,
+  ): Promise<AttendanceSessionDetail>;
+
+  /** Télécharge le justificatif déposé pour une demande d'absence (Blob). */
+  downloadJustification(absenceRequestId: string, studentNom: string): Promise<void>;
 }
 
 export interface BilanAnnuelPort {

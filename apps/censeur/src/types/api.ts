@@ -1121,6 +1121,49 @@ export interface AttendanceSessionResponseDto {
 }
 
 /**
+ * Un élève dans le détail d'une séance (#1, censeur) — voir
+ * `StudentAttendanceDetail` côté backend.
+ */
+export interface StudentAttendanceDetailDto {
+  studentId: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'JUSTIFIED';
+  note: string | null;
+  absenceRequestId: string | null;
+  absenceStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'LOCKED' | null;
+  absenceReason: string | null;
+  hasJustification: boolean;
+}
+
+/**
+ * GET /api/v1/attendances/analytics/session/{sessionId} — détail complet
+ * d'une séance (#1, censeur) : liste des élèves avec, pour chaque absent,
+ * l'état de sa demande à justifier.
+ */
+export interface AttendanceSessionDetailResponseDto {
+  id: string;
+  schoolId: string;
+  classId: string;
+  academicYearId: string;
+  subjectId: string | null;
+  teacherId: string | null;
+  date: string;
+  dayOfWeek: string;
+  period: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+  students: StudentAttendanceDetailDto[];
+}
+
+/** PUT /api/v1/attendances/analytics/session/{sessionId}/students/{studentId} */
+export interface UpdateStudentAttendanceRequestDto {
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'JUSTIFIED';
+  note?: string | null;
+}
+
+/**
  * GET /api/v1/attendances/analytics/{school/class/{classId}}/trend — un
  * point de l'évolution du taux de présence/absence, agrégé par jour,
  * semaine (lundi) ou mois (1er du mois) — item #426.

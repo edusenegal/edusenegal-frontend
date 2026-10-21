@@ -210,7 +210,7 @@ export default function AttendanceOverviewPage() {
             columns={sessionColumns}
             rows={sessionsQuery.data ?? []}
             rowKey={(s) => s.id}
-            onRowClick={(s) => navigate(`/presence/classes/${s.classId}?from=${from}&to=${to}`)}
+            onRowClick={(s) => navigate(`/presence/seances/${s.id}`)}
           />
         </StateView>
       </Card>

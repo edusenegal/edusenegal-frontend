@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
   Badge,
@@ -50,6 +50,7 @@ function trendRangeFor(granularity: AttendanceTrendGranularity): { from: string;
 export default function AttendanceClassPage() {
   const { classId = '' } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { studentAttendance } = useServices();
 
   const today = todayISO();
@@ -152,7 +153,12 @@ export default function AttendanceClassPage() {
           empty={sessionsQuery.data?.length === 0}
           emptyLabel="Aucun créneau de cours aujourd’hui pour cette classe."
         >
-          <Table columns={sessionColumns} rows={sessionsQuery.data ?? []} rowKey={(s) => s.id} />
+          <Table
+            columns={sessionColumns}
+            rows={sessionsQuery.data ?? []}
+            rowKey={(s) => s.id}
+            onRowClick={(s) => navigate(`/presence/seances/${s.id}`)}
+          />
         </StateView>
       </Card>
 
