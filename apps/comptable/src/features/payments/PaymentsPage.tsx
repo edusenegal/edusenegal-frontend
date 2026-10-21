@@ -111,6 +111,7 @@ export default function PaymentsPage() {
     enabled: student != null,
   });
 
+  const [detail, setDetail] = useState<PaymentTransaction | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [type, setType] = useState<PaymentType>('mensuel');
   const [amount, setAmount] = useState('');
@@ -199,6 +200,16 @@ export default function PaymentsPage() {
         ) : (
           '—'
         ),
+    },
+    {
+      key: 'details',
+      header: '',
+      align: 'right',
+      render: (r) => (
+        <Button variant="ghost" size="sm" onClick={() => setDetail(r)}>
+          Détails
+        </Button>
+      ),
     },
   ];
 
@@ -352,6 +363,38 @@ export default function PaymentsPage() {
           </Field>
           {recordError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{recordError}</p> : null}
         </div>
+      </Sheet>
+
+      {/* Détail de l'opération — demande explicite : solde avant/maintenant, figé au moment de l'encaissement. */}
+      <Sheet title="Détails du paiement" open={detail != null} onClose={() => setDetail(null)} width="sm">
+        {detail ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 13 }}>
+              <strong>{TYPE_LABEL[detail.type]}</strong> ·{' '}
+              <Badge tone={STATUS_TONE[detail.statut]}>{STATUS_LABEL[detail.statut]}</Badge>
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+              Montant net : <strong>{fmtXOF(detail.montantNetFcfa)}</strong>
+              {detail.remiseFcfa > 0 ? <> (dont {fmtXOF(detail.remiseFcfa)} de remise bourse)</> : null} · Canal :{' '}
+              {CHANNEL_LABEL[detail.canal]}
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+              Date de paiement : {detail.datePaiement ?? detail.dateCreation}
+              {detail.period ? <> · Période : {detail.period}</> : null}
+            </p>
+            {detail.statut === 'complete' && detail.soldeApresFcfa != null ? (
+              <p style={{ fontSize: 13 }}>
+                Solde avant : <strong>{fmtXOF(detail.soldeAvantFcfa ?? 0)}</strong> · Solde maintenant :{' '}
+                <strong>{fmtXOF(detail.soldeApresFcfa)}</strong>
+              </p>
+            ) : null}
+            {detail.statut === 'complete' ? (
+              <Button variant="secondary" size="sm" onClick={() => openReceipt(detail.id, detail.receiptUrl)}>
+                Voir le reçu
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </Sheet>
     </div>
   );

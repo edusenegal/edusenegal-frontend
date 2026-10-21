@@ -608,6 +608,9 @@ export interface Expense {
   valideParRole: string | null;
   valideLe: string | null; // dd/mm/yyyy hh:mm
   motifRejet: string | null;
+  /** Solde de l'école juste avant / juste après cette dépense (figé au moment de la validation) — null tant qu'elle n'est pas validée. */
+  soldeAvantFcfa: number | null;
+  soldeApresFcfa: number | null;
   /** URLs pré-signées MinIO des justificatifs. */
   piecesJointes: string[];
   historiqueValidation: ExpenseValidationStep[];
@@ -779,6 +782,9 @@ export interface PaymentTransaction {
   datePaiement: string | null; // dd/mm/yyyy
   receiptUrl: string | null;
   scholarshipId: string | null;
+  /** Solde de l'école juste avant / juste après ce paiement (figé à l'encaissement) — null tant qu'il n'est pas complété. */
+  soldeAvantFcfa: number | null;
+  soldeApresFcfa: number | null;
   dateCreation: string; // dd/mm/yyyy hh:mm
 }
 

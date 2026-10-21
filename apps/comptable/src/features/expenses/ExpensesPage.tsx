@@ -300,6 +300,12 @@ export default function ExpensesPage() {
             {detail.statut === 'rejetee' && detail.motifRejet ? (
               <p style={{ fontSize: 13, color: 'var(--color-danger)' }}>Motif du rejet : {detail.motifRejet}</p>
             ) : null}
+            {detail.statut === 'validee' && detail.soldeApresFcfa != null ? (
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                Solde avant : <strong>{fmtXOF(detail.soldeAvantFcfa ?? 0)}</strong> · Solde maintenant :{' '}
+                <strong>{fmtXOF(detail.soldeApresFcfa)}</strong>
+              </p>
+            ) : null}
 
             <div style={{ display: 'flex', gap: 8 }}>
               {detail.statut === 'brouillon' ? (

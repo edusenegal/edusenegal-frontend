@@ -89,6 +89,8 @@ function fromApiExpense(dto: ExpenseResponseDto): Expense {
     valideParRole: dto.validatedBy ?? null,
     valideLe: isoDateTimeToFR(dto.validatedAt),
     motifRejet: dto.rejectionReason ?? null,
+    soldeAvantFcfa: dto.balanceBeforeFcfa ?? null,
+    soldeApresFcfa: dto.balanceAfterFcfa ?? null,
     piecesJointes: dto.attachmentUrls ?? [],
     historiqueValidation: (dto.validationHistory ?? []).map(fromApiValidationStep),
     creeLe: isoDateTimeToFR(dto.createdAt) ?? '—',

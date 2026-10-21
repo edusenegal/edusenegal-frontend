@@ -643,6 +643,9 @@ export interface ExpenseResponseDto {
   validatedBy: string | null;
   validatedAt: string | null; // ISO LocalDateTime
   rejectionReason: string | null;
+  /** Solde de l'école juste avant / après cette dépense — non nul une fois VALIDATED. */
+  balanceBeforeFcfa: number | null;
+  balanceAfterFcfa: number | null;
   attachmentUrls: string[] | null;
   validationHistory: ApiValidationStep[] | null;
   createdAt: string;
@@ -950,6 +953,9 @@ export interface PaymentTransactionResponseDto {
   receiptS3Key: string | null;
   receiptUrl: string | null;
   scholarshipId: string | null;
+  /** Solde de l'école juste avant / après ce paiement — non nul une fois COMPLETED. */
+  balanceBeforeFcfa: number | null;
+  balanceAfterFcfa: number | null;
   createdAt: string; // ISO LocalDateTime
 }
 

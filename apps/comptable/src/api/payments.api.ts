@@ -72,6 +72,8 @@ export function fromApiTransaction(dto: PaymentTransactionResponseDto): PaymentT
     datePaiement: dto.paidDate ? isoToFR(dto.paidDate) : null,
     receiptUrl: dto.receiptUrl,
     scholarshipId: dto.scholarshipId,
+    soldeAvantFcfa: dto.balanceBeforeFcfa ?? null,
+    soldeApresFcfa: dto.balanceAfterFcfa ?? null,
     dateCreation: isoDateTimeToFR(dto.createdAt) ?? '—',
   };
 }
