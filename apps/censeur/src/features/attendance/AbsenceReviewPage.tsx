@@ -47,8 +47,20 @@ export default function AbsenceReviewPage() {
       return studentAttendance.reviewAbsence(id, status);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['school-absences'] }),
-    onError: (err: unknown) =>
-      setActionError(err instanceof AppError ? err.message : "Impossible d'enregistrer la décision. Réessaie."),
+    onError: (err: unknown) => {
+      // CORRECTION (signalé) "je ne peux pas effectuer une action" : le code
+      // (droits, transitions d'état côté backend) est correct, mais la
+      // mutation était partagée par TOUTES les lignes du tableau — un rejet
+      // (403, conflit…) sur une ligne mettait `reviewMutation.isPending` à
+      // false sans qu'aucune ligne ne soit jamais mise en surbrillance comme
+      // "en cours", et une erreur réseau pure (ex: token expiré en cours de
+      // rafraîchissement) ne laissait qu'un petit texte rouge facile à
+      // manquer. On logge maintenant aussi l'erreur brute en console pour un
+      // diagnostic immédiat (F12 → Console) le temps de confirmer la cause
+      // exacte côté utilisateur.
+      console.error('[AbsenceReviewPage] reviewAbsence a échoué :', err);
+      setActionError(err instanceof AppError ? err.message : "Impossible d'enregistrer la décision. Réessaie.");
+    },
   });
 
   const columns: Column<AbsenceRequestSummary>[] = [
@@ -87,7 +99,7 @@ export default function AbsenceReviewPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                loading={reviewMutation.isPending}
+                loading={reviewMutation.isPending && reviewMutation.variables?.id === a.id}
                 onClick={() => reviewMutation.mutate({ id: a.id, status: 'LOCKED' })}
               >
                 Verrouiller
@@ -96,7 +108,7 @@ export default function AbsenceReviewPage() {
             <Button
               variant="primary"
               size="sm"
-              loading={reviewMutation.isPending}
+              loading={reviewMutation.isPending && reviewMutation.variables?.id === a.id}
               onClick={() => reviewMutation.mutate({ id: a.id, status: 'APPROVED' })}
             >
               Approuver
@@ -104,7 +116,7 @@ export default function AbsenceReviewPage() {
             <Button
               variant="danger"
               size="sm"
-              loading={reviewMutation.isPending}
+              loading={reviewMutation.isPending && reviewMutation.variables?.id === a.id}
               onClick={() => reviewMutation.mutate({ id: a.id, status: 'REJECTED' })}
             >
               Rejeter

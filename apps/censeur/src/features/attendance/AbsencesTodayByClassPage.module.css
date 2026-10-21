@@ -1,0 +1,34 @@
+.back {
+  display: inline-block;
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--brand-primary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.actionRow {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-md);
+}

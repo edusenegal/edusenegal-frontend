@@ -153,9 +153,14 @@ export default function AttendanceOverviewPage() {
         title="Présence & absences"
         subtitle="Taux de présence, d'absence et de retard de l'école — par classe."
         action={
-          <Button variant="secondary" onClick={() => navigate('/presence/demandes')}>
-            Demandes à traiter
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" onClick={() => navigate('/presence/absences-du-jour')}>
+              Absents du jour par classe
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/presence/demandes')}>
+              Demandes à traiter
+            </Button>
+          </div>
         }
       />
 
