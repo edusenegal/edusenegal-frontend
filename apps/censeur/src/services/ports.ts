@@ -12,6 +12,9 @@ import type {
   AbsenceRequestSummary,
   AbsenceReviewStatus,
   AbsentStudentEntry,
+  AttendanceSession,
+  AttendanceTrendGranularity,
+  AttendanceTrendPoint,
   AcademicPeriod,
   AcademicPeriodType,
   AcademicYear,
@@ -58,6 +61,7 @@ import type {
   SubjectCoefficient,
   Teacher,
   TeacherLookupResult,
+  TimetableLock,
   TransferRequest,
   YearResult,
 } from '@/types/domain';
@@ -182,6 +186,23 @@ export interface StudentAttendancePort {
    * directeur.
    */
   reviewAbsence(absenceId: string, status: 'APPROVED' | 'REJECTED' | 'LOCKED'): Promise<AbsenceRequestSummary>;
+  /**
+   * Vue "par créneau" (#426, censeur/surveillant général) — une ligne par
+   * séance de l'école sur la plage (temps réel : from=to=aujourd'hui pour
+   * le taux en temps réel demandé).
+   */
+  getSchoolSessions(from: string, to: string): Promise<AttendanceSession[]>;
+  /** Idem, restreint à une seule classe (clic sur une classe depuis la vue école). */
+  getClassSessions(classId: string, from: string, to: string): Promise<AttendanceSession[]>;
+  /** Évolution du taux de présence/absence de l'école — jour, semaine ou mois (#426). */
+  getSchoolTrend(from: string, to: string, granularity: AttendanceTrendGranularity): Promise<AttendanceTrendPoint[]>;
+  /** Idem, restreint à une seule classe. */
+  getClassTrend(
+    classId: string,
+    from: string,
+    to: string,
+    granularity: AttendanceTrendGranularity,
+  ): Promise<AttendanceTrendPoint[]>;
 }
 
 export interface BilanAnnuelPort {
@@ -242,6 +263,22 @@ export interface ClassesPort {
     oldKey: Pick<ScheduleSlot, 'jour' | 'heureDebut'>,
     slot: ScheduleSlot,
   ): Promise<ScheduleSlot[]>;
+  /**
+   * Verrouillage de l'emploi du temps par classe (task #416/#425, demande
+   * censeur/surveillant général) — même route `GET .../active` que
+   * `getWeeklySchedule`, mais ne renvoie que l'état de verrouillage de la
+   * version active. `null` si aucune version n'existe encore pour cette
+   * classe (rien à verrouiller).
+   */
+  getTimetableLock(classId: string): Promise<TimetableLock | null>;
+  /**
+   * Backend : `PUT /api/v1/timetables/versions/{versionId}/lock`
+   * (schedule-service) — tant que verrouillée, `createTimetable`/
+   * `changeTimetable` sur cette classe sont refusés (409).
+   */
+  lockTimetable(versionId: string): Promise<TimetableLock>;
+  /** Backend : `PUT /api/v1/timetables/versions/{versionId}/unlock` (schedule-service). */
+  unlockTimetable(versionId: string): Promise<TimetableLock>;
   /**
    * Backend : `POST /api/v1/classes/{classId}/students/{studentId}` (class-service) —
    * utilisé pour finaliser un transfert interne (task #214/#215), après

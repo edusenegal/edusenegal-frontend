@@ -55,10 +55,14 @@ import type {
   SubjectAverage,
   Teacher,
   TeacherLookupResult,
+  TimetableLock,
+  AttendanceSession,
+  AttendanceTrendGranularity,
+  AttendanceTrendPoint,
   TransferRequest,
   YearResult,
 } from '@/types/domain';
-import { frToISO } from '@/utils/format';
+import { frToISO, isoToFR } from '@/utils/format';
 import * as fixtures from './fixtures';
 
 const LATENCY_MS = 220;
@@ -121,6 +125,113 @@ function buildMockAbsenceRequests(students: Student[]): AbsenceRequestSummary[] 
     }));
 }
 
+/** Factorisé pour être appelé à la fois par `getSchoolStats` et par `getSchoolTrend`/`getSchoolSessions` (#426), sans dépendre de `this`. */
+function computeSchoolStats(students: Student[], from: string, to: string): SchoolAttendanceOverview {
+  const total = students.length;
+  const absent = students.filter((s) => s.absences > 0).length;
+  const late = students.filter((s) => s.absences === 0 && s.retards > 0).length;
+  const present = total - absent - late;
+  const rate = total === 0 ? 0 : Math.round((present * 1000) / total) / 10;
+  return { from, to, totalRecords: total, present, absent, late, attendanceRate: rate };
+}
+
+/** Factorisé pour être appelé à la fois par `getClassesStats` et par `getClassSessions`/`getClassTrend`/`getSchoolSessions` (#426), sans dépendre de `this`. */
+function computeClassesStats(classes: ClassGroup[], students: Student[]): ClassAttendanceRate[] {
+  return classes.map((c) => {
+    const inClass = students.filter((s) => s.classeId === c.id);
+    const absent = inClass.filter((s) => s.absences > 0).length;
+    const late = inClass.filter((s) => s.absences === 0 && s.retards > 0).length;
+    const present = inClass.length - absent - late;
+    const rate = inClass.length === 0 ? 0 : Math.round((present * 1000) / inClass.length) / 10;
+    return {
+      classId: c.id,
+      className: c.name,
+      totalStudents: inClass.length,
+      present,
+      absent,
+      late,
+      attendanceRate: rate,
+    };
+  });
+}
+
+/**
+ * Séances synthétiques (#426) — pas d'état "par créneau" persisté côté
+ * mock (voir le commentaire de `buildWeeklySchedule`) : une séance par
+ * créneau de l'emploi du temps de chaque classe, pour chaque jour ouvré de
+ * la plage, avec les compteurs présents/absents/retards déjà agrégés
+ * côté `state` (mêmes règles que `getClassesStats`).
+ */
+function buildMockSessions(
+  classes: ClassGroup[],
+  classesStats: ClassAttendanceRate[],
+  from: string,
+  to: string,
+): AttendanceSession[] {
+  const FR_WEEKDAY = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const statsByClass = new Map(classesStats.map((s) => [s.classId, s]));
+  const sessions: AttendanceSession[] = [];
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  for (const classe of classes) {
+    const slots = fixtures.buildWeeklySchedule(classe.id).filter((s) => s.kind === 'cours');
+    const stats = statsByClass.get(classe.id);
+    for (const slot of slots) {
+      const weekdayIndex = FR_WEEKDAY.indexOf(slot.jour);
+      for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== weekdayIndex) continue;
+        sessions.push({
+          id: `sess-${classe.id}-${slot.jour}-${slot.heureDebut}-${d.toISOString().slice(0, 10)}`,
+          classId: classe.id,
+          className: classe.name,
+          subjectId: slot.subjectId,
+          matiere: slot.matiere,
+          teacherId: slot.enseignantId,
+          professeur: slot.professeur,
+          date: isoToFR(d.toISOString().slice(0, 10)),
+          dayOfWeek: slot.jour,
+          period: `${slot.heureDebut}-${slot.heureFin}`,
+          totalStudents: stats?.totalStudents ?? classe.effectif,
+          present: stats?.present ?? classe.effectif,
+          absent: stats?.absent ?? 0,
+          late: stats?.late ?? 0,
+          attendanceRate: stats?.attendanceRate ?? 100,
+        });
+      }
+    }
+  }
+  return sessions.sort((a, b) => a.date.localeCompare(b.date) || a.period.localeCompare(b.period));
+}
+
+/**
+ * Évolution synthétique (#426) — un point par jour/semaine/mois de la
+ * plage, taux calculé à partir des mêmes compteurs agrégés que
+ * `getSchoolStats`/`getClassesStats` (constant dans le temps côté mock,
+ * faute d'historique réellement daté en mémoire).
+ */
+function buildMockTrend(
+  from: string,
+  to: string,
+  granularity: AttendanceTrendGranularity,
+  totals: { totalStudents: number; present: number; absent: number; late: number; attendanceRate: number },
+): AttendanceTrendPoint[] {
+  const points: AttendanceTrendPoint[] = [];
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const stepDays = granularity === 'DAY' ? 1 : granularity === 'WEEK' ? 7 : 30;
+  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + stepDays)) {
+    const periodStart = d.toISOString().slice(0, 10);
+    const periodLabel =
+      granularity === 'DAY'
+        ? isoToFR(periodStart)
+        : granularity === 'WEEK'
+          ? `Sem. du ${isoToFR(periodStart)}`
+          : d.toLocaleDateString('fr-FR', { month: '2-digit', year: 'numeric' });
+    points.push({ periodStart, periodLabel, ...totals });
+  }
+  return points;
+}
+
 function createInitialState() {
   const classes = fixtures.buildClasses() as ClassGroup[];
   const students = structuredClone(fixtures.buildAllStudents()) as Student[];
@@ -168,6 +279,13 @@ function createInitialState() {
       { id: 'room-2', nom: 'Salle 102', capacite: 30 },
       { id: 'room-3', nom: 'Laboratoire', capacite: 24 },
     ] as ClassRoom[],
+    /**
+     * Verrouillage de l'emploi du temps par classe (task #425) — pas de
+     * version persistée côté mock (`buildWeeklySchedule` régénère à la
+     * demande, voir son commentaire) : `classId` tient lieu de `versionId`
+     * de substitution, uniquement pour ce mode de démonstration.
+     */
+    timetableLocks: {} as Record<string, { locked: boolean; lockedBy: string | null; lockedAt: string | null }>,
   };
 }
 
@@ -510,6 +628,27 @@ export function createMockServices(): Services {
         const current = fixtures.buildWeeklySchedule(classId);
         const remaining = current.filter((s) => !(s.jour === oldKey.jour && s.heureDebut === oldKey.heureDebut));
         return respond([...remaining, slot], 300);
+      },
+      async getTimetableLock(classId: string): Promise<TimetableLock | null> {
+        const entry = state.timetableLocks[classId];
+        return respond({
+          versionId: classId,
+          locked: entry?.locked ?? false,
+          lockedBy: entry?.lockedBy ?? null,
+          lockedAt: entry?.lockedAt ?? null,
+        });
+      },
+      async lockTimetable(versionId: string): Promise<TimetableLock> {
+        state.timetableLocks[versionId] = {
+          locked: true,
+          lockedBy: 'Vous',
+          lockedAt: new Date().toISOString(),
+        };
+        return respond({ versionId, ...state.timetableLocks[versionId] }, 300);
+      },
+      async unlockTimetable(versionId: string): Promise<TimetableLock> {
+        state.timetableLocks[versionId] = { locked: false, lockedBy: null, lockedAt: null };
+        return respond({ versionId, ...state.timetableLocks[versionId] }, 300);
       },
     },
 
@@ -1040,31 +1179,10 @@ export function createMockServices(): Services {
     // que d'un vrai calendrier d'appel (pas de fixture dédiée en mode démo).
     studentAttendance: {
       async getSchoolStats(from, to): Promise<SchoolAttendanceOverview> {
-        const total = state.students.length;
-        const absent = state.students.filter((s) => s.absences > 0).length;
-        const late = state.students.filter((s) => s.absences === 0 && s.retards > 0).length;
-        const present = total - absent - late;
-        const rate = total === 0 ? 0 : Math.round(((present * 1000) / total)) / 10;
-        return respond({ from, to, totalRecords: total, present, absent, late, attendanceRate: rate });
+        return respond(computeSchoolStats(state.students, from, to));
       },
       async getClassesStats(): Promise<ClassAttendanceRate[]> {
-        const rows = state.classes.map((c) => {
-          const inClass = state.students.filter((s) => s.classeId === c.id);
-          const absent = inClass.filter((s) => s.absences > 0).length;
-          const late = inClass.filter((s) => s.absences === 0 && s.retards > 0).length;
-          const present = inClass.length - absent - late;
-          const rate = inClass.length === 0 ? 0 : Math.round(((present * 1000) / inClass.length)) / 10;
-          return {
-            classId: c.id,
-            className: c.name,
-            totalStudents: inClass.length,
-            present,
-            absent,
-            late,
-            attendanceRate: rate,
-          };
-        });
-        return respond(rows);
+        return respond(computeClassesStats(state.classes, state.students));
       },
       async getAbsentStudents(classId: string): Promise<AbsentStudentEntry[]> {
         const rows: AbsentStudentEntry[] = state.students
@@ -1088,6 +1206,32 @@ export function createMockServices(): Services {
         found.reviewedBy = `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`;
         found.reviewedAt = new Date().toISOString();
         return respond(found, 300);
+      },
+      async getSchoolSessions(from, to): Promise<AttendanceSession[]> {
+        const classesStats = computeClassesStats(state.classes, state.students);
+        return respond(buildMockSessions(state.classes, classesStats, from, to));
+      },
+      async getClassSessions(classId: string, from, to): Promise<AttendanceSession[]> {
+        const classesStats = computeClassesStats(state.classes, state.students);
+        const classe = state.classes.filter((c) => c.id === classId);
+        return respond(buildMockSessions(classe, classesStats, from, to));
+      },
+      async getSchoolTrend(from, to, granularity: AttendanceTrendGranularity): Promise<AttendanceTrendPoint[]> {
+        const school = computeSchoolStats(state.students, from, to);
+        const totals = {
+          totalStudents: school.totalRecords,
+          present: school.present,
+          absent: school.absent,
+          late: school.late,
+          attendanceRate: school.attendanceRate,
+        };
+        return respond(buildMockTrend(from, to, granularity, totals));
+      },
+      async getClassTrend(classId: string, from, to, granularity: AttendanceTrendGranularity): Promise<AttendanceTrendPoint[]> {
+        const classesStats = computeClassesStats(state.classes, state.students);
+        const stats = classesStats.find((c) => c.classId === classId);
+        const totals = stats ?? { totalStudents: 0, present: 0, absent: 0, late: 0, attendanceRate: 0 };
+        return respond(buildMockTrend(from, to, granularity, totals));
       },
     },
 

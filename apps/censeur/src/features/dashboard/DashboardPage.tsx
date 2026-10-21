@@ -3,17 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, StateView, StatTile, Badge } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { fmtXOF } from '@/utils/format';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { dashboard, classes, leaves, salaryRequests } = useServices();
+  const { dashboard, classes, leaves } = useServices();
 
   const snapshot = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboard.getSnapshot() });
   const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list() });
+  // Censeur/surveillant général : pas d'accès aux demandes de salaire
+  // (endpoint réservé à DIRECTOR côté backend) — seules les demandes de
+  // congé apparaissent dans « Demandes récentes » ci-dessous.
   const leaveList = useQuery({ queryKey: ['leaves'], queryFn: () => leaves.list() });
-  const salaryList = useQuery({ queryKey: ['salary-requests'], queryFn: () => salaryRequests.list() });
 
   const s = snapshot.data;
 
@@ -32,7 +33,6 @@ export default function DashboardPage() {
               tone={s.presenceDuJourVariation >= 0 ? 'success' : 'danger'}
               onClick={() => navigate('/presence')}
             />
-            <StatTile label="Solde de caisse" value={fmtXOF(s.soldeCaisse)} tone="success" />
             <StatTile
               label="Demandes en attente"
               value={String(s.demandesEnAttente)}
@@ -64,9 +64,9 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Demandes récentes" />
           <StateView
-            loading={leaveList.isLoading || salaryList.isLoading}
-            error={leaveList.error ?? salaryList.error}
-            empty={(leaveList.data?.length ?? 0) === 0 && (salaryList.data?.length ?? 0) === 0}
+            loading={leaveList.isLoading}
+            error={leaveList.error}
+            empty={(leaveList.data?.length ?? 0) === 0}
           >
             <div className={styles.requestRows}>
               {leaveList.data
@@ -75,17 +75,6 @@ export default function DashboardPage() {
                 .map((l) => (
                   <div key={l.id} className={styles.requestRow}>
                     <span>Congé — {l.teacherNom}</span>
-                    <Badge tone="warning">En attente</Badge>
-                  </div>
-                ))}
-              {salaryList.data
-                ?.filter((r) => r.statut === 'en_attente')
-                .slice(0, 3)
-                .map((r) => (
-                  <div key={r.id} className={styles.requestRow}>
-                    <span>
-                      Salaire — {r.periode} ({r.lignes.length} enseignant{r.lignes.length > 1 ? 's' : ''})
-                    </span>
                     <Badge tone="warning">En attente</Badge>
                   </div>
                 ))}

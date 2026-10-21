@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, CardHeader, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
 import type { BadgeTone } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import type { BulletinPeriod, Mention, PromotionOverride, PromotionResult, SemesterResult, SignedDocument, YearResult } from '@/types/domain';
+import type { Mention, PromotionOverride, PromotionResult, SemesterResult, SignedDocument, YearResult } from '@/types/domain';
 import { buildDownloadFilename } from '@/utils/format';
 
 /** Nom de fichier lisible à partir du nom affiché ("Prénom Nom") -- voir `SignaturesPort.downloadDocument`. */
@@ -57,27 +56,11 @@ const DECISION_TONES: Record<PromotionResult, BadgeTone> = {
 export default function AcademicResultsPage() {
   const { classes, subjects, academicResults, signatures } = useServices();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
-  // CORRECTION (demande explicite) : Signer et Cacheter restent possibles
-  // côté backend sans tampon/signature déposés (Signer réussirait même
-  // sans image -- voir SignatureServiceImpl), mais la direction veut les
-  // deux boutons grisés tant que les DEUX images ne sont pas déposées,
-  // comme règle interne. Même requête que SettingsPage (`signer-assets`) :
-  // partagée en cache, pas de double appel en changeant d'écran.
-  const assetsQuery = useQuery({ queryKey: ['signer-assets'], queryFn: () => signatures.getMyAssets() });
-  const hasSignature = assetsQuery.data?.hasSignature ?? false;
-  const hasStamp = assetsQuery.data?.hasStamp ?? false;
-  const [assetDialog, setAssetDialog] = useState<'signature' | 'stamp' | null>(null);
-  function requireAsset(kind: 'signature' | 'stamp', ok: boolean, run: () => void) {
-    if (!ok) {
-      setAssetDialog(kind);
-      return;
-    }
-    run();
-  }
-
+  // Censeur/surveillant général : consultation, génération et téléchargement
+  // des bulletins restent possibles, mais signer et cacheter sont des actes
+  // réservés à la direction — aucune de ces deux actions n'est proposée ici.
   const classesQuery = useQuery({ queryKey: ['classes'], queryFn: () => classes.list() });
   const subjectsQuery = useQuery({ queryKey: ['subjects'], queryFn: () => subjects.list() });
   const [classId, setClassId] = useState<string>('');
@@ -215,38 +198,6 @@ export default function AcademicResultsPage() {
   const cachetedBulletinByStudent = new Map(
     bulletinsForPeriod.filter((d) => d.action === 'CACHET').map((d) => [d.documentRef as string, d]),
   );
-  function invalidateSignedBulletins() {
-    queryClient.invalidateQueries({ queryKey: ['signed-bulletins'] });
-  }
-  // CORRECTION (signalé) — « je veux avoir une rubrique signer/cacheter qui
-  // permet à la fois de signer et cacheter » : une seule action, au lieu de
-  // deux boutons séparés. SIGNATURE et CACHET restent deux appels
-  // indépendants côté backend (SignatureAction), mais chacun ne refait que
-  // ce qui manque encore pour ce document — rejouer l'action sur un
-  // document déjà signé-et-cacheté ne fait donc rien d'inutile.
-  const signAndCachetMutation = useMutation({
-    mutationFn: async (studentId: string) => {
-      const period = `t${semesterNumber}` as BulletinPeriod['key'];
-      if (!signedBulletinByStudent.has(studentId)) {
-        await signatures.signForStudent(studentId, 'Bulletin', period, 'SIGNATURE');
-      }
-      if (!cachetedBulletinByStudent.has(studentId)) {
-        await signatures.signForStudent(studentId, 'Bulletin', period, 'CACHET');
-      }
-    },
-    onSuccess: invalidateSignedBulletins,
-  });
-  const signAndCachetClassBulletinsMutation = useMutation({
-    mutationFn: async () => {
-      const period = `t${semesterNumber}` as BulletinPeriod['key'];
-      const [sign, cachet] = await Promise.all([
-        signatures.signBulk(classId, period, 'SIGNATURE'),
-        signatures.signBulk(classId, period, 'CACHET'),
-      ]);
-      return { signed: sign.signed, cacheted: cachet.signed };
-    },
-    onSuccess: invalidateSignedBulletins,
-  });
   const closeYearMutation = useMutation({
     mutationFn: (overrides: PromotionOverride[]) => academicResults.closeResultsYear(overrides),
   });
@@ -468,22 +419,6 @@ export default function AcademicResultsPage() {
                 >
                   Générer tous les bulletins de la classe
                 </Button>
-                <Button
-                  variant="secondary"
-                  loading={signAndCachetClassBulletinsMutation.isPending}
-                  disabled={!results.some((r) => r.bulletinGenere)}
-                  style={!hasSignature || !hasStamp ? { opacity: 0.5 } : undefined}
-                  aria-disabled={!hasSignature || !hasStamp || undefined}
-                  onClick={() =>
-                    requireAsset('signature', hasSignature, () =>
-                      requireAsset('stamp', hasStamp, () =>
-                        runMutation(() => signAndCachetClassBulletinsMutation.mutateAsync()),
-                      ),
-                    )
-                  }
-                >
-                  Signer &amp; cacheter tous les bulletins de la classe
-                </Button>
               </div>
             </Card>
 
@@ -575,31 +510,6 @@ export default function AcademicResultsPage() {
                                       <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Cacheté — lien indisponible</span>
                                     );
                                   })()
-                                ) : null}
-                                {/*
-                                  CORRECTION (signalé) — « je veux avoir une rubrique
-                                  signer/cacheter qui permet à la fois de signer et
-                                  cacheter » : un seul bouton tant que l'une des deux
-                                  actions manque (il ne refait que ce qui manque,
-                                  voir signAndCachetMutation), plutôt que deux boutons
-                                  "Signer"/"Cacheter" séparés.
-                                */}
-                                {!signedBulletinByStudent.has(row.studentId) || !cachetedBulletinByStudent.has(row.studentId) ? (
-                                  <Button
-                                    variant="secondary"
-                                    loading={signAndCachetMutation.isPending && signAndCachetMutation.variables === row.studentId}
-                                    style={!hasSignature || !hasStamp ? { opacity: 0.5 } : undefined}
-                                    aria-disabled={!hasSignature || !hasStamp || undefined}
-                                    onClick={() =>
-                                      requireAsset('signature', hasSignature, () =>
-                                        requireAsset('stamp', hasStamp, () =>
-                                          runMutation(() => signAndCachetMutation.mutateAsync(row.studentId)),
-                                        ),
-                                      )
-                                    }
-                                  >
-                                    Signer &amp; cacheter
-                                  </Button>
                                 ) : null}
                               </div>
                             )}
@@ -744,31 +654,6 @@ export default function AcademicResultsPage() {
         {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: 12 }}>{error}</p> : null}
       </Sheet>
 
-      <Sheet
-        title={assetDialog === 'stamp' ? 'Aucun tampon déposé' : 'Aucune signature déposée'}
-        open={assetDialog !== null}
-        onClose={() => setAssetDialog(null)}
-      >
-        <p>
-          {assetDialog === 'stamp'
-            ? "Aucun tampon n'est enregistré pour votre compte — vous ne pouvez pas cacheter de bulletin tant qu'il n'est pas déposé."
-            : "Aucune signature n'est enregistrée pour votre compte — vous ne pouvez pas signer de bulletin tant qu'elle n'est pas déposée."}
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setAssetDialog(null);
-              navigate('/parametres');
-            }}
-          >
-            Aller dans Paramètres
-          </Button>
-          <Button variant="secondary" onClick={() => setAssetDialog(null)}>
-            Fermer
-          </Button>
-        </div>
-      </Sheet>
     </div>
   );
 }

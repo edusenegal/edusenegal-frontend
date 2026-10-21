@@ -128,6 +128,26 @@ export default function ClassDetailPage() {
     queryFn: () => classes.getWeeklySchedule(classId),
     enabled: tab === 'emploi',
   });
+  // Verrouillage de l'emploi du temps (task #425, demande censeur/surveillant
+  // général) : tant que verrouillé, le backend refuse (409) toute création/
+  // modification de créneau pour cette classe — le bouton « + Ajouter un
+  // créneau » et le clic sur un créneau sont donc aussi désactivés ici.
+  const timetableLock = useQuery({
+    queryKey: ['class-timetable-lock', classId],
+    queryFn: () => classes.getTimetableLock(classId),
+    enabled: tab === 'emploi',
+  });
+  function invalidateTimetableLock() {
+    queryClient.invalidateQueries({ queryKey: ['class-timetable-lock', classId] });
+  }
+  const lockTimetableMutation = useMutation({
+    mutationFn: (versionId: string) => classes.lockTimetable(versionId),
+    onSuccess: invalidateTimetableLock,
+  });
+  const unlockTimetableMutation = useMutation({
+    mutationFn: (versionId: string) => classes.unlockTimetable(versionId),
+    onSuccess: invalidateTimetableLock,
+  });
   // Vue mensuelle + semaine (nouvelle demande direction) — le modèle est
   // hebdomadaire RÉCURRENT côté backend (voir le commentaire de `MonthWeekPicker`),
   // `weekStart` ne fait que déterminer les vraies dates affichées/grisées.
@@ -369,23 +389,55 @@ export default function ClassDetailPage() {
               <>
                 <div className={styles.calHead}>
                   <h3 className={styles.sectionTitle}>Emploi du temps</h3>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => {
-                      setEditingSlot(null);
-                      setSlotSheetOpen(true);
-                    }}
-                  >
-                    + Ajouter un créneau
-                  </Button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {timetableLock.data ? (
+                      <Badge tone={timetableLock.data.locked ? 'warning' : 'success'}>
+                        {timetableLock.data.locked ? '🔒 Verrouillé' : '🔓 Déverrouillé'}
+                      </Badge>
+                    ) : null}
+                    {timetableLock.data ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={lockTimetableMutation.isPending || unlockTimetableMutation.isPending}
+                        onClick={() => {
+                          const versionId = timetableLock.data!.versionId;
+                          if (timetableLock.data!.locked) {
+                            unlockTimetableMutation.mutate(versionId);
+                          } else {
+                            lockTimetableMutation.mutate(versionId);
+                          }
+                        }}
+                      >
+                        {timetableLock.data.locked ? 'Déverrouiller' : 'Verrouiller'}
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={timetableLock.data?.locked ?? false}
+                      onClick={() => {
+                        setEditingSlot(null);
+                        setSlotSheetOpen(true);
+                      }}
+                    >
+                      + Ajouter un créneau
+                    </Button>
+                  </div>
                 </div>
+                {timetableLock.data?.locked ? (
+                  <p className={styles.muted} style={{ marginBottom: 'var(--space-sm)' }}>
+                    L’emploi du temps de cette classe est verrouillé — déverrouillez-le avant d’ajouter, modifier ou
+                    retirer un créneau.
+                  </p>
+                ) : null}
                 <MonthWeekPicker weekStart={weekStart} onWeekChange={setWeekStart} />
                 <StateView loading={schedule.isLoading} error={schedule.error} empty={(schedule.data?.length ?? 0) === 0}>
                   <ScheduleGrid
                     slots={schedule.data ?? []}
                     weekStart={weekStart}
                     onSlotClick={(slot) => {
+                      if (timetableLock.data?.locked) return;
                       setEditingSlot(slot);
                       setSlotSheetOpen(true);
                     }}

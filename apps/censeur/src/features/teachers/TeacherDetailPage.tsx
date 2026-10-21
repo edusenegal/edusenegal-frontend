@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
@@ -8,7 +8,6 @@ import { AppError } from '@/services/errors';
 import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO } from '@/utils/format';
 import type { SalaryMode, SignedDocument, StaffStatus, Teacher } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
-import { TeacherFormSheet } from './TeacherFormSheet';
 import styles from './TeacherDetailPage.module.css';
 
 const STATUT_LABEL: Record<StaffStatus, string> = {
@@ -28,11 +27,9 @@ const SALARY_MODE_LABEL: Record<SalaryMode, string> = {
 
 export default function TeacherDetailPage() {
   const { teacherId = '' } = useParams();
-  const navigate = useNavigate();
   const { teachers, classes, subjects } = useServices();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profil');
-  const [editOpen, setEditOpen] = useState(false);
   const [classToAdd, setClassToAdd] = useState('');
 
   const teacherQuery = useQuery({ queryKey: ['teacher', teacherId], queryFn: () => teachers.get(teacherId) });
@@ -81,14 +78,15 @@ export default function TeacherDetailPage() {
       <Link to="/enseignants" className={styles.back}>
         ← Enseignants
       </Link>
+      {/*
+        Censeur/surveillant général : les informations de l'enseignant
+        (nom, téléphone, e-mail, statut, matières) ne peuvent pas être
+        modifiées depuis cette application — acte réservé à la direction.
+        Pas de bouton « Modifier » ici, contrairement à l'espace directeur.
+      */}
       <PageHeader
         title={t?.nom ?? '…'}
         subtitle={t ? `${(subjectNames(t.subjectIds, subjectList.data)) || 'Aucune matière'} · ${t.classes.join(', ') || 'Aucune classe'}` : undefined}
-        action={
-          <Button variant="secondary" onClick={() => setEditOpen(true)}>
-            ✎ Modifier
-          </Button>
-        }
       />
 
       <StateView loading={teacherQuery.isLoading} error={teacherQuery.error}>
@@ -159,9 +157,6 @@ export default function TeacherDetailPage() {
               <>
                 <div className={styles.calHead}>
                   <h3 className={styles.sectionTitle}>Documents administratifs</h3>
-                  <Button variant="secondary" size="sm" onClick={() => navigate('/signatures')}>
-                    🖊 Signer un document
-                  </Button>
                 </div>
                 <StateView
                   loading={documents.isLoading}
@@ -207,8 +202,6 @@ export default function TeacherDetailPage() {
           </div>
         </Card>
       </StateView>
-
-      <TeacherFormSheet open={editOpen} onClose={() => setEditOpen(false)} teacher={t} />
     </div>
   );
 }
@@ -238,25 +231,13 @@ function Row({ k, v }: { k: string; v: string }) {
 function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: Teacher }) {
   const { teachers, signatures } = useServices();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const payslips = useQuery({ queryKey: ['teacher-payslips', teacherId], queryFn: () => teachers.listPayslips(teacherId) });
 
-  // Signer/cacheter un bulletin de paie (demande explicite) -- même modèle
-  // que AcademicResultsPage pour les bulletins scolaires : tampon/signature
-  // du signataire requis au préalable (bouton grisé sinon), Signer et
-  // Cacheter indépendants l'un de l'autre.
-  const assetsQuery = useQuery({ queryKey: ['signer-assets'], queryFn: () => signatures.getMyAssets() });
-  const hasSignature = assetsQuery.data?.hasSignature ?? false;
-  const hasStamp = assetsQuery.data?.hasStamp ?? false;
-  const [assetDialog, setAssetDialog] = useState<'signature' | 'stamp' | null>(null);
-  function requireAsset(kind: 'signature' | 'stamp', ok: boolean, run: () => void) {
-    if (!ok) {
-      setAssetDialog(kind);
-      return;
-    }
-    run();
-  }
+  // Censeur/surveillant général : consultation, aperçu et téléchargement
+  // restent possibles, mais signer et cacheter un bulletin de paie sont des
+  // actes réservés à la direction — aucune de ces deux actions n'est
+  // proposée ici.
 
   // `documentRef` est le `payslipId` (pas le `teacherId`) -- voir le
   // doc-comment de `SignaturesPort.signPayslip` : un même enseignant a
@@ -271,16 +252,7 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
   const cachetedByPayslipId = new Map(
     payslipDocuments.filter((d) => d.action === 'CACHET').map((d) => [d.documentRef as string, d]),
   );
-  function invalidateSignedPayslips() {
-    queryClient.invalidateQueries({ queryKey: ['signed-documents'] });
-  }
-  // CORRECTION (signalé) — « s'il cachète ou signe rien ne se passe » :
-  // ces deux mutations pouvaient échouer (le plus souvent parce que
-  // `signPayslip` doit d'abord récupérer le PDF non signé pour l'embarquer
-  // dans la signature, voir `fetchPayslipPdfBase64`) sans qu'AUCUNE erreur
-  // ne soit affichée nulle part dans cet onglet -- le bouton revenait
-  // juste à son état normal, d'où l'impression que « rien ne se passe ».
-  // `actionError` est maintenant montré dans la popup d'aperçu ci-dessous.
+  // `actionError` est montré dans la popup d'aperçu ci-dessous.
   const [actionError, setActionError] = useState<string | null>(null);
   function describeActionError(e: unknown): string {
     return e instanceof AppError && e.kind === 'validation'
@@ -289,22 +261,6 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
         ? e.message
         : 'Une erreur est survenue.';
   }
-  const signPayslipMutation = useMutation({
-    mutationFn: (payslipId: string) => signatures.signPayslip(payslipId, teacherId, 'SIGNATURE'),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateSignedPayslips();
-    },
-    onError: (e) => setActionError(describeActionError(e)),
-  });
-  const cachetPayslipMutation = useMutation({
-    mutationFn: (payslipId: string) => signatures.signPayslip(payslipId, teacherId, 'CACHET'),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateSignedPayslips();
-    },
-    onError: (e) => setActionError(describeActionError(e)),
-  });
   const [teacherFirstName, ...teacherLastNameParts] = teacher.nom.trim().split(/\s+/);
   const downloadSignedPayslipMutation = useMutation({
     mutationFn: (doc: SignedDocument) =>
@@ -482,32 +438,6 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
       </StateView>
 
       <Sheet
-        title={assetDialog === 'stamp' ? 'Aucun tampon déposé' : 'Aucune signature déposée'}
-        open={assetDialog !== null}
-        onClose={() => setAssetDialog(null)}
-      >
-        <p>
-          {assetDialog === 'stamp'
-            ? "Aucun tampon n'est enregistré pour votre compte — vous ne pouvez pas cacheter de bulletin de paie tant qu'il n'est pas déposé."
-            : "Aucune signature n'est enregistrée pour votre compte — vous ne pouvez pas signer de bulletin de paie tant qu'elle n'est pas déposée."}
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setAssetDialog(null);
-              navigate('/parametres');
-            }}
-          >
-            Aller dans Paramètres
-          </Button>
-          <Button variant="secondary" onClick={() => setAssetDialog(null)}>
-            Fermer
-          </Button>
-        </div>
-      </Sheet>
-
-      <Sheet
         title={previewPayslipId ? 'Aperçu du bulletin de paie' : 'Aperçu'}
         open={previewPayslipId !== null}
         onClose={closePayslipPreview}
@@ -533,17 +463,7 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
                     <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Signé — lien indisponible</span>
                   );
                 })()
-              ) : (
-                <Button
-                  variant="secondary"
-                  loading={signPayslipMutation.isPending && signPayslipMutation.variables === previewPayslipId}
-                  style={!hasSignature ? { opacity: 0.5 } : undefined}
-                  aria-disabled={!hasSignature || undefined}
-                  onClick={() => requireAsset('signature', hasSignature, () => signPayslipMutation.mutate(previewPayslipId))}
-                >
-                  Signer
-                </Button>
-              )}
+              ) : null}
               {cachetedByPayslipId.has(previewPayslipId) ? (
                 (() => {
                   const doc = cachetedByPayslipId.get(previewPayslipId);
@@ -559,17 +479,7 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
                     <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Cacheté — lien indisponible</span>
                   );
                 })()
-              ) : (
-                <Button
-                  variant="secondary"
-                  loading={cachetPayslipMutation.isPending && cachetPayslipMutation.variables === previewPayslipId}
-                  style={!hasStamp ? { opacity: 0.5 } : undefined}
-                  aria-disabled={!hasStamp || undefined}
-                  onClick={() => requireAsset('stamp', hasStamp, () => cachetPayslipMutation.mutate(previewPayslipId))}
-                >
-                  Cacheter
-                </Button>
-              )}
+              ) : null}
             </div>
           ) : undefined
         }

@@ -2,10 +2,22 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Segmented, StateView, StatTile, Table, type Column, type SegmentedOption } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  Meter,
+  Segmented,
+  StateView,
+  StatTile,
+  Table,
+  type Column,
+  type SegmentedOption,
+} from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { todayISO } from '@/utils/format';
-import type { ClassAttendanceRate } from '@/types/domain';
+import type { AttendanceSession, AttendanceTrendGranularity, AttendanceTrendPoint, ClassAttendanceRate } from '@/types/domain';
 import styles from './AttendanceOverviewPage.module.css';
 
 type Period = 'jour' | '7j' | '30j';
@@ -19,6 +31,25 @@ const PERIOD_OPTIONS: SegmentedOption<Period>[] = [
 function rangeFor(period: Period): { from: string; to: string } {
   const to = todayISO();
   const days = period === 'jour' ? 0 : period === '7j' ? 6 : 29;
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - days);
+  return { from: fromDate.toISOString().slice(0, 10), to };
+}
+
+const GRANULARITY_OPTIONS: SegmentedOption<AttendanceTrendGranularity>[] = [
+  { value: 'DAY', label: 'Jour' },
+  { value: 'WEEK', label: 'Semaine' },
+  { value: 'MONTH', label: 'Mois' },
+];
+
+/**
+ * Plage par défaut de l'évolution (#426), indépendante du sélecteur de
+ * période ci-dessus (qui ne contrôle que les tuiles et le tableau par
+ * classe) — assez de points pour une courbe lisible à chaque granularité.
+ */
+function trendRangeFor(granularity: AttendanceTrendGranularity): { from: string; to: string } {
+  const to = todayISO();
+  const days = granularity === 'DAY' ? 13 : granularity === 'WEEK' ? 55 : 179;
   const fromDate = new Date();
   fromDate.setDate(fromDate.getDate() - days);
   return { from: fromDate.toISOString().slice(0, 10), to };
@@ -46,6 +77,23 @@ export default function AttendanceOverviewPage() {
     queryFn: () => studentAttendance.getClassesStats(from, to),
   });
 
+  // Vue "par créneau" en temps réel (item #426, demande censeur/surveillant
+  // général) — toujours aujourd'hui, indépendamment du sélecteur de période
+  // ci-dessus (voir le doc-comment de `StudentAttendancePort.getSchoolSessions`).
+  const today = todayISO();
+  const sessionsQuery = useQuery({
+    queryKey: ['attendance-school-sessions', today],
+    queryFn: () => studentAttendance.getSchoolSessions(today, today),
+  });
+
+  // Évolution du taux de présence/absence (#426) — granularité jour/semaine/mois.
+  const [trendGranularity, setTrendGranularity] = useState<AttendanceTrendGranularity>('DAY');
+  const trendRange = useMemo(() => trendRangeFor(trendGranularity), [trendGranularity]);
+  const trendQuery = useQuery({
+    queryKey: ['attendance-school-trend', trendGranularity, trendRange.from, trendRange.to],
+    queryFn: () => studentAttendance.getSchoolTrend(trendRange.from, trendRange.to, trendGranularity),
+  });
+
   const s = schoolStats.data;
 
   const columns: Column<ClassAttendanceRate>[] = [
@@ -55,6 +103,48 @@ export default function AttendanceOverviewPage() {
     { key: 'absent', header: 'Absents', render: (c) => String(c.absent), align: 'right' },
     { key: 'retard', header: 'Retards', render: (c) => String(c.late), align: 'right' },
     { key: 'taux', header: 'Taux de présence', render: (c) => `${c.attendanceRate}%`, align: 'right' },
+  ];
+
+  const sessionColumns: Column<AttendanceSession>[] = [
+    { key: 'classe', header: 'Classe', render: (s) => s.className },
+    { key: 'creneau', header: 'Créneau', render: (s) => `${s.dayOfWeek} ${s.period}` },
+    { key: 'matiere', header: 'Matière', render: (s) => s.matiere ?? '—' },
+    { key: 'professeur', header: 'Professeur', render: (s) => s.professeur ?? '—' },
+    { key: 'present', header: 'Présents', render: (s) => String(s.present), align: 'right' },
+    { key: 'absent', header: 'Absents', render: (s) => String(s.absent), align: 'right' },
+    { key: 'retard', header: 'Retards', render: (s) => String(s.late), align: 'right' },
+    {
+      key: 'taux',
+      header: 'Taux de présence',
+      render: (s) => (
+        <Badge tone={s.attendanceRate >= 90 ? 'success' : s.attendanceRate >= 75 ? 'warning' : 'danger'}>
+          {s.attendanceRate.toFixed(0)}%
+        </Badge>
+      ),
+      align: 'right',
+    },
+  ];
+
+  const trendColumns: Column<AttendanceTrendPoint>[] = [
+    { key: 'periode', header: 'Période', render: (p) => p.periodLabel },
+    { key: 'present', header: 'Présents', render: (p) => String(p.present), align: 'right' },
+    { key: 'absent', header: 'Absents', render: (p) => String(p.absent), align: 'right' },
+    {
+      key: 'taux',
+      header: 'Taux de présence',
+      render: (p) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 }}>
+          <Meter value={p.attendanceRate} tone={p.attendanceRate >= 90 ? 'success' : p.attendanceRate >= 75 ? 'warning' : 'danger'} />
+          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{p.attendanceRate.toFixed(0)}%</span>
+        </div>
+      ),
+    },
+    {
+      key: 'tauxAbsence',
+      header: "Taux d'absence",
+      render: (p) => `${(100 - p.attendanceRate).toFixed(0)}%`,
+      align: 'right',
+    },
   ];
 
   return (
@@ -97,6 +187,48 @@ export default function AttendanceOverviewPage() {
           onRowClick={(c) => navigate(`/presence/classes/${c.classId}?from=${from}&to=${to}`)}
         />
       </StateView>
+
+      {/*
+        Vue "par créneau" en temps réel + évolution du taux de présence/
+        absence (item #426, demande censeur/surveillant général) — un clic
+        sur une classe ci-dessus donne la même vue restreinte à cette classe
+        (`AttendanceClassPage`).
+      */}
+      <Card padded style={{ marginTop: 'var(--space-lg)' }}>
+        <CardHeader title="Par créneau — aujourd'hui" />
+        <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: -4, marginBottom: 12 }}>
+          Taux de présence/absence en temps réel, créneau par créneau, pour toutes les classes de l’école.
+        </p>
+        <StateView
+          loading={sessionsQuery.isLoading}
+          error={sessionsQuery.error}
+          onRetry={() => sessionsQuery.refetch()}
+          empty={sessionsQuery.data?.length === 0}
+          emptyLabel="Aucun créneau de cours aujourd’hui."
+        >
+          <Table
+            columns={sessionColumns}
+            rows={sessionsQuery.data ?? []}
+            rowKey={(s) => s.id}
+            onRowClick={(s) => navigate(`/presence/classes/${s.classId}?from=${from}&to=${to}`)}
+          />
+        </StateView>
+      </Card>
+
+      <Card padded style={{ marginTop: 'var(--space-lg)' }}>
+        <CardHeader
+          title="Évolution du taux de présence et d'absence"
+          action={<Segmented<AttendanceTrendGranularity> options={GRANULARITY_OPTIONS} value={trendGranularity} onChange={setTrendGranularity} />}
+        />
+        <StateView
+          loading={trendQuery.isLoading}
+          error={trendQuery.error}
+          onRetry={() => trendQuery.refetch()}
+          empty={trendQuery.data?.length === 0}
+        >
+          <Table columns={trendColumns} rows={trendQuery.data ?? []} rowKey={(p) => p.periodStart} />
+        </StateView>
+      </Card>
     </div>
   );
 }

@@ -1,10 +1,14 @@
 import { request, sessionContext } from '@/api/client';
 import { fetchSchoolClasses } from '@/api/context';
 import { createStudentsApi } from '@/api/students.api';
+import { createSubjectsApi } from '@/api/subjects.api';
+import { createTeachersApi } from '@/api/teachers.api';
 import type {
   AbsenceRequestDto,
+  AttendanceSessionResponseDto,
   AttendanceSheetResponseDto,
   AttendanceStatsResponseDto,
+  AttendanceTrendPointResponseDto,
   ClassAttendanceStatsResponseDto,
 } from '@/types/api';
 import type { StudentAttendancePort } from '@/services/ports';
@@ -12,10 +16,77 @@ import type {
   AbsenceRequestSummary,
   AbsenceReviewStatus,
   AbsentStudentEntry,
+  AttendanceSession,
+  AttendanceTrendGranularity,
+  AttendanceTrendPoint,
   ClassAttendanceRate,
   SchoolAttendanceOverview,
 } from '@/types/domain';
 import { isoToFR } from '@/utils/format';
+
+/**
+ * Jour de la séance (#426) — `AttendanceRecord.dayOfWeek` : le commentaire
+ * du domaine backend indique un jour en français ("LUNDI"...), mais le code
+ * réel (`String.valueOf(java.time.DayOfWeek)`) produit l'anglais
+ * ("MONDAY"...) ; cette table couvre les deux pour ne jamais afficher une
+ * valeur brute inattendue si l'un ou l'autre change.
+ */
+const DAY_LABEL_FR: Record<string, string> = {
+  MONDAY: 'Lundi',
+  TUESDAY: 'Mardi',
+  WEDNESDAY: 'Mercredi',
+  THURSDAY: 'Jeudi',
+  FRIDAY: 'Vendredi',
+  SATURDAY: 'Samedi',
+  SUNDAY: 'Dimanche',
+  LUNDI: 'Lundi',
+  MARDI: 'Mardi',
+  MERCREDI: 'Mercredi',
+  JEUDI: 'Jeudi',
+  VENDREDI: 'Vendredi',
+  SAMEDI: 'Samedi',
+  DIMANCHE: 'Dimanche',
+};
+function dayLabel(raw: string): string {
+  return DAY_LABEL_FR[raw.toUpperCase()] ?? raw;
+}
+
+function toAttendanceSession(
+  dto: AttendanceSessionResponseDto,
+  classNameById: Map<string, string>,
+  subjectNameById: Map<string, string>,
+  teacherNameById: Map<string, string>,
+): AttendanceSession {
+  return {
+    id: dto.id,
+    classId: dto.classId,
+    className: classNameById.get(dto.classId) ?? dto.classId,
+    subjectId: dto.subjectId,
+    matiere: dto.subjectId ? subjectNameById.get(dto.subjectId) ?? dto.subjectId : null,
+    teacherId: dto.teacherId,
+    professeur: dto.teacherId ? teacherNameById.get(dto.teacherId) ?? dto.teacherId : null,
+    date: isoToFR(dto.date),
+    dayOfWeek: dayLabel(dto.dayOfWeek),
+    period: dto.period,
+    totalStudents: dto.totalStudents,
+    present: dto.present,
+    absent: dto.absent,
+    late: dto.late,
+    attendanceRate: dto.attendanceRate,
+  };
+}
+
+function toAttendanceTrendPoint(dto: AttendanceTrendPointResponseDto): AttendanceTrendPoint {
+  return {
+    periodStart: dto.periodStart,
+    periodLabel: dto.periodLabel,
+    totalStudents: dto.totalStudents,
+    present: dto.present,
+    absent: dto.absent,
+    late: dto.late,
+    attendanceRate: dto.attendanceRate,
+  };
+}
 
 function fromAbsenceDto(dto: AbsenceRequestDto, nameById: Map<string, string>): AbsenceRequestSummary {
   return {
@@ -119,6 +190,55 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
       const students = await createStudentsApi().list();
       const nameById = new Map(students.map((s) => [s.id, `${s.prenom} ${s.nom}`]));
       return fromAbsenceDto(dto, nameById);
+    },
+
+    async getSchoolSessions(from, to): Promise<AttendanceSession[]> {
+      const { schoolId } = sessionContext();
+      const [rows, classesDtos, subjects, teachers] = await Promise.all([
+        request<AttendanceSessionResponseDto[]>('/api/v1/attendances/analytics/school/sessions', {
+          query: { schoolId, from, to },
+        }),
+        fetchSchoolClasses(schoolId),
+        createSubjectsApi().list(),
+        createTeachersApi().list(),
+      ]);
+      const classNameById = new Map(classesDtos.map((c) => [c.id, c.fullName]));
+      const subjectNameById = new Map(subjects.map((s) => [s.id, s.nom]));
+      const teacherNameById = new Map(teachers.map((t) => [t.id, t.nom]));
+      return rows.map((r) => toAttendanceSession(r, classNameById, subjectNameById, teacherNameById));
+    },
+
+    async getClassSessions(classId, from, to): Promise<AttendanceSession[]> {
+      const { schoolId } = sessionContext();
+      const [rows, classesDtos, subjects, teachers] = await Promise.all([
+        request<AttendanceSessionResponseDto[]>(`/api/v1/attendances/analytics/class/${encodeURIComponent(classId)}/sessions`, {
+          query: { schoolId, from, to },
+        }),
+        fetchSchoolClasses(schoolId),
+        createSubjectsApi().list(),
+        createTeachersApi().list(),
+      ]);
+      const classNameById = new Map(classesDtos.map((c) => [c.id, c.fullName]));
+      const subjectNameById = new Map(subjects.map((s) => [s.id, s.nom]));
+      const teacherNameById = new Map(teachers.map((t) => [t.id, t.nom]));
+      return rows.map((r) => toAttendanceSession(r, classNameById, subjectNameById, teacherNameById));
+    },
+
+    async getSchoolTrend(from, to, granularity: AttendanceTrendGranularity): Promise<AttendanceTrendPoint[]> {
+      const { schoolId } = sessionContext();
+      const rows = await request<AttendanceTrendPointResponseDto[]>('/api/v1/attendances/analytics/school/trend', {
+        query: { schoolId, from, to, granularity },
+      });
+      return rows.map(toAttendanceTrendPoint);
+    },
+
+    async getClassTrend(classId, from, to, granularity: AttendanceTrendGranularity): Promise<AttendanceTrendPoint[]> {
+      const { schoolId } = sessionContext();
+      const rows = await request<AttendanceTrendPointResponseDto[]>(
+        `/api/v1/attendances/analytics/class/${encodeURIComponent(classId)}/trend`,
+        { query: { schoolId, from, to, granularity } },
+      );
+      return rows.map(toAttendanceTrendPoint);
     },
   };
 }

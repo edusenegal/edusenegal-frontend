@@ -14,7 +14,7 @@ import type {
   TimetableVersionResponseDto,
 } from '@/types/api';
 import type { ClassesPort } from '@/services/ports';
-import type { ClassEvent, ClassGroup, ClassLevel, EventType, ScheduleSlot } from '@/types/domain';
+import type { ClassEvent, ClassGroup, ClassLevel, EventType, ScheduleSlot, TimetableLock } from '@/types/domain';
 
 /**
  * `GET /classes/{id}` et `GET /classes/school/.../year/...` renvoient
@@ -190,6 +190,28 @@ async function fetchActiveSlots(classId: string): Promise<ScheduleSlot[]> {
   }
 }
 
+function toLockStatus(version: TimetableVersionResponseDto): TimetableLock {
+  return {
+    versionId: version.id,
+    locked: version.locked,
+    lockedBy: version.lockedBy ?? null,
+    lockedAt: version.lockedAt ?? null,
+  };
+}
+
+/** `null` si aucune version active (rien à verrouiller) — voir le doc-comment de `ClassesPort.getTimetableLock`. */
+async function fetchActiveLock(classId: string): Promise<TimetableLock | null> {
+  try {
+    const version = await request<TimetableVersionResponseDto>(
+      `/api/v1/timetables/class/${encodeURIComponent(classId)}/active`,
+    );
+    return toLockStatus(version);
+  } catch (e) {
+    if (e instanceof AppError && e.kind === 'notFound') return null;
+    throw e;
+  }
+}
+
 /**
  * Portage réel — `class-service` (`ClassController`) + `schedule-service`
  * (`ExamController`/`TimetableController`). Tous les ports sont désormais
@@ -315,6 +337,26 @@ export function createClassesApi(): ClassesPort {
       const current = await fetchActiveSlots(classId);
       const remaining = current.filter((s) => !(s.jour === oldKey.jour && s.heureDebut === oldKey.heureDebut));
       return replaceTimetable(classId, [...remaining, slot]);
+    },
+
+    async getTimetableLock(classId: string): Promise<TimetableLock | null> {
+      return fetchActiveLock(classId);
+    },
+
+    async lockTimetable(versionId: string): Promise<TimetableLock> {
+      const version = await request<TimetableVersionResponseDto>(
+        `/api/v1/timetables/versions/${encodeURIComponent(versionId)}/lock`,
+        { method: 'PUT' },
+      );
+      return toLockStatus(version);
+    },
+
+    async unlockTimetable(versionId: string): Promise<TimetableLock> {
+      const version = await request<TimetableVersionResponseDto>(
+        `/api/v1/timetables/versions/${encodeURIComponent(versionId)}/unlock`,
+        { method: 'PUT' },
+      );
+      return toLockStatus(version);
     },
 
     async enroll(classId: string, studentId: string): Promise<void> {

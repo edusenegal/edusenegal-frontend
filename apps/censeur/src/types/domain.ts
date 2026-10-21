@@ -90,6 +90,21 @@ export interface ScheduleSlot {
 }
 
 /**
+ * État de verrouillage de la version ACTIVE de l'emploi du temps d'une
+ * classe (task #425, demande censeur/surveillant général) — reflète
+ * `TimetableVersionResponse.locked/lockedBy/lockedAt` (schedule-service).
+ * Tant qu'elle est verrouillée, `createTimetable`/`changeTimetable` sur
+ * cette classe sont refusés côté backend (409) : ajouter, retirer ou
+ * modifier un créneau nécessite de déverrouiller d'abord.
+ */
+export interface TimetableLock {
+  versionId: string;
+  locked: boolean;
+  lockedBy: string | null;
+  lockedAt: string | null;
+}
+
+/**
  * Traduit `AccountStatus` (user-service) : ACTIVE, SUSPENDED, TRANSFERRED,
  * PENDING_ACTIVATION — il n'existe PAS de statut de compte « en congé » côté
  * backend (voir `StaffAbsencesPort`, qui trace des congés PONCTUELS, pas un
@@ -226,6 +241,49 @@ export interface AbsentStudentEntry {
   studentNom: string;
   status: 'ABSENT' | 'LATE' | 'PRESENT' | 'JUSTIFIED';
   note: string | null;
+}
+
+/** Granularité de l'agrégation pour l'évolution du taux de présence/absence (#426, censeur). */
+export type AttendanceTrendGranularity = 'DAY' | 'WEEK' | 'MONTH';
+
+/**
+ * Une séance (= un créneau précis d'une classe à une date donnée), avec ses
+ * compteurs déjà calculés — vue "par créneau" pour le censeur/surveillant
+ * général (#426), école entière ou restreinte à une classe. `matiere`/
+ * `professeur` sont résolus côté client (le backend ne renvoie que des ids),
+ * comme le reste de cet écran.
+ */
+export interface AttendanceSession {
+  id: string;
+  classId: string;
+  className: string;
+  subjectId: string | null;
+  matiere: string | null;
+  teacherId: string | null;
+  professeur: string | null;
+  date: string; // dd/mm/yyyy
+  dayOfWeek: string;
+  period: string; // ex. "08:00-10:00"
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/**
+ * Un point de la courbe d'évolution du taux de présence/absence — un jour,
+ * une semaine (lundi) ou un mois (1er du mois) selon la granularité
+ * demandée (#426).
+ */
+export interface AttendanceTrendPoint {
+  periodStart: string; // ISO yyyy-MM-dd
+  periodLabel: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
 }
 
 export type AbsenceReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'LOCKED';

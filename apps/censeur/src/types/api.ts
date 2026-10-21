@@ -842,6 +842,10 @@ export interface TimetableVersionResponseDto {
   effectiveFrom: string;
   effectiveTo?: string | null;
   active: boolean;
+  /** Task #416/#425 — verrouillage par classe (censeur/surveillant général). */
+  locked: boolean;
+  lockedBy?: string | null;
+  lockedAt?: string | null;
   versionNumber: number;
   slots: TimetableSlotResponseDto[];
 }
@@ -1084,6 +1088,46 @@ export interface AttendanceStatsResponseDto {
 /** GET /api/v1/attendances/analytics/school/classes-stats — item #400. */
 export interface ClassAttendanceStatsResponseDto {
   classId: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/** Backend : `AttendanceTrendGranularity` (attendance-service) — item #426 (censeur). */
+export type ApiAttendanceTrendGranularity = 'DAY' | 'WEEK' | 'MONTH';
+
+/**
+ * GET /api/v1/attendances/analytics/{school/class/{classId}}/sessions — une
+ * ligne par séance (un `AttendanceRecord`, un créneau précis d'une classe à
+ * une date donnée), école entière ou restreint à une classe — item #426
+ * (censeur/surveillant général).
+ */
+export interface AttendanceSessionResponseDto {
+  id: string;
+  schoolId: string;
+  classId: string;
+  subjectId: string | null;
+  teacherId: string | null;
+  date: string;
+  dayOfWeek: string;
+  period: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/**
+ * GET /api/v1/attendances/analytics/{school/class/{classId}}/trend — un
+ * point de l'évolution du taux de présence/absence, agrégé par jour,
+ * semaine (lundi) ou mois (1er du mois) — item #426.
+ */
+export interface AttendanceTrendPointResponseDto {
+  periodStart: string;
+  periodLabel: string;
   totalStudents: number;
   present: number;
   absent: number;

@@ -56,7 +56,6 @@ export default function BilanAnnuelPage() {
               delta={deltaLabel(b.depenses, '')}
               tone={b.depenses.variationPct === null ? 'neutral' : b.depenses.variationPct <= 0 ? 'success' : 'warning'}
             />
-            <StatTile label="Solde" value={fmtXOF(b.solde.valeurActuelle)} delta={deltaLabel(b.solde, '')} tone={tone(b.solde)} />
             <StatTile
               label="Taux de réussite"
               value={`${b.tauxReussite.valeurActuelle}%`}

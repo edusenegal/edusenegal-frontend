@@ -33,8 +33,6 @@ const TransferDetailPage = lazy(() => import('@/features/transfers/TransferDetai
 const AcademicYearPage = lazy(() => import('@/features/academic-year/AcademicYearPage'));
 const OpenYearWizard = lazy(() => import('@/features/academic-year/wizard/OpenYearWizard'));
 const LeavesPage = lazy(() => import('@/features/leaves/LeavesPage'));
-const SalaryRequestsPage = lazy(() => import('@/features/salary-requests/SalaryRequestsPage'));
-const SignaturesPage = lazy(() => import('@/features/signatures/SignaturesPage'));
 const NoticesPage = lazy(() => import('@/features/notices/NoticesPage'));
 const GradeDisputesPage = lazy(() => import('@/features/grade-disputes/GradeDisputesPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
@@ -71,8 +69,6 @@ export function AppRoutes() {
             <Route path="annee-scolaire" element={<AcademicYearPage />} />
             <Route path="annee-scolaire/ouvrir" element={<OpenYearWizard />} />
             <Route path="conges" element={<LeavesPage />} />
-            <Route path="salaires" element={<SalaryRequestsPage />} />
-            <Route path="signatures" element={<SignaturesPage />} />
             <Route path="notes-de-service" element={<NoticesPage />} />
             <Route path="reclamations-notes" element={<GradeDisputesPage />} />
             <Route path="parametres" element={<SettingsPage />} />
