@@ -6,7 +6,7 @@ import { Badge, Button, Card, CardHeader, StateView, Table, type Column } from '
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { frToISO, todayISO } from '@/utils/format';
-import type { AbsenceRequestSummary, AbsentStudentEntry, ClassAttendanceRate } from '@/types/domain';
+import type { AbsenceRequestSummary, AbsentStudentEntry, ClassGroup } from '@/types/domain';
 import styles from './AbsencesTodayByClassPage.module.css';
 
 const STATUS_TONE = { ABSENT: 'danger', LATE: 'warning', PRESENT: 'success', JUSTIFIED: 'neutral' } as const;
@@ -38,21 +38,30 @@ interface ClassAbsenceRow extends AbsentStudentEntry {
  * donc ici sans action possible, ce qui est le comportement attendu.
  */
 export default function AbsencesTodayByClassPage() {
-  const { studentAttendance } = useServices();
+  const { studentAttendance, classes } = useServices();
   const queryClient = useQueryClient();
   const today = todayISO();
 
-  const [selectedClass, setSelectedClass] = useState<ClassAttendanceRate | null>(null);
+  const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const classesStats = useQuery({
-    queryKey: ['attendance-classes-stats', today, today],
-    queryFn: () => studentAttendance.getClassesStats(today, today),
+  // CORRECTION (signalé) "je ne vois aucune classe" : la liste venait de
+  // getClassesStats(today, today), qui ne renvoie que les classes ayant déjà
+  // une AttendanceRecord CE JOUR précis (voir
+  // AttendanceServiceImpl#getSchoolClassesAttendanceStats — elle groupe les
+  // classes à partir des séances existantes, elle n'énumère jamais le
+  // référentiel des classes). Tant qu'aucun professeur n'a encore fait
+  // l'appel aujourd'hui, cette liste est vide — ce n'était donc pas "0
+  // absent" mais bien "aucune classe du tout". `classes.list()` (class-service)
+  // donne le référentiel réel des classes de l'école, toujours peuplé.
+  const classList = useQuery({
+    queryKey: ['classes'],
+    queryFn: () => classes.list(),
   });
 
   const absentToday = useQuery({
-    queryKey: ['attendance-class-absences', selectedClass?.classId, today],
-    queryFn: () => studentAttendance.getAbsentStudents(selectedClass!.classId, today, today),
+    queryKey: ['attendance-class-absences', selectedClass?.id, today],
+    queryFn: () => studentAttendance.getAbsentStudents(selectedClass!.id, today, today),
     enabled: selectedClass != null,
   });
 
@@ -93,11 +102,9 @@ export default function AbsencesTodayByClassPage() {
     }));
   }, [absentToday.data, schoolAbsences.data, today]);
 
-  const classColumns: Column<ClassAttendanceRate>[] = [
-    { key: 'classe', header: 'Classe', render: (c) => c.className },
-    { key: 'effectif', header: 'Effectif', render: (c) => String(c.totalStudents), align: 'right' },
-    { key: 'absent', header: "Absents aujourd'hui", render: (c) => String(c.absent), align: 'right' },
-    { key: 'retard', header: 'Retards', render: (c) => String(c.late), align: 'right' },
+  const classColumns: Column<ClassGroup>[] = [
+    { key: 'classe', header: 'Classe', render: (c) => c.name },
+    { key: 'effectif', header: 'Effectif', render: (c) => String(c.effectif), align: 'right' },
   ];
 
   const rowColumns: Column<ClassAbsenceRow>[] = [
@@ -169,15 +176,15 @@ export default function AbsencesTodayByClassPage() {
       <Card>
         <CardHeader title="Classes" />
         <StateView
-          loading={classesStats.isLoading}
-          error={classesStats.error}
-          onRetry={() => classesStats.refetch()}
-          empty={classesStats.data?.length === 0}
+          loading={classList.isLoading}
+          error={classList.error}
+          onRetry={() => classList.refetch()}
+          empty={classList.data?.length === 0}
         >
           <Table
             columns={classColumns}
-            rows={classesStats.data ?? []}
-            rowKey={(c) => c.classId}
+            rows={classList.data ?? []}
+            rowKey={(c) => c.id}
             onRowClick={(c) => {
               setSelectedClass(c);
               setActionError(null);
@@ -189,7 +196,7 @@ export default function AbsencesTodayByClassPage() {
       {selectedClass ? (
         <Card style={{ marginTop: 'var(--space-lg)' }}>
           <div className={styles.toolbar}>
-            <CardHeader title={`Absents aujourd'hui — ${selectedClass.className}`} />
+            <CardHeader title={`Absents aujourd'hui — ${selectedClass.name}`} />
             <Button variant="secondary" size="sm" onClick={() => setSelectedClass(null)}>
               Changer de classe
             </Button>
