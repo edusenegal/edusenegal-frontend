@@ -66,16 +66,36 @@ export function createResultsApi(): ResultsPort {
     },
 
     async downloadBulletinPdf(studentId, semesterNumber): Promise<void> {
-      const { schoolId } = sessionContext();
-      const yearId = await resolveYearId();
-      const [blob, student] = await Promise.all([
-        request<Blob>(
-          `/api/v1/academic/bulletins/student/${encodeURIComponent(studentId)}/semester/${semesterNumber}/pdf`,
-          { query: { schoolId, yearId }, responseType: 'blob' },
-        ),
-        request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(studentId)}`),
-      ]);
-      downloadBlob(blob, buildDownloadFilename('bulletin', student.firstName, student.lastName, { semesterNumber }));
+      const { blob, filename } = await fetchBulletinPdf(studentId, semesterNumber);
+      downloadBlob(blob, filename);
     },
+
+    // CORRECTION (signalé) — « je veux pouvoir prévisualiser le bulletin en
+    // popup » : factorisé avec `downloadBulletinPdf` (même appel réseau),
+    // mais renvoie le blob au lieu de déclencher l'enregistrement, pour que
+    // l'écran puisse l'afficher dans une modale avant de, éventuellement,
+    // le télécharger.
+    async getBulletinPdfBlob(studentId, semesterNumber) {
+      return fetchBulletinPdf(studentId, semesterNumber);
+    },
+  };
+}
+
+async function fetchBulletinPdf(
+  studentId: string,
+  semesterNumber: number,
+): Promise<{ blob: Blob; filename: string }> {
+  const { schoolId } = sessionContext();
+  const yearId = await resolveYearId();
+  const [blob, student] = await Promise.all([
+    request<Blob>(
+      `/api/v1/academic/bulletins/student/${encodeURIComponent(studentId)}/semester/${semesterNumber}/pdf`,
+      { query: { schoolId, yearId }, responseType: 'blob' },
+    ),
+    request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(studentId)}`),
+  ]);
+  return {
+    blob,
+    filename: buildDownloadFilename('bulletin', student.firstName, student.lastName, { semesterNumber }),
   };
 }

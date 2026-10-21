@@ -54,6 +54,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
     results: {
       getStudentSemesterResult: notStubbed('results.getStudentSemesterResult'),
       downloadBulletinPdf: notStubbed('results.downloadBulletinPdf'),
+      getBulletinPdfBlob: notStubbed('results.getBulletinPdfBlob'),
     },
     attendance: {
       mark: notStubbed('attendance.mark'),

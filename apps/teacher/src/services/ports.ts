@@ -126,6 +126,14 @@ export interface ResultsPort {
   getStudentSemesterResult(studentId: string, semesterNumber: number): Promise<SemesterResult | null>;
   /** Télécharge le PDF du bulletin (déclenche l'enregistrement local). */
   downloadBulletinPdf(studentId: string, semesterNumber: number): Promise<void>;
+  /**
+   * Même PDF que `downloadBulletinPdf`, mais renvoyé en mémoire (pas
+   * d'enregistrement local déclenché) — pour l'aperçu en popup avant
+   * téléchargement. `filename` est celui que `downloadBulletinPdf`
+   * utiliserait, réutilisable tel quel si l'utilisateur télécharge depuis
+   * l'aperçu.
+   */
+  getBulletinPdfBlob(studentId: string, semesterNumber: number): Promise<{ blob: Blob; filename: string }>;
 }
 
 export interface AttendancePort {

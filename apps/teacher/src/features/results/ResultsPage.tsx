@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, CardHeader, Field, Select, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Field, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { downloadBlob } from '@/utils/format';
 import type { Mention, SubjectAverage } from '@/types/domain';
 
 const MENTION_LABEL: Record<Mention, string> = {
@@ -23,6 +24,15 @@ export default function ResultsPage() {
   const [studentId, setStudentId] = useState('');
   const [semestre, setSemestre] = useState(1);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // CORRECTION (signalé) — « je veux pouvoir prévisualiser le bulletin en
+  // popup » : l'aperçu garde le blob + son nom de fichier (pour que
+  // "Télécharger" depuis la popup ne refasse pas l'appel réseau) et une
+  // URL d'objet, révoquée à la fermeture pour ne pas fuir de mémoire.
+  const [preview, setPreview] = useState<{ url: string; filename: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewBlobRef = useRef<Blob | null>(null);
 
   const rosterQuery = useQuery({
     queryKey: ['roster', classId],
@@ -50,6 +60,36 @@ export default function ResultsPage() {
     } catch (e) {
       setDownloadError(e instanceof Error ? e.message : 'Échec du téléchargement.');
     }
+  }
+
+  async function onPreview() {
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const { blob, filename } = await results.getBulletinPdfBlob(studentId, semestre);
+      previewBlobRef.current = blob;
+      setPreview({ url: URL.createObjectURL(blob), filename });
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : "Échec de l'aperçu.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function closePreview() {
+    if (preview) URL.revokeObjectURL(preview.url);
+    previewBlobRef.current = null;
+    setPreview(null);
+  }
+
+  // Révoque l'URL d'objet si le composant disparaît pendant que l'aperçu est ouvert.
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview.url);
+  }, [preview]);
+
+  function downloadFromPreview() {
+    if (!preview || !previewBlobRef.current) return;
+    downloadBlob(previewBlobRef.current, preview.filename);
   }
 
   return (
@@ -101,6 +141,9 @@ export default function ResultsPage() {
                   action={
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <Badge tone={resultQuery.data.publie ? 'success' : 'neutral'}>{resultQuery.data.publie ? 'Publié' : 'Non publié'}</Badge>
+                      <Button variant="secondary" size="sm" loading={previewLoading} onClick={onPreview}>
+                        Aperçu du bulletin
+                      </Button>
                       <Button variant="secondary" size="sm" onClick={onDownload}>
                         Télécharger le bulletin (PDF)
                       </Button>
@@ -108,6 +151,7 @@ export default function ResultsPage() {
                   }
                 />
                 {downloadError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{downloadError}</p> : null}
+                {previewError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{previewError}</p> : null}
                 <Table columns={columns} rows={resultQuery.data.matieres} rowKey={(s) => s.subjectId} />
               </>
             ) : (
@@ -118,6 +162,28 @@ export default function ResultsPage() {
           </StateView>
         </Card>
       ) : null}
+
+      <Sheet
+        title={preview ? `Aperçu — ${preview.filename}` : 'Aperçu du bulletin'}
+        open={preview !== null}
+        onClose={closePreview}
+        width="lg"
+        footer={
+          preview ? (
+            <Button variant="primary" onClick={downloadFromPreview}>
+              Télécharger le PDF
+            </Button>
+          ) : undefined
+        }
+      >
+        {preview ? (
+          <iframe
+            src={preview.url}
+            title="Aperçu du bulletin"
+            style={{ width: '100%', height: '70vh', border: 'none', display: 'block' }}
+          />
+        ) : null}
+      </Sheet>
     </div>
   );
 }
