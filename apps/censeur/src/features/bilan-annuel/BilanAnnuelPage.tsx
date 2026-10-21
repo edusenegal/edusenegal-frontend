@@ -3,7 +3,6 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { StateView, StatTile } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { AnnualFigure } from '@/types/domain';
-import { fmtXOF } from '@/utils/format';
 import styles from './BilanAnnuelPage.module.css';
 
 /** "+" devant un nombre positif, jamais devant "0" ou un nombre déjà négatif. */
@@ -44,18 +43,6 @@ export default function BilanAnnuelPage() {
         {b ? (
           <div className={styles.grid}>
             <StatTile label="Effectif" value={String(b.effectif.valeurActuelle)} delta={deltaLabel(b.effectif, '')} tone={tone(b.effectif)} />
-            <StatTile
-              label="Recettes"
-              value={fmtXOF(b.recettes.valeurActuelle)}
-              delta={deltaLabel(b.recettes, '')}
-              tone={tone(b.recettes)}
-            />
-            <StatTile
-              label="Dépenses"
-              value={fmtXOF(b.depenses.valeurActuelle)}
-              delta={deltaLabel(b.depenses, '')}
-              tone={b.depenses.variationPct === null ? 'neutral' : b.depenses.variationPct <= 0 ? 'success' : 'warning'}
-            />
             <StatTile
               label="Taux de réussite"
               value={`${b.tauxReussite.valeurActuelle}%`}

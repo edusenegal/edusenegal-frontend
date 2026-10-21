@@ -16,15 +16,18 @@ const BILAN: BilanAnnuel = {
 };
 
 describe('BilanAnnuelPage', () => {
-  it('affiche les six indicateurs comparés à l’année précédente', async () => {
+  it('affiche les indicateurs comparés à l’année précédente (hors recettes/dépenses)', async () => {
     renderWithProviders(<BilanAnnuelPage />, {
       services: { bilanAnnuel: { getBilan: vi.fn().mockResolvedValue(BILAN) } },
     });
 
     await waitFor(() => expect(screen.getByText('320')).toBeInTheDocument());
     expect(screen.getByText('78.5%')).toBeInTheDocument();
-    expect(screen.getByText('+8.7% vs année précédente')).toBeInTheDocument();
-    expect(screen.getByText('-5% vs année précédente')).toBeInTheDocument();
+    expect(screen.getByText('93.1%')).toBeInTheDocument();
+    expect(screen.getByText('+5.8% vs année précédente (points)')).toBeInTheDocument();
+    expect(screen.getByText('+1.6% vs année précédente (points)')).toBeInTheDocument();
+    expect(screen.queryByText('Recettes')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dépenses')).not.toBeInTheDocument();
   });
 
   it('n’affiche aucune variation quand il n’y a pas d’année précédente', async () => {

@@ -777,7 +777,6 @@ export interface DashboardSnapshot {
   presenceDuJour: number; // %
   /** Points de %, par rapport à la veille — peut être négatif. */
   presenceDuJourVariation: number;
-  soldeCaisse: number;
   demandesEnAttente: number;
   classesCount: number;
   enseignantsCount: number;

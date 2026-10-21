@@ -34,7 +34,6 @@ const AcademicYearPage = lazy(() => import('@/features/academic-year/AcademicYea
 const OpenYearWizard = lazy(() => import('@/features/academic-year/wizard/OpenYearWizard'));
 const LeavesPage = lazy(() => import('@/features/leaves/LeavesPage'));
 const NoticesPage = lazy(() => import('@/features/notices/NoticesPage'));
-const GradeDisputesPage = lazy(() => import('@/features/grade-disputes/GradeDisputesPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const NotFoundPage = lazy(() => import('@/features/errors/NotFoundPage'));
 
@@ -70,7 +69,6 @@ export function AppRoutes() {
             <Route path="annee-scolaire/ouvrir" element={<OpenYearWizard />} />
             <Route path="conges" element={<LeavesPage />} />
             <Route path="notes-de-service" element={<NoticesPage />} />
-            <Route path="reclamations-notes" element={<GradeDisputesPage />} />
             <Route path="parametres" element={<SettingsPage />} />
           </Route>
         </Route>

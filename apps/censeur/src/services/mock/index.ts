@@ -470,7 +470,6 @@ export function createMockServices(): Services {
           effectifFilles,
           presenceDuJour: 94,
           presenceDuJourVariation: 1.5,
-          soldeCaisse: 18_450_000,
           demandesEnAttente,
           classesCount: state.classes.length,
           enseignantsCount: state.teachers.length,

@@ -1,6 +1,6 @@
 import { request, sessionContext } from '@/api/client';
-import { fetchSchoolClasses, resolveYearId } from '@/api/context';
-import type { ApiPage, AttendanceStatsResponseDto, LedgerResponseDto, UserResponseDto } from '@/types/api';
+import { fetchSchoolClasses } from '@/api/context';
+import type { AttendanceStatsResponseDto, UserResponseDto } from '@/types/api';
 import type { DashboardPort } from '@/services/ports';
 import type { DashboardSnapshot } from '@/types/domain';
 
@@ -24,11 +24,13 @@ async function attendanceRateFor(schoolId: string, day: Date): Promise<number> {
  *   - effectif (total + G/F)    : user-service, GET /users/school/{id}?role=STUDENT
  *   - présence du jour + veille : attendance-service, GET /attendances/analytics/school/stats
  *                                 (deux appels, from=to, pour calculer la variation)
- *   - solde de caisse           : payment-service, GET /accounting/ledger
  *   - demandes en attente       : congés en attente (schedule-service,
- *                                 GET /leaves/school/{id}/pending) + demandes de salaire
- *                                 PENDING_VALIDATION (payment-service, GET /accounting/salary-requests).
- *                                 Les demandes de transfert EXTERNE ne comptent pas :
+ *                                 GET /leaves/school/{id}/pending). Les demandes de salaire
+ *                                 PENDING_VALIDATION ne comptent pas pour cette app (le solde de
+ *                                 caisse et les demandes de salaire sont réservés à
+ *                                 ACCOUNTANT/DIRECTOR/SUPER_ADMIN côté backend — hors périmètre
+ *                                 censeur/surveillant général). Les demandes de transfert EXTERNE
+ *                                 ne comptent pas non plus :
  *                                 TransferController (academic-service) n'expose qu'un
  *                                 aperçu/exécution par élève, aucune liste/comptage des
  *                                 demandes en attente — gap backend réel, non bloquant pour
@@ -41,13 +43,12 @@ export function createDashboardApi(): DashboardPort {
   return {
     async getSnapshot(): Promise<DashboardSnapshot> {
       const { schoolId } = sessionContext();
-      const yearId = await resolveYearId();
 
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
-      const [students, teacherDtos, instituteurDtos, classesDtos, presenceDuJour, presenceHier, ledger, pendingLeaves, salaryPage] =
+      const [students, teacherDtos, instituteurDtos, classesDtos, presenceDuJour, presenceHier, pendingLeaves] =
         await Promise.all([
           request<UserResponseDto[]>(`/api/v1/users/school/${encodeURIComponent(schoolId)}`, {
             query: { role: 'STUDENT' },
@@ -61,13 +62,7 @@ export function createDashboardApi(): DashboardPort {
           fetchSchoolClasses(schoolId),
           attendanceRateFor(schoolId, today),
           attendanceRateFor(schoolId, yesterday),
-          request<LedgerResponseDto>('/api/v1/accounting/ledger', {
-            query: { schoolId, academicYearId: yearId },
-          }),
           request<unknown[]>(`/api/v1/leaves/school/${encodeURIComponent(schoolId)}/pending`),
-          request<ApiPage<unknown>>('/api/v1/accounting/salary-requests', {
-            query: { schoolId, academicYearId: yearId, status: 'PENDING_VALIDATION', size: 1 },
-          }),
         ]);
 
       const effectifGarcons = students.filter((u) => u.sexe === 'MASCULIN').length;
@@ -78,8 +73,7 @@ export function createDashboardApi(): DashboardPort {
         effectifFilles: students.length - effectifGarcons,
         presenceDuJour,
         presenceDuJourVariation: Math.round((presenceDuJour - presenceHier) * 10) / 10,
-        soldeCaisse: ledger.balanceFcfa,
-        demandesEnAttente: pendingLeaves.length + salaryPage.totalElements,
+        demandesEnAttente: pendingLeaves.length,
         classesCount: classesDtos.length,
         enseignantsCount: teacherDtos.length + instituteurDtos.length,
       };

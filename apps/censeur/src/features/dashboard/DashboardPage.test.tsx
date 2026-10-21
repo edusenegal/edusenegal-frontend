@@ -10,7 +10,6 @@ const SNAPSHOT: DashboardSnapshot = {
   effectifFilles: 152,
   presenceDuJour: 94,
   presenceDuJourVariation: 1.5,
-  soldeCaisse: 18_450_000,
   demandesEnAttente: 3,
   classesCount: 8,
   enseignantsCount: 10,
