@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, StateView, StatTile, Badge } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
@@ -6,6 +7,7 @@ import { fmtXOF } from '@/utils/format';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const { dashboard, classes, leaves, salaryRequests } = useServices();
 
   const snapshot = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboard.getSnapshot() });
@@ -28,6 +30,7 @@ export default function DashboardPage() {
               value={`${s.presenceDuJour}%`}
               delta={`${s.presenceDuJourVariation > 0 ? '+' : ''}${s.presenceDuJourVariation} pt${Math.abs(s.presenceDuJourVariation) >= 2 ? 's' : ''} vs hier`}
               tone={s.presenceDuJourVariation >= 0 ? 'success' : 'danger'}
+              onClick={() => navigate('/presence')}
             />
             <StatTile label="Solde de caisse" value={fmtXOF(s.soldeCaisse)} tone="success" />
             <StatTile

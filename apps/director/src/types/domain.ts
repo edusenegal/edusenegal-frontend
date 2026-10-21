@@ -196,6 +196,59 @@ export interface Student {
   photoUrl: string | null;
 }
 
+// ── Présence & absences élèves (items #400/#402) ────────────────────────────
+
+/** Taux présence/absence/retard de l'école, sur une période — tableau de bord directeur. */
+export interface SchoolAttendanceOverview {
+  from: string; // ISO
+  to: string; // ISO
+  totalRecords: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/** Même ventilation, PAR CLASSE — drill-down depuis `SchoolAttendanceOverview` (#400). */
+export interface ClassAttendanceRate {
+  classId: string;
+  className: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/** Un élève absent/en retard dans la liste d'une classe (#400). */
+export interface AbsentStudentEntry {
+  studentId: string;
+  studentNom: string;
+  status: 'ABSENT' | 'LATE' | 'PRESENT' | 'JUSTIFIED';
+  note: string | null;
+}
+
+export type AbsenceReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'LOCKED';
+
+/**
+ * Une demande d'absence à traiter — auto-créée dès que le professeur marque
+ * l'élève absent, ou déclarée par l'élève lui-même ; `reason`/`hasJustification`
+ * restent vides tant que l'élève n'a pas justifié (#402).
+ */
+export interface AbsenceRequestSummary {
+  id: string;
+  studentId: string;
+  studentNom: string;
+  schoolId: string;
+  dateFrom: string; // dd/mm/yyyy
+  dateTo: string; // dd/mm/yyyy
+  reason: string | null;
+  hasJustification: boolean;
+  status: AbsenceReviewStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+}
+
 export interface SubjectCoefficient {
   classeId: string;
   valeur: number; // coefficient — 0 si facultative

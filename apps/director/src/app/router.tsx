@@ -18,6 +18,9 @@ const TeachersListPage = lazy(() => import('@/features/teachers/TeachersListPage
 const TeacherDetailPage = lazy(() => import('@/features/teachers/TeacherDetailPage'));
 const StudentsListPage = lazy(() => import('@/features/students/StudentsListPage'));
 const StudentDetailPage = lazy(() => import('@/features/students/StudentDetailPage'));
+const AttendanceOverviewPage = lazy(() => import('@/features/attendance/AttendanceOverviewPage'));
+const AttendanceClassPage = lazy(() => import('@/features/attendance/AttendanceClassPage'));
+const AbsenceReviewPage = lazy(() => import('@/features/attendance/AbsenceReviewPage'));
 const SubjectsListPage = lazy(() => import('@/features/subjects/SubjectsListPage'));
 const RoomsPage = lazy(() => import('@/features/rooms/RoomsPage'));
 const SubjectDetailPage = lazy(() => import('@/features/subjects/SubjectDetailPage'));
@@ -53,6 +56,9 @@ export function AppRoutes() {
             <Route path="enseignants/:teacherId" element={<TeacherDetailPage />} />
             <Route path="eleves" element={<StudentsListPage />} />
             <Route path="eleves/:studentId" element={<StudentDetailPage />} />
+            <Route path="presence" element={<AttendanceOverviewPage />} />
+            <Route path="presence/demandes" element={<AbsenceReviewPage />} />
+            <Route path="presence/classes/:classId" element={<AttendanceClassPage />} />
             <Route path="matieres" element={<SubjectsListPage />} />
             <Route path="matieres/:subjectId" element={<SubjectDetailPage />} />
             <Route path="salles" element={<RoomsPage />} />

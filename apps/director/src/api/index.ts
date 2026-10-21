@@ -15,6 +15,7 @@ import { createSchoolApi } from '@/api/school.api';
 import { createSignerAssetsApi } from '@/api/signerAssets.api';
 import { createSignaturesApi } from '@/api/signatures.api';
 import { createStaffAbsencesApi } from '@/api/staffAbsences.api';
+import { createStudentAttendanceApi } from '@/api/studentAttendance.api';
 import { createStudentsApi } from '@/api/students.api';
 import { createSubjectsApi } from '@/api/subjects.api';
 import { createTeachersApi } from '@/api/teachers.api';
@@ -75,6 +76,8 @@ export function createApiServices(): Services {
     signatures: { ...fallback.signatures, ...createSignerAssetsApi(), ...createSignaturesApi() },
     // Portage complet (task #236) — voir le commentaire de `createDashboardApi`.
     dashboard: createDashboardApi(),
+    // Portage complet (items #400/#402) — voir le commentaire de `createStudentAttendanceApi`.
+    studentAttendance: createStudentAttendanceApi(),
     // Portage complet (task #237) — voir le commentaire de `createBilanAnnuelApi`.
     bilanAnnuel: createBilanAnnuelApi(),
     // Réclamations de notes (demande explicite) — décision directeur uniquement,

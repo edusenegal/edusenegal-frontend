@@ -20,7 +20,11 @@
 import { AppError } from '@/services/errors';
 import type { Services } from '@/services/ports';
 import type {
+  AbsenceRequestSummary,
+  AbsenceReviewStatus,
+  AbsentStudentEntry,
   AcademicYearConfig,
+  ClassAttendanceRate,
   ClassEvent,
   ClassGroup,
   CourseDocument,
@@ -35,6 +39,7 @@ import type {
   PersonalDocument,
   PromotionResult,
   RoomAvailability,
+  SchoolAttendanceOverview,
   ScheduleSlot,
   SalaryRequest,
   SalaryRequestLine,
@@ -96,6 +101,26 @@ function mockPdfBlob(): Blob {
  * promotions. `structuredClone` règle ça une fois pour toutes, ici, plutôt
  * que d'imposer à chaque appelant de s'en souvenir.
  */
+function buildMockAbsenceRequests(students: Student[]): AbsenceRequestSummary[] {
+  const todayFR = new Date().toLocaleDateString('fr-FR');
+  return students
+    .filter((s) => s.absences > 0)
+    .slice(0, 4)
+    .map((s, i) => ({
+      id: `absreq-${s.id}`,
+      studentId: s.id,
+      studentNom: `${s.prenom} ${s.nom}`,
+      schoolId: fixtures.SCHOOL.id,
+      dateFrom: todayFR,
+      dateTo: todayFR,
+      reason: i % 2 === 0 ? null : 'Rendez-vous médical.',
+      hasJustification: i % 2 !== 0,
+      status: 'PENDING',
+      reviewedBy: null,
+      reviewedAt: null,
+    }));
+}
+
 function createInitialState() {
   const classes = fixtures.buildClasses() as ClassGroup[];
   const students = structuredClone(fixtures.buildAllStudents()) as Student[];
@@ -110,6 +135,10 @@ function createInitialState() {
     paymentConfig: structuredClone(fixtures.buildPaymentConfig()) as PaymentConfig,
     leaveRequests: structuredClone(fixtures.LEAVE_REQUESTS) as LeaveRequest[],
     staffAbsences: structuredClone(fixtures.STAFF_ABSENCES) as StaffAbsence[],
+    // Pas de fixture dédiée : dérivé des élèves qui ont déjà des absences
+    // dans leur fiche (`Student.absences`), pour que la file de revue
+    // (#402) ne soit pas vide en mode démo.
+    absenceRequests: buildMockAbsenceRequests(students),
     signerAssets: {
       hasStamp: false,
       hasSignature: false,
@@ -1004,6 +1033,61 @@ export function createMockServices(): Services {
       },
       async getSummary(teacherId, dateDebut, dateFin): Promise<StaffAbsenceSummary> {
         return respond(computeAbsenceSummary(teacherId, dateDebut, dateFin), 200);
+      },
+    },
+
+    // Items #400/#402 — dérivé de `state.students`/`state.classes` plutôt
+    // que d'un vrai calendrier d'appel (pas de fixture dédiée en mode démo).
+    studentAttendance: {
+      async getSchoolStats(from, to): Promise<SchoolAttendanceOverview> {
+        const total = state.students.length;
+        const absent = state.students.filter((s) => s.absences > 0).length;
+        const late = state.students.filter((s) => s.absences === 0 && s.retards > 0).length;
+        const present = total - absent - late;
+        const rate = total === 0 ? 0 : Math.round(((present * 1000) / total)) / 10;
+        return respond({ from, to, totalRecords: total, present, absent, late, attendanceRate: rate });
+      },
+      async getClassesStats(): Promise<ClassAttendanceRate[]> {
+        const rows = state.classes.map((c) => {
+          const inClass = state.students.filter((s) => s.classeId === c.id);
+          const absent = inClass.filter((s) => s.absences > 0).length;
+          const late = inClass.filter((s) => s.absences === 0 && s.retards > 0).length;
+          const present = inClass.length - absent - late;
+          const rate = inClass.length === 0 ? 0 : Math.round(((present * 1000) / inClass.length)) / 10;
+          return {
+            classId: c.id,
+            className: c.name,
+            totalStudents: inClass.length,
+            present,
+            absent,
+            late,
+            attendanceRate: rate,
+          };
+        });
+        return respond(rows);
+      },
+      async getAbsentStudents(classId: string): Promise<AbsentStudentEntry[]> {
+        const rows: AbsentStudentEntry[] = state.students
+          .filter((s) => s.classeId === classId && (s.absences > 0 || s.retards > 0))
+          .map((s) => ({
+            studentId: s.id,
+            studentNom: `${s.prenom} ${s.nom}`,
+            status: s.absences > 0 ? 'ABSENT' : 'LATE',
+            note: null,
+          }));
+        return respond(rows);
+      },
+      async listSchoolAbsences(status?: AbsenceReviewStatus): Promise<AbsenceRequestSummary[]> {
+        const rows = status ? state.absenceRequests.filter((a) => a.status === status) : state.absenceRequests;
+        return respond(rows);
+      },
+      async reviewAbsence(absenceId, status): Promise<AbsenceRequestSummary> {
+        const found = state.absenceRequests.find((a) => a.id === absenceId);
+        if (!found) notFound('Demande d\u2019absence');
+        found.status = status;
+        found.reviewedBy = `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`;
+        found.reviewedAt = new Date().toISOString();
+        return respond(found, 300);
       },
     },
 

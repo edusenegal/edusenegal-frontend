@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/classes', label: 'Classes', icon: '🏷️' },
       { to: '/enseignants', label: 'Enseignants', icon: '🧑‍🏫' },
       { to: '/eleves', label: 'Élèves', icon: '🎓' },
+      { to: '/presence', label: 'Présence & absences', icon: '🗓️' },
       { to: '/matieres', label: 'Matières', icon: '📘' },
       { to: '/salles', label: 'Salles de classe', icon: '🏫' },
       { to: '/resultats', label: 'Résultats & bulletins', icon: '🧮' },

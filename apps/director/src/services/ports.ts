@@ -9,11 +9,16 @@
  */
 
 import type {
+  AbsenceRequestSummary,
+  AbsenceReviewStatus,
+  AbsentStudentEntry,
   AcademicPeriod,
   AcademicPeriodType,
   AcademicYear,
   AcademicYearConfig,
   BilanAnnuel,
+  ClassAttendanceRate,
+  SchoolAttendanceOverview,
   BulletinPeriod,
   ClassEvent,
   ClassGroup,
@@ -158,6 +163,25 @@ export interface SchoolPort {
 
 export interface DashboardPort {
   getSnapshot(): Promise<DashboardSnapshot>;
+}
+
+/**
+ * Présence/absence/retard des élèves — tableau de bord directeur (#400) et
+ * file de revue/verrouillage des absences (#402).
+ */
+export interface StudentAttendancePort {
+  getSchoolStats(from: string, to: string): Promise<SchoolAttendanceOverview>;
+  getClassesStats(from: string, to: string): Promise<ClassAttendanceRate[]>;
+  getAbsentStudents(classId: string, from: string, to: string): Promise<AbsentStudentEntry[]>;
+  /** File de revue — sans filtre, renvoie tous les statuts. */
+  listSchoolAbsences(status?: AbsenceReviewStatus): Promise<AbsenceRequestSummary[]>;
+  /**
+   * `LOCKED` : verrouille une absence PENDING (l'élève ne peut plus la
+   * justifier). `APPROVED`/`REJECTED` : décision finale, possible depuis
+   * PENDING ou LOCKED. Réservé au surveillant général, au censeur et au
+   * directeur.
+   */
+  reviewAbsence(absenceId: string, status: 'APPROVED' | 'REJECTED' | 'LOCKED'): Promise<AbsenceRequestSummary>;
 }
 
 export interface BilanAnnuelPort {
@@ -761,6 +785,7 @@ export interface Services {
   auth: AuthPort;
   school: SchoolPort;
   dashboard: DashboardPort;
+  studentAttendance: StudentAttendancePort;
   bilanAnnuel: BilanAnnuelPort;
   classes: ClassesPort;
   teachers: TeachersPort;

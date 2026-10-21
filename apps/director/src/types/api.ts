@@ -1077,7 +1077,57 @@ export interface AttendanceStatsResponseDto {
   totalRecords: number;
   totalPresent: number;
   totalAbsent: number;
+  totalLate: number;
   attendanceRate: number;
+}
+
+/** GET /api/v1/attendances/analytics/school/classes-stats — item #400. */
+export interface ClassAttendanceStatsResponseDto {
+  classId: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/** Élément de `AttendanceSheetResponseDto.students`. */
+export interface StudentAttendanceViewDto {
+  studentId: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'JUSTIFIED';
+  note: string | null;
+}
+
+/** GET /api/v1/attendances/analytics/class/sheet(/range) */
+export interface AttendanceSheetResponseDto {
+  schoolId: string;
+  classId: string;
+  subjectId: string | null;
+  date: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+  students: StudentAttendanceViewDto[];
+}
+
+/** `attendance-service`, `AbsenceRequest` — item #402. */
+export interface AbsenceRequestDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  academicYearId: string;
+  absenceDateFrom: string;
+  absenceDateTo: string;
+  subjectIds: string[];
+  reason: string | null;
+  justificationUrl: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'LOCKED';
+  visibleToParents: boolean;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string | null;
 }
 
 /** GET /api/v1/accounting/ledger — payment-service, LedgerController. */
