@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, CardHeader, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
@@ -34,6 +34,12 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
   justifie: 'Justifié',
 };
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'retard', 'justifie'];
+
+/** `date` (yyyy-mm-dd) → jour de semaine FR attendu par `TimetableSlot.jour` — même conversion que `isSlotNow`. */
+function weekdayOfDate(dateISO: string): TimetableSlot['jour'] | null {
+  if (!dateISO) return null;
+  return WEEKDAY_FROM_JS_DAY[new Date(`${dateISO}T00:00:00`).getDay()] ?? null;
+}
 
 function isFutureSlot(date: string, period: string): boolean {
   const todayStr = todayISO();
@@ -76,10 +82,30 @@ export default function AttendancePage() {
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [date, setDate] = useState(todayISO());
-  const [period, setPeriod] = useState('08:00-10:00');
+  const [period, setPeriod] = useState('');
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // CORRECTION (signalé) "le créneau reste toujours 8:00-10:00" : en dehors
+  // du raccourci « Appel pour… » (qui pré-remplit period depuis le créneau
+  // en cours), rien ne mettait jamais à jour period — il gardait la valeur
+  // par défaut, fausse dès que ce n'était pas réellement 8h-10h. On la
+  // déduit maintenant de l'emploi du temps (classe + matière + jour de la
+  // date choisie) dès que ces trois champs désignent un créneau connu ; sans
+  // correspondance (rattrapage, créneau hors emploi du temps…), le champ
+  // reste vide plutôt que de proposer une heure inventée, et le professeur
+  // le saisit lui-même.
+  useEffect(() => {
+    if (!classId || !subjectId || !date) return;
+    const weekday = weekdayOfDate(date);
+    const slot = (timetableQuery.data ?? []).find(
+      (s) => s.classId === classId && s.subjectId === subjectId && s.jour === weekday,
+    );
+    if (slot) {
+      setPeriod(`${slot.heureDebut}-${slot.heureFin}`);
+    }
+  }, [classId, subjectId, date, timetableQuery.data]);
 
   // Historique de l'appel (#401) — une ligne par créneau déjà saisi,
   // "Détails" ouvre une fiche où les élèves absents/en retard peuvent être
@@ -178,6 +204,11 @@ export default function AttendancePage() {
       setSaved(true);
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['attendance-sheet', classId, subjectId, date] });
+      // CORRECTION (signalé) "la liste reste toujours" : l'historique
+      // ci-dessous n'était jamais invalidé après l'enregistrement d'un
+      // nouvel appel (seule la fiche "déjà saisi" du formulaire l'était) —
+      // le nouveau créneau n'apparaissait donc jamais sans recharger la page.
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Échec de l’enregistrement.'),
   });
@@ -199,10 +230,26 @@ export default function AttendancePage() {
     () => new Map((classesQuery.data ?? []).map((c) => [c.id, c.nom])),
     [classesQuery.data],
   );
-  const subjectNameById = useMemo(
-    () => new Map((subjectsQuery.data ?? []).map((s) => [s.id, s.nom])),
-    [subjectsQuery.data],
-  );
+  // CORRECTION (signalé) "la matière c'est l'id de la matière qui est là" :
+  // cette carte ne venait que de subjects.listMine() (les matières du profil
+  // du professeur), alors que le raccourci "Appel pour…" pré-remplit subjectId
+  // depuis l'emploi du temps (timetable.mine()) -- deux sources distinctes,
+  // pas forcément alignées. L'emploi du temps résout déjà lui-même chaque
+  // `subjectId` en `matiere` (voir TimetableSlot) : on complète la carte avec
+  // ces paires-là aussi, ce qui couvre l'historique quel que soit le chemin
+  // utilisé pour faire l'appel.
+  const subjectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of subjectsQuery.data ?? []) {
+      map.set(s.id, s.nom);
+    }
+    for (const slot of timetableQuery.data ?? []) {
+      if (slot.subjectId && slot.matiere && !map.has(slot.subjectId)) {
+        map.set(slot.subjectId, slot.matiere);
+      }
+    }
+    return map;
+  }, [subjectsQuery.data, timetableQuery.data]);
 
   const historyColumns: Column<AttendanceSession>[] = [
     { key: 'date', header: 'Date', render: (s) => s.date },

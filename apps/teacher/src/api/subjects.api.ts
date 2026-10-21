@@ -30,10 +30,19 @@ export function createSubjectsApi(): SubjectsPort {
       if (subjectIds.length === 0) {
         return [];
       }
-      const subjects = await Promise.all(
+      // CORRECTION (défensif, lié au signalement "la matière c'est l'id qui
+      // est là") : Promise.all faisait échouer la liste ENTIÈRE dès qu'un
+      // seul subjectId du profil ne se résolvait plus (matière supprimée,
+      // désassignée...) -- plus aucune matière n'était alors jamais
+      // affichée, nulle part dans l'application. Un identifiant orphelin ne
+      // doit faire disparaître que lui-même, pas toutes les matières du
+      // professeur.
+      const settled = await Promise.allSettled(
         subjectIds.map((id) => request<SubjectResponseDto>(`/api/v1/subjects/${encodeURIComponent(id)}`)),
       );
-      return subjects.map(fromSubjectResponse);
+      return settled
+        .filter((r): r is PromiseFulfilledResult<SubjectResponseDto> => r.status === 'fulfilled')
+        .map((r) => fromSubjectResponse(r.value));
     },
   };
 }
