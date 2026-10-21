@@ -8,6 +8,7 @@
 import type {
   AppNotification,
   AssessmentType,
+  AttendanceSession,
   AttendanceStudentEntry,
   CashPaymentNotice,
   ClassRoom,
@@ -152,6 +153,8 @@ export interface AttendancePort {
     attendanceRate: number;
     students: AttendanceStudentEntry[];
   } | null>;
+  /** Historique de l'appel déjà saisi par ce professeur, sur une période (item #401). */
+  getHistory(from: string, to: string): Promise<AttendanceSession[]>;
 }
 
 /**

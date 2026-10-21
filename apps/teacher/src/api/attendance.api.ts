@@ -1,9 +1,14 @@
 import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
 import { toAppError } from '@/services/errors';
-import type { ApiAttendanceStatus, AttendanceSheetResponseDto, MarkAttendanceRequestDto } from '@/types/api';
+import type {
+  ApiAttendanceStatus,
+  AttendanceRecordDto,
+  AttendanceSheetResponseDto,
+  MarkAttendanceRequestDto,
+} from '@/types/api';
 import type { AttendancePort } from '@/services/ports';
-import type { AttendanceStatus, AttendanceStudentEntry } from '@/types/domain';
+import type { AttendanceSession, AttendanceStatus, AttendanceStudentEntry } from '@/types/domain';
 
 const STATUS_TO_API: Record<AttendanceStatus, ApiAttendanceStatus> = {
   present: 'PRESENT',
@@ -44,7 +49,15 @@ export function createAttendanceApi(): AttendancePort {
           note: e.note,
         })),
       };
-      await request<unknown>('/api/v1/attendances/mark', { method: 'POST', body });
+      // CORRECTION #401 : on appelait toujours /mark, qui CRÉE un nouvel
+      // AttendanceRecord à chaque appel. Rouvrir l'historique d'une classe
+      // déjà appelée et corriger un élève (ou simplement re-soumettre)
+      // créait donc un DOUBLON du même créneau, compté deux fois dans
+      // toutes les statistiques (école, classe, élève). /sync applique le
+      // même corps mais fait un UPSERT sur (école, classe, matière, date,
+      // créneau) — exactement ce qu'il faut pour « faire l'appel » comme
+      // pour « corriger l'appel déjà fait ».
+      await request<AttendanceRecordDto>('/api/v1/attendances/sync', { method: 'POST', body });
     },
 
     async getSheet(classId, subjectId, date) {
@@ -73,6 +86,28 @@ export function createAttendanceApi(): AttendancePort {
         }
         throw appError;
       }
+    },
+
+    /** Historique de l'appel déjà saisi par ce professeur — item #401. */
+    async getHistory(from, to): Promise<AttendanceSession[]> {
+      const { schoolId } = sessionContext();
+      const dtos = await request<AttendanceRecordDto[]>('/api/v1/attendances/analytics/teacher/history', {
+        query: { schoolId, from, to },
+      });
+      return dtos
+        .map((dto) => ({
+          id: dto.id,
+          classId: dto.classId,
+          subjectId: dto.subjectId,
+          date: dto.date,
+          period: dto.period,
+          students: dto.records.map((r) => ({
+            studentId: r.studentId,
+            statut: STATUS_FROM_API[r.status],
+            note: r.note ?? undefined,
+          })),
+        }))
+        .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
     },
   };
 }

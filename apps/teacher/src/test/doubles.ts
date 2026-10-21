@@ -59,6 +59,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
     attendance: {
       mark: notStubbed('attendance.mark'),
       getSheet: notStubbed('attendance.getSheet'),
+      getHistory: notStubbed('attendance.getHistory'),
     },
     courseDocuments: {
       list: notStubbed('courseDocuments.list'),

@@ -227,6 +227,21 @@ export interface MarkAttendanceInput {
   eleves: AttendanceStudentEntry[];
 }
 
+/**
+ * Une session d'appel déjà enregistrée — item #401. Les noms de classe/
+ * matière/élève ne sont PAS résolus ici : le composant les enrichit depuis
+ * `myClasses`/`subjects`/`roster`, déjà chargés par ailleurs, plutôt que de
+ * dupliquer cette résolution dans la couche API.
+ */
+export interface AttendanceSession {
+  id: string;
+  classId: string;
+  subjectId: string;
+  date: string; // yyyy-mm-dd
+  period: string;
+  students: AttendanceStudentEntry[];
+}
+
 /** Traduit `DocumentType` (document-service) — document pédagogique rattaché à une matière. */
 export type CourseDocumentType = 'cours' | 'exercice' | 'corrige' | 'sujet_examen' | 'ressource' | 'autre';
 

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, CardHeader, Field, Input, Select, StateView } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { todayISO } from '@/utils/format';
-import type { AttendanceStatus, AttendanceStudentEntry, TimetableSlot } from '@/types/domain';
+import type { AttendanceSession, AttendanceStatus, AttendanceStudentEntry, TimetableSlot } from '@/types/domain';
 
 /** `Date#getDay()` (0 = dimanche) → libellé du jour -- même convention que `SchedulePage`. */
 const WEEKDAY_FROM_JS_DAY: Record<number, TimetableSlot['jour'] | null> = {
@@ -51,6 +51,14 @@ function isFutureSlot(date: string, period: string): boolean {
   return slotStart > now;
 }
 
+/** 30 derniers jours (inclus) au format yyyy-mm-dd — fenêtre de l'historique de l'appel (#401). */
+function last30Days(): { from: string; to: string } {
+  const to = todayISO();
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - 29);
+  return { from: fromDate.toISOString().slice(0, 10), to };
+}
+
 export default function AttendancePage() {
   const { myClasses, subjects, attendance, timetable } = useServices();
   const queryClient = useQueryClient();
@@ -72,6 +80,53 @@ export default function AttendancePage() {
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // Historique de l'appel (#401) — une ligne par créneau déjà saisi,
+  // "Détails" ouvre une fiche où les élèves absents/en retard peuvent être
+  // corrigés sans tout ressaisir.
+  const { from: historyFrom, to: historyTo } = last30Days();
+  const historyQuery = useQuery({
+    queryKey: ['attendance-history', historyFrom, historyTo],
+    queryFn: () => attendance.getHistory(historyFrom, historyTo),
+  });
+  const [detailSession, setDetailSession] = useState<AttendanceSession | null>(null);
+  const [detailStatuses, setDetailStatuses] = useState<Record<string, AttendanceStatus>>({});
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const detailRosterQuery = useQuery({
+    queryKey: ['roster', detailSession?.classId ?? ''],
+    queryFn: () => myClasses.roster(detailSession?.classId ?? ''),
+    enabled: detailSession !== null,
+  });
+
+  function openDetail(session: AttendanceSession) {
+    setDetailSession(session);
+    setDetailError(null);
+    setDetailStatuses(Object.fromEntries(session.students.map((s) => [s.studentId, s.statut])));
+  }
+
+  const detailMutation = useMutation({
+    mutationFn: () => {
+      if (!detailSession) return Promise.resolve();
+      const eleves: AttendanceStudentEntry[] = detailSession.students.map((s) => ({
+        studentId: s.studentId,
+        statut: detailStatuses[s.studentId] ?? s.statut,
+      }));
+      return attendance.mark({
+        classId: detailSession.classId,
+        subjectId: detailSession.subjectId,
+        date: detailSession.date,
+        period: detailSession.period,
+        eleves,
+      });
+    },
+    onSuccess: () => {
+      setDetailSession(null);
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-sheet'] });
+    },
+    onError: (e) => setDetailError(e instanceof Error ? e.message : "Échec de l'enregistrement."),
+  });
 
   // "Cours" uniquement : une permanence (pas de matière) n'a rien à appeler.
   const currentSlot = useMemo(() => {
@@ -139,6 +194,42 @@ export default function AttendancePage() {
     setSaved(false);
     markMutation.mutate();
   }
+
+  const classNameById = useMemo(
+    () => new Map((classesQuery.data ?? []).map((c) => [c.id, c.nom])),
+    [classesQuery.data],
+  );
+  const subjectNameById = useMemo(
+    () => new Map((subjectsQuery.data ?? []).map((s) => [s.id, s.nom])),
+    [subjectsQuery.data],
+  );
+
+  const historyColumns: Column<AttendanceSession>[] = [
+    { key: 'date', header: 'Date', render: (s) => s.date },
+    { key: 'classe', header: 'Classe', render: (s) => classNameById.get(s.classId) ?? s.classId },
+    { key: 'matiere', header: 'Matière', render: (s) => subjectNameById.get(s.subjectId) ?? s.subjectId },
+    { key: 'creneau', header: 'Créneau', render: (s) => s.period },
+    {
+      key: 'resume',
+      header: 'Résumé',
+      render: (s) => {
+        const absents = s.students.filter((e) => e.statut === 'absent').length;
+        const retards = s.students.filter((e) => e.statut === 'retard').length;
+        return absents === 0 && retards === 0
+          ? `${s.students.length} présents`
+          : `${absents} absent${absents > 1 ? 's' : ''}${retards > 0 ? `, ${retards} retard${retards > 1 ? 's' : ''}` : ''}`;
+      },
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (s) => (
+        <Button variant="ghost" size="sm" onClick={() => openDetail(s)}>
+          Détails
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <div>
@@ -236,6 +327,86 @@ export default function AttendancePage() {
           ) : null}
         </Card>
       ) : null}
+
+      <Card padded style={{ marginTop: 16 }}>
+        <CardHeader title="Historique de l'appel" />
+        <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+          Les 30 derniers jours. Cliquez sur « Détails » pour revoir ou corriger les absents et les retards.
+        </p>
+        <StateView
+          loading={historyQuery.isLoading}
+          error={historyQuery.error}
+          onRetry={() => historyQuery.refetch()}
+          empty={historyQuery.data?.length === 0}
+        >
+          <Table<AttendanceSession>
+            columns={historyColumns}
+            rows={historyQuery.data ?? []}
+            rowKey={(s) => s.id}
+          />
+        </StateView>
+      </Card>
+
+      <Sheet
+        title="Détails de l'appel"
+        open={detailSession !== null}
+        onClose={() => setDetailSession(null)}
+        width="md"
+        footer={
+          <Button variant="primary" loading={detailMutation.isPending} onClick={() => detailMutation.mutate()}>
+            Enregistrer les modifications
+          </Button>
+        }
+      >
+        {detailSession ? (
+          <div>
+            <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+              {classNameById.get(detailSession.classId) ?? detailSession.classId} ·{' '}
+              {subjectNameById.get(detailSession.subjectId) ?? detailSession.subjectId} · {detailSession.date} ·{' '}
+              {detailSession.period}
+            </p>
+            {detailError ? (
+              <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{detailError}</p>
+            ) : null}
+            <StateView
+              loading={detailRosterQuery.isLoading}
+              error={detailRosterQuery.error}
+              empty={detailRosterQuery.data?.length === 0}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(detailRosterQuery.data ?? []).map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '6px 0',
+                      borderTop: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <span>
+                      {s.prenom} {s.nom}
+                    </span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {STATUSES.map((st) => (
+                        <Button
+                          key={st}
+                          variant={detailStatuses[s.id] === st ? 'primary' : 'ghost'}
+                          size="sm"
+                          onClick={() => setDetailStatuses((prev) => ({ ...prev, [s.id]: st }))}
+                        >
+                          {STATUS_LABEL[st]}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </StateView>
+          </div>
+        ) : null}
+      </Sheet>
     </div>
   );
 }
