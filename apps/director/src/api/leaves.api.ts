@@ -29,32 +29,56 @@ function firstDocumentPiece(documentUrls: string[]): { nom: string } | null {
   return firstUrl ? { nom: fileNameFromDocumentUrl(firstUrl) } : null;
 }
 
+function allDocumentPieces(documentUrls: string[]): { nom: string }[] {
+  return documentUrls.map((url) => ({ nom: fileNameFromDocumentUrl(url) }));
+}
+
+/**
+ * `dto.reviewedBy` est un id utilisateur quelconque (DIRECTOR ou SUPERVISOR,
+ * voir `jwt.getSubject()` dans `ScheduleServiceImpl#reviewLeave`), pas
+ * forcément un enseignant -- `nameById` (construit depuis la seule liste des
+ * enseignants) ne le résout donc pas toujours ; on retombe sur l'id brut,
+ * comme `remplacant` le fait déjà pour le même genre de cas.
+ */
+function fromLeaveResponse(dto: LeaveRequestResponseDto, nameById: Map<string, string>): LeaveRequest {
+  return {
+    id: dto.id,
+    teacherId: dto.teacherId,
+    teacherNom: nameById.get(dto.teacherId) ?? dto.teacherId,
+    dateDebut: isoToFR(dto.startDate),
+    dateFin: isoToFR(dto.endDate),
+    motif: dto.reason,
+    statut: STATUS_FROM_API[dto.status] ?? 'en_attente',
+    remplacant: dto.replacementTeacherId ? nameById.get(dto.replacementTeacherId) ?? dto.replacementTeacherId : null,
+    remplacantId: dto.replacementTeacherId,
+    pieceJointe: firstDocumentPiece(dto.documentUrls),
+    piecesJointes: allDocumentPieces(dto.documentUrls),
+    traitePar: dto.reviewedBy ? nameById.get(dto.reviewedBy) ?? dto.reviewedBy : null,
+    traiteLe: dto.reviewedAt ? isoToFR(dto.reviewedAt.slice(0, 10)) : null,
+    noteDecision: dto.reviewNote,
+  };
+}
+
 /** Congés & absences — `schedule-service`, `/api/v1/leaves/...` (voir `LeaveController`). */
 export function createLeavesApi(): LeavesPort {
   return {
     async list(): Promise<LeaveRequest[]> {
       const { schoolId } = sessionContext();
       const [dtos, teachers] = await Promise.all([
-        request<LeaveRequestResponseDto[]>(`/api/v1/leaves/school/${encodeURIComponent(schoolId)}/pending`),
+        // CORRECTION (signalé) — « le directeur veut voir la liste des
+        // demandes [de congé] et voir les états et les détails » :
+        // `/pending` ne renvoyait jamais les demandes déjà traitées
+        // (approuvées/rejetées), qui devenaient invisibles une fois
+        // décidées. `/school/{schoolId}` (nouveau, voir LeaveController)
+        // renvoie l'historique complet, le plus récent d'abord.
+        request<LeaveRequestResponseDto[]>(`/api/v1/leaves/school/${encodeURIComponent(schoolId)}`),
         // Le serveur ne renvoie que l'id de l'enseignant (`teacherId`) --
         // jamais son nom : résolu ici, comme `subjectIds` -> noms ailleurs
         // dans l'application.
         createTeachersApi().list(),
       ]);
       const nameById = new Map(teachers.map((t) => [t.id, t.nom]));
-
-      return dtos.map((dto) => ({
-        id: dto.id,
-        teacherId: dto.teacherId,
-        teacherNom: nameById.get(dto.teacherId) ?? dto.teacherId,
-        dateDebut: isoToFR(dto.startDate),
-        dateFin: isoToFR(dto.endDate),
-        motif: dto.reason,
-        statut: STATUS_FROM_API[dto.status] ?? 'en_attente',
-        remplacant: dto.replacementTeacherId ? nameById.get(dto.replacementTeacherId) ?? dto.replacementTeacherId : null,
-        remplacantId: dto.replacementTeacherId,
-        pieceJointe: firstDocumentPiece(dto.documentUrls),
-      }));
+      return dtos.map((dto) => fromLeaveResponse(dto, nameById));
     },
 
     async review(leaveId, approve, replacementTeacherId): Promise<LeaveRequest> {
@@ -66,18 +90,7 @@ export function createLeavesApi(): LeavesPort {
         method: 'PUT',
         body,
       });
-      return {
-        id: dto.id,
-        teacherId: dto.teacherId,
-        teacherNom: dto.teacherId,
-        dateDebut: isoToFR(dto.startDate),
-        dateFin: isoToFR(dto.endDate),
-        motif: dto.reason,
-        statut: STATUS_FROM_API[dto.status] ?? 'en_attente',
-        remplacant: dto.replacementTeacherId ?? null,
-        remplacantId: dto.replacementTeacherId,
-        pieceJointe: firstDocumentPiece(dto.documentUrls),
-      };
+      return fromLeaveResponse(dto, new Map());
     },
   };
 }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Select, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import type { LeaveRequest } from '@/types/domain';
@@ -17,6 +17,13 @@ export default function LeavesPage() {
    * utilisé quand la demande n'en proposait aucun elle-même (voir le select ajouté
    * dans la colonne actions ci-dessous). */
   const [chosenReplacement, setChosenReplacement] = useState<Record<string, string>>({});
+  // CORRECTION (signalé) — « le directeur veut voir la liste des demandes
+  // et voir les états et les détails » : `list()` renvoie maintenant tout
+  // l'historique (voir leaves.api.ts), pas seulement les demandes en
+  // attente ; ce détail affiche ce que le tableau n'a pas la place de
+  // montrer (motif complet, toutes les pièces jointes, et qui a tranché
+  // et quand pour les demandes déjà traitées).
+  const [detailLeave, setDetailLeave] = useState<LeaveRequest | null>(null);
 
   const list = useQuery({ queryKey: ['leaves'], queryFn: () => leaves.list() });
   const teachersQuery = useQuery({ queryKey: ['teachers'], queryFn: () => teachers.list() });
@@ -58,7 +65,13 @@ export default function LeavesPage() {
       header: '',
       align: 'right',
       render: (l) => {
-        if (l.statut !== 'en_attente') return null;
+        if (l.statut !== 'en_attente') {
+          return (
+            <Button variant="ghost" size="sm" onClick={() => setDetailLeave(l)}>
+              Détails
+            </Button>
+          );
+        }
         // CORRECTION (signalé) — « si je valide ça ne fait rien » : le
         // backend REFUSE l'approbation sans remplaçant
         // (BusinessException REPLACEMENT_REQUIRED, voir
@@ -104,6 +117,9 @@ export default function LeavesPage() {
             <Button variant="ghost" size="sm" onClick={() => reviewMutation.mutate({ id: l.id, approve: false })}>
               Rejeter
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDetailLeave(l)}>
+              Détails
+            </Button>
           </div>
         );
       },
@@ -119,6 +135,48 @@ export default function LeavesPage() {
           <Table columns={columns} rows={list.data ?? []} rowKey={(l) => l.id} />
         </StateView>
       </Card>
+
+      <Sheet
+        title={detailLeave ? `Demande de ${detailLeave.teacherNom}` : 'Détails'}
+        open={detailLeave !== null}
+        onClose={() => setDetailLeave(null)}
+      >
+        {detailLeave ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13.5 }}>
+            <DetailRow label="Période" value={`${detailLeave.dateDebut} → ${detailLeave.dateFin}`} />
+            <DetailRow label="Motif" value={detailLeave.motif} />
+            <DetailRow
+              label="Statut"
+              value={<Badge tone={STATUS_TONE[detailLeave.statut]}>{STATUS_LABEL[detailLeave.statut]}</Badge>}
+            />
+            <DetailRow label="Remplaçant proposé" value={detailLeave.remplacant ?? '—'} />
+            <DetailRow
+              label="Pièces jointes"
+              value={
+                detailLeave.piecesJointes.length > 0
+                  ? detailLeave.piecesJointes.map((p) => `📎 ${p.nom}`).join(', ')
+                  : 'Aucune'
+              }
+            />
+            {detailLeave.statut !== 'en_attente' ? (
+              <>
+                <DetailRow label="Traité par" value={detailLeave.traitePar ?? '—'} />
+                <DetailRow label="Traité le" value={detailLeave.traiteLe ?? '—'} />
+                {detailLeave.noteDecision ? <DetailRow label="Note" value={detailLeave.noteDecision} /> : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </Sheet>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 6 }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <span style={{ fontWeight: 600, textAlign: 'right' }}>{value}</span>
     </div>
   );
 }

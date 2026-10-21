@@ -310,6 +310,14 @@ export interface LeaveRequest {
    */
   remplacantId?: string | null;
   pieceJointe: { nom: string } | null;
+  /** Toutes les pièces jointes (`pieceJointe` ci-dessus n'en affiche que la première) -- pour l'écran de détails. */
+  piecesJointes: { nom: string }[];
+  /** Nom de qui a traité la demande -- `null` tant qu'elle est en attente. */
+  traitePar: string | null;
+  /** Date de traitement (approbation/rejet), formatée -- `null` tant qu'en attente. */
+  traiteLe: string | null;
+  /** Motif de rejet, ou note laissée par le directeur -- `null` si absent. */
+  noteDecision: string | null;
 }
 
 /** Traduit `SalaryPaymentStatus` (payment-service) : DRAFT, PENDING_VALIDATION, VALIDATED, REJECTED, CANCELLED. */

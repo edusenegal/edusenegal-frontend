@@ -970,6 +970,8 @@ export function createMockServices(): Services {
         if (approve && replacementTeacherId) {
           found.remplacant = replacementTeacherId;
         }
+        found.traitePar = `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`;
+        found.traiteLe = new Date().toLocaleDateString('fr-FR');
         return respond(found, 300);
       },
     },
