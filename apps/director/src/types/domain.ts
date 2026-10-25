@@ -178,6 +178,21 @@ export interface SalarySlip {
 
 export type StudentStatus = 'actif' | 'suspendu' | 'transfere';
 
+/**
+ * Membre du personnel (hors enseignants, qui ont leur propre écran) — censeur,
+ * surveillant général, comptable, bibliothécaire, secrétaire général, etc.
+ * `role` est le code backend (UserRole) ; son libellé est résolu côté UI.
+ */
+export interface StaffMember {
+  id: string;
+  prenom: string;
+  nom: string;
+  role: string;
+  tel: string;
+  email: string;
+  statut: StaffStatus;
+}
+
 export interface Student {
   id: string;
   prenom: string;

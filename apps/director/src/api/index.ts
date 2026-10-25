@@ -16,6 +16,7 @@ import { createSignerAssetsApi } from '@/api/signerAssets.api';
 import { createSignaturesApi } from '@/api/signatures.api';
 import { createStaffAbsencesApi } from '@/api/staffAbsences.api';
 import { createStudentAttendanceApi } from '@/api/studentAttendance.api';
+import { createPersonnelApi } from '@/api/personnel.api';
 import { createStudentsApi } from '@/api/students.api';
 import { createSubjectsApi } from '@/api/subjects.api';
 import { createTeachersApi } from '@/api/teachers.api';
@@ -45,6 +46,7 @@ export function createApiServices(): Services {
     subjects: createSubjectsApi(),
     // Portage complet — voir le commentaire de `createTeachersApi`.
     teachers: createTeachersApi(),
+    personnel: createPersonnelApi(),
     // Portage complet — voir le commentaire de `createStaffAbsencesApi`.
     staffAbsences: createStaffAbsencesApi(),
     // `get`/`save` (configuration tarifaire) restent sur le mock — voir le

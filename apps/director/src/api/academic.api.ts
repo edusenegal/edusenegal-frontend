@@ -259,6 +259,37 @@ export function createAcademicResultsApi(): AcademicResultsPort {
       return Math.round(avg * 10) / 10;
     },
 
+    async getStudentAverage(studentId: string, classId: string): Promise<number | null> {
+      const yearId = await resolveYearId();
+      // Nombre de périodes (semestres/trimestres) de la config effective — à
+      // défaut 2. On lit le dernier résultat disponible : on balaie de la
+      // dernière période vers la première, un 404 (RESULT_NOT_AVAILABLE) étant
+      // l'état normal tant que les moyennes ne sont pas calculées.
+      let periodCount = 2;
+      try {
+        const cfg = await this.getEffectiveConfig(classId);
+        if (cfg?.semesterCount) periodCount = cfg.semesterCount;
+      } catch {
+        // config absente en début d'année — on garde 2 par défaut.
+      }
+      for (let sem = periodCount; sem >= 1; sem--) {
+        try {
+          const dto = await request<SemesterResultResponseDto>(
+            `/api/v1/academic/results/student/${encodeURIComponent(studentId)}/semester/${sem}`,
+            { query: { yearId } },
+          );
+          if (dto && typeof dto.generalAverage === 'number') {
+            return Math.round(dto.generalAverage * 10) / 10;
+          }
+        } catch (err) {
+          if (err instanceof AppError && err.kind === 'notFound') continue;
+          // Autre erreur (réseau, 500) : on n'invente pas de moyenne.
+          return null;
+        }
+      }
+      return null;
+    },
+
     async publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]> {
       const yearId = await resolveYearId();
       await request<SemesterResultResponseDto>(

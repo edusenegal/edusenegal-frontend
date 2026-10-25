@@ -99,6 +99,7 @@ export function createAttendanceApi(): AttendancePort {
           id: dto.id,
           classId: dto.classId,
           subjectId: dto.subjectId,
+          subjectName: dto.subjectName ?? undefined,
           date: dto.date,
           period: dto.period,
           students: dto.records.map((r) => ({

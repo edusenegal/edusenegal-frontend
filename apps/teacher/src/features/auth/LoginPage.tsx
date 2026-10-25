@@ -20,12 +20,15 @@ export default function LoginPage() {
   const [loginByPhone, setLoginByPhone] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
+  // Compte bloqué (SUSPENDED) : popup dédié après code ACCOUNT_SUSPENDED (422) de la passerelle.
+  const [blocked, setBlocked] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => auth.login(identifier, password, loginByPhone),
     onMutate: () => {
       setError(null);
       setAccessDenied(null);
+      setBlocked(null);
       setAuthenticating();
     },
     onSuccess: (teacher) => {
@@ -34,6 +37,10 @@ export default function LoginPage() {
       navigate(from, { replace: true });
     },
     onError: (err: unknown) => {
+      if (err instanceof AppError && err.code === 'ACCOUNT_SUSPENDED') {
+        setBlocked('Votre compte a été bloqué. Veuillez vous rapprocher de la direction de votre établissement.');
+        return;
+      }
       if (err instanceof AppError && err.kind === 'forbidden') {
         setAccessDenied(err.message);
         return;
@@ -116,6 +123,14 @@ export default function LoginPage() {
         <p>{accessDenied}</p>
         <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
           Connectez-vous avec un compte ayant le rôle Enseignant, ou contactez votre établissement.
+        </p>
+      </Sheet>
+
+      <Sheet title="Compte bloqué" open={blocked !== null} onClose={() => setBlocked(null)}>
+        <p>{blocked}</p>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
+          Votre accès a été suspendu par l’administration de l’établissement. Rapprochez-vous de la
+          direction pour le rétablir.
         </p>
       </Sheet>
     </div>

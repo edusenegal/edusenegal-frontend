@@ -25,13 +25,16 @@ export class AppError extends Error {
   readonly status: number | null;
   /** Détail technique conservé pour les journaux, jamais affiché tel quel. */
   readonly detail: string | null;
+  /** Code métier backend (ex. ACCOUNT_SUSPENDED), quand il existe — jamais affiché brut. */
+  readonly code: string | null;
 
-  constructor(kind: ErrorKind, message: string, status: number | null = null, detail: string | null = null) {
+  constructor(kind: ErrorKind, message: string, status: number | null = null, detail: string | null = null, code: string | null = null) {
     super(message);
     this.name = 'AppError';
     this.kind = kind;
     this.status = status;
     this.detail = detail;
+    this.code = code;
   }
 }
 

@@ -36,6 +36,22 @@ function rangeFor(period: Period): { from: string; to: string } {
   return { from: fromDate.toISOString().slice(0, 10), to };
 }
 
+/**
+ * Fenêtre PRÉCÉDENTE de même longueur, se terminant la veille de `from` —
+ * sert à calculer le +/- du jour (ou de la période) par rapport au précédent
+ * (demande explicite : « taux de plus ou moins par rapport à la journée
+ * précédente »). Pour « Aujourd'hui », c'est hier ; pour 7j/30j, la période
+ * de même durée juste avant.
+ */
+function prevRangeFor(period: Period, from: string): { from: string; to: string } {
+  const days = period === 'jour' ? 0 : period === '7j' ? 6 : 29;
+  const prevTo = new Date(`${from}T00:00:00`);
+  prevTo.setDate(prevTo.getDate() - 1);
+  const prevFrom = new Date(prevTo);
+  prevFrom.setDate(prevFrom.getDate() - days);
+  return { from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
+}
+
 const GRANULARITY_OPTIONS: SegmentedOption<AttendanceTrendGranularity>[] = [
   { value: 'DAY', label: 'Jour' },
   { value: 'WEEK', label: 'Semaine' },
@@ -71,6 +87,15 @@ export default function AttendanceOverviewPage() {
   const schoolStats = useQuery({
     queryKey: ['attendance-school-stats', from, to],
     queryFn: () => studentAttendance.getSchoolStats(from, to),
+    // Rafraîchi régulièrement pour refléter chaque appel saisi en cours de
+    // journée (demande : « mis à jour après chaque fin de créneau »).
+    refetchInterval: period === 'jour' ? 60_000 : false,
+    refetchOnWindowFocus: true,
+  });
+  const prevRange = useMemo(() => prevRangeFor(period, from), [period, from]);
+  const prevStats = useQuery({
+    queryKey: ['attendance-school-stats-prev', prevRange.from, prevRange.to],
+    queryFn: () => studentAttendance.getSchoolStats(prevRange.from, prevRange.to),
   });
   const classesStats = useQuery({
     queryKey: ['attendance-classes-stats', from, to],
@@ -95,6 +120,17 @@ export default function AttendanceOverviewPage() {
   });
 
   const s = schoolStats.data;
+  const prev = prevStats.data;
+  const prevLabel = period === 'jour' ? 'hier' : 'période préc.';
+  const signed = (d: number) => `${d > 0 ? '+' : d < 0 ? '' : '±'}${d}`;
+  const countDelta = (cur: number, p?: number): string | undefined =>
+    prev && p !== undefined ? `${signed(cur - p)} vs ${prevLabel}` : undefined;
+  const rateDelta =
+    prev !== undefined && prev !== null
+      ? `${(s!.attendanceRate - prev.attendanceRate) >= 0 ? '+' : ''}${(s!.attendanceRate - prev.attendanceRate).toFixed(1)} pts vs ${prevLabel}`
+      : undefined;
+  const rateTrendTone: 'success' | 'danger' | 'neutral' =
+    prev ? (s && s.attendanceRate >= prev.attendanceRate ? 'success' : 'danger') : 'neutral';
 
   const columns: Column<ClassAttendanceRate>[] = [
     { key: 'classe', header: 'Classe', render: (c) => c.className },
@@ -171,10 +207,20 @@ export default function AttendanceOverviewPage() {
       <StateView loading={schoolStats.isLoading} error={schoolStats.error} onRetry={() => schoolStats.refetch()}>
         {s ? (
           <div className={styles.grid}>
-            <StatTile label="Présents" value={String(s.present)} tone="success" />
-            <StatTile label="Absents" value={String(s.absent)} tone={s.absent > 0 ? 'danger' : 'success'} />
-            <StatTile label="Retards" value={String(s.late)} tone={s.late > 0 ? 'warning' : 'success'} />
-            <StatTile label="Taux de présence" value={`${s.attendanceRate}%`} />
+            <StatTile label="Présents" value={String(s.present)} tone="success" delta={countDelta(s.present, prev?.present)} />
+            <StatTile
+              label="Absents"
+              value={String(s.absent)}
+              tone={s.absent > 0 ? 'danger' : 'success'}
+              delta={countDelta(s.absent, prev?.absent)}
+            />
+            <StatTile
+              label="Retards"
+              value={String(s.late)}
+              tone={s.late > 0 ? 'warning' : 'success'}
+              delta={countDelta(s.late, prev?.late)}
+            />
+            <StatTile label="Taux de présence" value={`${s.attendanceRate}%`} tone={rateTrendTone} delta={rateDelta} />
           </div>
         ) : null}
       </StateView>

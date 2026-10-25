@@ -51,6 +51,7 @@ import type {
   StaffAbsence,
   StaffAbsenceSummary,
   Student,
+  StaffMember,
   Subject,
   SubjectAverage,
   Teacher,
@@ -130,6 +131,11 @@ function createInitialState() {
     classes,
     classEvents: structuredClone(fixtures.CLASS_EVENTS) as ClassEvent[],
     teachers: structuredClone(fixtures.buildTeachers()) as Teacher[],
+    staff: [
+      { id: 'stf-cens', prenom: 'Awa', nom: 'Ndiaye', role: 'CENSEUR', tel: '771000010', email: 'awa.ndiaye@ecole.sn', statut: 'actif' },
+      { id: 'stf-comp', prenom: 'Modou', nom: 'Sarr', role: 'ACCOUNTANT', tel: '771000011', email: 'modou.sarr@ecole.sn', statut: 'actif' },
+      { id: 'stf-bib', prenom: 'Fatou', nom: 'Ba', role: 'LIBRARIAN', tel: '771000012', email: 'fatou.ba@ecole.sn', statut: 'actif' },
+    ] as StaffMember[],
     students,
     subjects: structuredClone(fixtures.buildSubjects()) as Subject[],
     paymentConfig: structuredClone(fixtures.buildPaymentConfig()) as PaymentConfig,
@@ -655,6 +661,50 @@ export function createMockServices(): Services {
       },
     },
 
+    personnel: {
+      async list(): Promise<StaffMember[]> {
+        return respond([...state.staff]);
+      },
+      async create(input): Promise<StaffMember> {
+        const m: StaffMember = {
+          id: `stf-${Date.now()}`,
+          prenom: input.prenom,
+          nom: input.nom,
+          role: input.role,
+          tel: input.tel,
+          email: input.email && input.email !== '—' ? input.email : '—',
+          statut: 'actif',
+        };
+        state.staff.unshift(m);
+        return respond(m, 300);
+      },
+      async update(id, patch): Promise<StaffMember> {
+        const found = state.staff.find((m) => m.id === id);
+        if (!found) notFound('Personnel');
+        if (patch.prenom !== undefined) found.prenom = patch.prenom;
+        if (patch.nom !== undefined) found.nom = patch.nom;
+        if (patch.tel !== undefined) found.tel = patch.tel;
+        if (patch.email !== undefined) found.email = patch.email;
+        return respond(found);
+      },
+      async remove(id): Promise<void> {
+        state.staff = state.staff.filter((m) => m.id !== id);
+        await respond(undefined, 250);
+      },
+      async block(id): Promise<void> {
+        const found = state.staff.find((m) => m.id === id);
+        if (!found) notFound('Personnel');
+        found.statut = 'suspendu';
+        await respond(undefined, 250);
+      },
+      async unblock(id): Promise<void> {
+        const found = state.staff.find((m) => m.id === id);
+        if (!found) notFound('Personnel');
+        found.statut = 'actif';
+        await respond(undefined, 250);
+      },
+    },
+
     students: {
       async list(classId?: string): Promise<Student[]> {
         const rows = classId ? state.students.filter((s) => s.classeId === classId) : state.students;
@@ -725,6 +775,18 @@ export function createMockServices(): Services {
         recomputeClassEffectifs();
         await respond(undefined, 300);
       },
+      async block(studentId): Promise<void> {
+        const found = state.students.find((s) => s.id === studentId);
+        if (!found) notFound('Élève');
+        found.statut = 'suspendu';
+        await respond(undefined, 250);
+      },
+      async unblock(studentId): Promise<void> {
+        const found = state.students.find((s) => s.id === studentId);
+        if (!found) notFound('Élève');
+        found.statut = 'actif';
+        await respond(undefined, 250);
+      },
 
       async getAbsenceCounts(studentIds): Promise<Record<string, number>> {
         const result: Record<string, number> = {};
@@ -732,6 +794,11 @@ export function createMockServices(): Services {
           if (studentIds.includes(s.id)) result[s.id] = s.absences;
         }
         return respond(result);
+      },
+      async getAttendanceMarks(studentId): Promise<{ present: number; absent: number; late: number }> {
+        const found = state.students.find((s) => s.id === studentId);
+        if (!found) notFound('Élève');
+        return respond({ present: 0, absent: found.absences, late: found.retards });
       },
     },
 
@@ -1517,6 +1584,12 @@ export function createMockServices(): Services {
         if (results.length === 0) return respond(null);
         const avg = results.reduce((a, r) => a + r.moyenneGenerale, 0) / results.length;
         return respond(Math.round(avg * 10) / 10);
+      },
+
+      async getStudentAverage(studentId, _classId): Promise<number | null> {
+        const found = state.students.find((s) => s.id === studentId);
+        if (!found) return respond(null);
+        return respond(found.moyenne > 0 ? found.moyenne : null);
       },
 
       async publishResults(classId, semesterNumber): Promise<SemesterResult[]> {

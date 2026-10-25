@@ -15,7 +15,7 @@ const STATUS_LABEL = { actif: 'Actif', suspendu: 'Suspendu', transfere: 'Transf�
 export default function StudentDetailPage() {
   const { studentId = '' } = useParams();
   const navigate = useNavigate();
-  const { students, classes } = useServices();
+  const { students, classes, academicResults, paymentConfig } = useServices();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   // Assignation de classe (nouvelle demande direction) — un élève créé sans
@@ -29,6 +29,36 @@ export default function StudentDetailPage() {
 
   const studentQuery = useQuery({ queryKey: ['student', studentId], queryFn: () => students.get(studentId) });
   const s = studentQuery.data;
+
+  // Données dynamiques de la fiche (demande explicite : plus de 0 figé).
+  // Moyenne : academic-service (dernier semestre calculé — « — » si pas encore
+  // disponible). Absences/retards : pointages réels (attendance-service).
+  // Taux de paiement : payment-service (par élève).
+  const marksQuery = useQuery({
+    queryKey: ['student-marks', studentId],
+    queryFn: () => students.getAttendanceMarks(studentId),
+    enabled: !!s,
+  });
+  const averageQuery = useQuery({
+    queryKey: ['student-average', studentId, s?.classeId ?? ''],
+    queryFn: () => academicResults.getStudentAverage(studentId, s?.classeId ?? ''),
+    enabled: !!s?.classeId,
+  });
+  const rateQuery = useQuery({
+    queryKey: ['student-rate', studentId, s?.classeId ?? ''],
+    queryFn: () => paymentConfig.getPaymentRatesForStudents([studentId], s?.classeId || undefined),
+    enabled: !!s,
+  });
+
+  const moyenneLabel = averageQuery.isLoading
+    ? '…'
+    : typeof averageQuery.data === 'number'
+      ? `${averageQuery.data.toFixed(1)}/20`
+      : '—';
+  const absencesLabel = marksQuery.isLoading ? '…' : String(marksQuery.data?.absent ?? 0);
+  const retardsLabel = marksQuery.isLoading ? '…' : String(marksQuery.data?.late ?? 0);
+  const rate = rateQuery.data?.[studentId];
+  const tauxLabel = rateQuery.isLoading ? '…' : typeof rate === 'number' ? `${rate}%` : '—';
 
   const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list(), enabled: assignOpen });
 
@@ -76,6 +106,30 @@ export default function StudentDetailPage() {
     }
   }
 
+  // Blocage / déblocage (demande explicite direction) : un compte bloqué ne
+  // peut plus se connecter — un message dédié le lui indique à la tentative de
+  // connexion (voir la passerelle + LoginPage). `statut === 'suspendu'` reflète
+  // `accountStatus = SUSPENDED` côté backend.
+  const blockMutation = useMutation({
+    mutationFn: (blocked: boolean) => (blocked ? students.block(studentId) : students.unblock(studentId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
+    },
+  });
+
+  function onToggleBlock() {
+    if (!s) return;
+    const willBlock = s.statut !== 'suspendu';
+    const msg = willBlock
+      ? `Bloquer ${s.prenom} ${s.nom} ? L’élève ne pourra plus se connecter tant qu’il n’est pas débloqué.`
+      : `Débloquer ${s.prenom} ${s.nom} ? L’accès à son compte sera rétabli.`;
+    if (confirm(msg)) {
+      blockMutation.mutate(willBlock);
+    }
+  }
+
   function onTransfer() {
     if (!s) return;
     navigate('/transferts', { state: { studentId: s.id } });
@@ -103,6 +157,14 @@ export default function StudentDetailPage() {
             <Button variant="secondary" onClick={() => setEditOpen(true)} disabled={!s}>
               ✎ Modifier
             </Button>
+            <Button
+              variant="secondary"
+              onClick={onToggleBlock}
+              disabled={!s}
+              loading={blockMutation.isPending}
+            >
+              {s?.statut === 'suspendu' ? '✓ Débloquer' : '⊘ Bloquer'}
+            </Button>
             <Button variant="ghost" onClick={onDelete} disabled={!s} loading={removeMutation.isPending}>
               ✕ Supprimer
             </Button>
@@ -123,10 +185,10 @@ export default function StudentDetailPage() {
                 <Row k="Parent / tuteur" v={s.parent} />
                 <Row k="Téléphone" v={s.tel} />
                 <Row k="Statut" v={<Badge tone={STATUS_TONE[s.statut]}>{STATUS_LABEL[s.statut]}</Badge>} />
-                <Row k="Moyenne" v={`${s.moyenne.toFixed(1)}/20`} />
-                <Row k="Absences" v={String(s.absences)} />
-                <Row k="Retards" v={String(s.retards)} />
-                <Row k="Taux de paiement" v={`${s.tauxPaiement}%`} />
+                <Row k="Moyenne" v={moyenneLabel} />
+                <Row k="Absences" v={absencesLabel} />
+                <Row k="Retards" v={retardsLabel} />
+                <Row k="Taux de paiement" v={tauxLabel} />
               </div>
             </div>
           </Card>

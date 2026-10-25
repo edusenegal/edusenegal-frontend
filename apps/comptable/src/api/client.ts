@@ -135,9 +135,11 @@ function toAxiosAppError(error: AxiosError): AppError {
 
   const kind = kindFromStatus(response.status);
   let detail: string | null = null;
+  let code: string | null = null;
   const data = response.data as ApiErrorDto | undefined;
   if (data && typeof data === 'object') {
     detail = data.message ?? data.error ?? null;
+    code = data.code ?? null;
   }
   // CORRECTION (bug signalé) : l'approbation d'une dépense échoue sans que
   // le comptable en sache la raison (solde de l'école insuffisant). Message
@@ -150,7 +152,7 @@ function toAxiosAppError(error: AxiosError): AppError {
   }
   // Le message affiché reste le nôtre : celui du backend part dans `detail`,
   // pour les journaux, sans exposer de trace technique à la direction.
-  return new AppError(kind, messageFor(kind), response.status, detail);
+  return new AppError(kind, messageFor(kind), response.status, detail, code);
 }
 
 /**

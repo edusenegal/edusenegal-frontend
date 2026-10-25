@@ -237,6 +237,7 @@ export interface AttendanceSession {
   id: string;
   classId: string;
   subjectId: string;
+  subjectName?: string;
   date: string; // yyyy-mm-dd
   period: string;
   students: AttendanceStudentEntry[];

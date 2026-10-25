@@ -901,6 +901,8 @@ export interface ApiErrorDto {
   error?: string;
   message?: string;
   path?: string;
+  /** Code métier de la passerelle (ErrorResponse.code), ex. ACCOUNT_SUSPENDED. */
+  code?: string;
 }
 
 // ════════════════════════════════════════════════════════════════════════

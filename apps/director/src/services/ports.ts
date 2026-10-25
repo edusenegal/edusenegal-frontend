@@ -19,6 +19,7 @@ import type {
   BilanAnnuel,
   ClassAttendanceRate,
   SchoolAttendanceOverview,
+  StaffMember,
   BulletinPeriod,
   ClassEvent,
   ClassGroup,
@@ -375,6 +376,10 @@ export interface StudentsPort {
   update(studentId: string, patch: Partial<Student>): Promise<Student>;
   /** Backend : `DELETE /users/{id}`. */
   remove(studentId: string): Promise<void>;
+  /** Bloque l'accès de l'élève (compte SUSPENDED). Backend : `PATCH /users/{id}/block?schoolId`. */
+  block(studentId: string): Promise<void>;
+  /** Rétablit l'accès de l'élève (compte ACTIVE). Backend : `PATCH /users/{id}/unblock?schoolId`. */
+  unblock(studentId: string): Promise<void>;
   /**
    * Nombre d'absences DE CHAQUE élève sur l'année en cours (task #207 —
    * `GET /attendances/analytics/students/stats`, bulk). Non scindé par
@@ -384,6 +389,12 @@ export interface StudentsPort {
    * comme 0.
    */
   getAbsenceCounts(studentIds: string[]): Promise<Record<string, number>>;
+  /**
+   * Pointages RÉELS de l'élève sur l'année (présents/absents/retards), agrégés
+   * depuis les feuilles d'appel — fiche élève. Backend :
+   * `GET /attendances/analytics/student/{id}/marks?schoolId&yearId`.
+   */
+  getAttendanceMarks(studentId: string): Promise<{ present: number; absent: number; late: number }>;
 }
 
 export interface SubjectsPort {
@@ -715,6 +726,12 @@ export interface AcademicResultsPort {
    * n'est encore calculé/publié pour ce semestre.
    */
   getClassAverage(classId: string, semesterNumber: number): Promise<number | null>;
+  /**
+   * Moyenne générale actuelle d'un élève — dernier semestre/trimestre pour
+   * lequel des résultats sont calculés. `null` si aucune moyenne n'est encore
+   * disponible (début d'année). Backend : `GET /academic/results/student/{id}/semester/{n}`.
+   */
+  getStudentAverage(studentId: string, classId: string): Promise<number | null>;
   /** Backend : `PUT /academic/results/class/{classId}/semester/{semester}/publish`. Notifie élèves/parents (Kafka côté réel). */
   publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
   /** Backend : `POST /academic/bulletins/student/{studentId}/semester/{semester}`. */
@@ -781,6 +798,28 @@ export interface RoomsPort {
   }): Promise<RoomAvailability[]>;
 }
 
+export interface PersonnelPort {
+  /** Personnel de l'école (hors enseignants/direction/élèves). Backend : `GET /users/school/{schoolId}/staff/full`. */
+  list(): Promise<StaffMember[]>;
+  /** Backend : `POST /users` avec le rôle choisi. */
+  create(input: {
+    prenom: string;
+    nom: string;
+    role: string;
+    tel: string;
+    email?: string;
+    sexe?: 'M' | 'F';
+  }): Promise<StaffMember>;
+  /** Backend : `PUT /users/{id}`. */
+  update(id: string, patch: { prenom?: string; nom?: string; tel?: string; email?: string }): Promise<StaffMember>;
+  /** Backend : `DELETE /users/{id}`. */
+  remove(id: string): Promise<void>;
+  /** Bloque l'accès (SUSPENDED). Backend : `PATCH /users/{id}/block?schoolId`. */
+  block(id: string): Promise<void>;
+  /** Rétablit l'accès (ACTIVE). Backend : `PATCH /users/{id}/unblock?schoolId`. */
+  unblock(id: string): Promise<void>;
+}
+
 export interface Services {
   auth: AuthPort;
   school: SchoolPort;
@@ -789,6 +828,7 @@ export interface Services {
   bilanAnnuel: BilanAnnuelPort;
   classes: ClassesPort;
   teachers: TeachersPort;
+  personnel: PersonnelPort;
   students: StudentsPort;
   subjects: SubjectsPort;
   paymentConfig: PaymentConfigPort;

@@ -254,7 +254,7 @@ export default function AttendancePage() {
   const historyColumns: Column<AttendanceSession>[] = [
     { key: 'date', header: 'Date', render: (s) => s.date },
     { key: 'classe', header: 'Classe', render: (s) => classNameById.get(s.classId) ?? s.classId },
-    { key: 'matiere', header: 'Matière', render: (s) => subjectNameById.get(s.subjectId) ?? s.subjectId },
+    { key: 'matiere', header: 'Matière', render: (s) => s.subjectName ?? subjectNameById.get(s.subjectId) ?? s.subjectId },
     { key: 'creneau', header: 'Créneau', render: (s) => s.period },
     {
       key: 'resume',
@@ -409,7 +409,8 @@ export default function AttendancePage() {
           <div>
             <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
               {classNameById.get(detailSession.classId) ?? detailSession.classId} ·{' '}
-              {subjectNameById.get(detailSession.subjectId) ?? detailSession.subjectId} · {detailSession.date} ·{' '}
+              {detailSession.subjectName ?? subjectNameById.get(detailSession.subjectId) ?? detailSession.subjectId} ·{' '}
+              {detailSession.date} ·{' '}
               {detailSession.period}
             </p>
             {detailError ? (

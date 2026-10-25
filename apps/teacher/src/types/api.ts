@@ -109,6 +109,8 @@ export interface ApiErrorDto {
   error?: string;
   message?: string;
   path?: string;
+  /** Code métier de la passerelle (ErrorResponse.code), ex. ACCOUNT_SUSPENDED. */
+  code?: string;
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -407,6 +409,8 @@ export interface AttendanceRecordDto {
   classId: string;
   academicYearId: string;
   subjectId: string;
+  /** Libellé de la matière résolu côté serveur (TeacherHistoryResponse) ; absent des autres réponses. */
+  subjectName?: string | null;
   teacherId: string;
   date: string;
   dayOfWeek: string;

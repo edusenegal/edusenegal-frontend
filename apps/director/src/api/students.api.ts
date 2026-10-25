@@ -97,7 +97,7 @@ async function findClassInfoForStudent(schoolId: string, studentId: string): Pro
  * (payment-service, nouvel endpoint bulk), les deux agrégés au niveau
  * CLASSE plutôt que par élève.
  */
-export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'get' | 'create' | 'update' | 'remove' | 'getAbsenceCounts'> {
+export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'get' | 'create' | 'update' | 'remove' | 'getAbsenceCounts' | 'getAttendanceMarks' | 'block' | 'unblock'> {
   return {
     async list(classId?: string): Promise<Student[]> {
       const { schoolId } = sessionContext();
@@ -206,6 +206,22 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
       });
     },
 
+    async block(studentId: string): Promise<void> {
+      const { schoolId } = sessionContext();
+      await request<unknown>(`/api/v1/users/${encodeURIComponent(studentId)}/block`, {
+        method: 'PATCH',
+        query: { schoolId },
+      });
+    },
+
+    async unblock(studentId: string): Promise<void> {
+      const { schoolId } = sessionContext();
+      await request<unknown>(`/api/v1/users/${encodeURIComponent(studentId)}/unblock`, {
+        method: 'PATCH',
+        query: { schoolId },
+      });
+    },
+
     async getAbsenceCounts(studentIds: string[]): Promise<Record<string, number>> {
       const result: Record<string, number> = {};
       if (studentIds.length === 0) return result;
@@ -217,6 +233,16 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
         result[studentId] = s.total;
       }
       return result;
+    },
+
+    async getAttendanceMarks(studentId: string): Promise<{ present: number; absent: number; late: number }> {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      const dto = await request<Record<string, number>>(
+        `/api/v1/attendances/analytics/student/${encodeURIComponent(studentId)}/marks`,
+        { query: { schoolId, yearId } },
+      );
+      return { present: dto.present ?? 0, absent: dto.absent ?? 0, late: dto.late ?? 0 };
     },
   };
 }

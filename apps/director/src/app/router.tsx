@@ -16,6 +16,7 @@ const ClassesListPage = lazy(() => import('@/features/classes/ClassesListPage'))
 const ClassDetailPage = lazy(() => import('@/features/classes/ClassDetailPage'));
 const TeachersListPage = lazy(() => import('@/features/teachers/TeachersListPage'));
 const TeacherDetailPage = lazy(() => import('@/features/teachers/TeacherDetailPage'));
+const PersonnelListPage = lazy(() => import('@/features/personnel/PersonnelListPage'));
 const StudentsListPage = lazy(() => import('@/features/students/StudentsListPage'));
 const StudentDetailPage = lazy(() => import('@/features/students/StudentDetailPage'));
 const AttendanceOverviewPage = lazy(() => import('@/features/attendance/AttendanceOverviewPage'));
@@ -54,6 +55,7 @@ export function AppRoutes() {
             <Route path="classes/:classId" element={<ClassDetailPage />} />
             <Route path="enseignants" element={<TeachersListPage />} />
             <Route path="enseignants/:teacherId" element={<TeacherDetailPage />} />
+            <Route path="personnel" element={<PersonnelListPage />} />
             <Route path="eleves" element={<StudentsListPage />} />
             <Route path="eleves/:studentId" element={<StudentDetailPage />} />
             <Route path="presence" element={<AttendanceOverviewPage />} />

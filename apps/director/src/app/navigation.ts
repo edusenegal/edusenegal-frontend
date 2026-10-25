@@ -44,6 +44,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Ressources humaines',
     items: [
+      { to: '/personnel', label: 'Personnel', icon: '👥' },
       { to: '/conges', label: 'Congés & absences', icon: '🗒️' },
       { to: '/salaires', label: 'Demandes de salaire', icon: '💰' },
     ],
