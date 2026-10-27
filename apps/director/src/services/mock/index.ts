@@ -873,6 +873,23 @@ export function createMockServices(): Services {
         }
         return respond(result);
       },
+
+      async getClassStats(studentIds) {
+        if (studentIds.length === 0) return respond(null);
+        const rows = state.students.filter((s) => studentIds.includes(s.id));
+        if (rows.length === 0) return respond(null);
+        const perStudent = 300000;
+        const expected = rows.length * perStudent;
+        const collected = Math.round(rows.reduce((a, s) => a + (s.tauxPaiement / 100) * perStudent, 0));
+        const rate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
+        return respond({
+          totalStudents: rows.length,
+          totalExpectedFcfa: expected,
+          totalCollectedFcfa: collected,
+          totalRemainingFcfa: Math.max(0, expected - collected),
+          collectionRate: rate,
+        });
+      },
     },
 
     promotions: {

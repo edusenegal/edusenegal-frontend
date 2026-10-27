@@ -408,6 +408,15 @@ export interface SubjectsPort {
   remove(subjectId: string): Promise<void>;
 }
 
+/** Synthèse de recouvrement (nette de bourse) pour un ensemble d'élèves / une classe / l'école. */
+export interface CollectionStats {
+  totalStudents: number;
+  totalExpectedFcfa: number;
+  totalCollectedFcfa: number;
+  totalRemainingFcfa: number;
+  collectionRate: number;
+}
+
 export interface PaymentConfigPort {
   /** Backend : `GET /payments/config/{schoolId}`. `null` tant qu'aucune configuration n'a été enregistrée (404 côté backend). */
   get(): Promise<PaymentConfig | null>;
@@ -439,6 +448,8 @@ export interface PaymentConfigPort {
    * `getCollectionRateForStudents`.
    */
   getPaymentRatesForStudents(studentIds: string[], classId?: string): Promise<Record<string, number>>;
+  /** Synthèse de recouvrement (dû net de bourse, collecté, taux) d'un ensemble d'élèves / d'une classe. Backend : `GET /payments/stats/by-students`. */
+  getClassStats(studentIds: string[], classId?: string): Promise<CollectionStats | null>;
 }
 
 /**

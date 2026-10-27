@@ -1,6 +1,7 @@
 import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
 import type {
+  ClassPaymentStatsDto,
   ApiPaymentChannel,
   ApiPaymentType,
   PaymentTransactionResponseDto,
@@ -111,5 +112,29 @@ export function createPaymentsApi(): PaymentsPort {
     async getReceiptUrl(transactionId): Promise<string> {
       return request<string>(`/api/v1/payments/${encodeURIComponent(transactionId)}/receipt`);
     },
-  };
+
+    async getCollection(studentIds) {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      if (studentIds.length === 0) {
+        return { totalStudents: 0, totalExpectedFcfa: 0, totalCollectedFcfa: 0, totalRemainingFcfa: 0, collectionRate: 0, byStudent: [] };
+      }
+      const dto = await request<ClassPaymentStatsDto>('/api/v1/payments/stats/by-students', {
+        query: { schoolId, yearId, studentIds: studentIds.join(',') },
+      });
+      return {
+        totalStudents: dto.totalStudents,
+        totalExpectedFcfa: dto.totalExpectedFcfa,
+        totalCollectedFcfa: dto.totalCollectedFcfa,
+        totalRemainingFcfa: dto.totalRemainingFcfa,
+        collectionRate: dto.collectionRate,
+        byStudent: dto.byStudent.map((r) => ({
+          studentId: r.studentId,
+          expectedFcfa: r.expectedFcfa,
+          collectedFcfa: r.collectedFcfa,
+          collectionRate: r.collectionRate,
+          status: r.status,
+        })),
+      };
+    },  };
 }

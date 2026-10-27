@@ -28,6 +28,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/salaires', label: 'Salaires', icon: '💵' },
       { to: '/portefeuilles', label: 'Portefeuilles élèves', icon: '👛' },
       { to: '/paiements', label: 'Paiements', icon: '🧾' },
+      { to: '/recouvrement', label: 'Recouvrement', icon: '📊' },
       { to: '/bourses', label: 'Bourses', icon: '🎓' },
     ],
   },

@@ -242,6 +242,22 @@ export interface WalletPort {
  * passent par leurs webhooks respectifs, jamais saisis manuellement).
  * Backend : `PaymentController` (payment-service).
  */
+export interface StudentCollectionRow {
+  studentId: string;
+  expectedFcfa: number;
+  collectedFcfa: number;
+  collectionRate: number;
+  status: string;
+}
+export interface CollectionResult {
+  totalStudents: number;
+  totalExpectedFcfa: number;
+  totalCollectedFcfa: number;
+  totalRemainingFcfa: number;
+  collectionRate: number;
+  byStudent: StudentCollectionRow[];
+}
+
 export interface PaymentsPort {
   /** Backend : `GET /api/v1/payments/student/{studentId}`. */
   getHistory(studentId: string): Promise<PaymentTransaction[]>;
@@ -258,6 +274,11 @@ export interface PaymentsPort {
   }): Promise<PaymentTransaction>;
   /** URL présignée du reçu PDF (généré à la volée si absent). Backend : `GET /{transactionId}/receipt`. */
   getReceiptUrl(transactionId: string): Promise<string>;
+  /**
+   * Synthèse de recouvrement (dû NET de bourse) pour un ensemble d'élèves —
+   * utilisé par l'écran Recouvrement. Backend : `GET /payments/stats/by-students`.
+   */
+  getCollection(studentIds: string[]): Promise<CollectionResult>;
 }
 
 /**

@@ -154,7 +154,7 @@ export interface StudentPaymentRateDto {
   collectedFcfa: number;
   remainingFcfa: number;
   collectionRate: number;
-  status: 'PAID' | 'OVERDUE' | 'PENDING' | 'NONE';
+  status: 'PAID' | 'PARTIAL' | 'OVERDUE' | 'PENDING' | 'NONE';
 }
 
 /** GET /api/v1/payments/stats/by-students */

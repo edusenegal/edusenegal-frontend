@@ -12,7 +12,7 @@ import type { PaymentConfigPort } from '@/services/ports';
  */
 export function createPaymentsApi(): Pick<
   PaymentConfigPort,
-  'getCollectionRateForStudents' | 'getPaymentRatesForStudents'
+  'getCollectionRateForStudents' | 'getPaymentRatesForStudents' | 'getClassStats'
 > {
   async function fetchStats(studentIds: string[], classId?: string): Promise<ClassPaymentStatsDto | null> {
     if (studentIds.length === 0) return null;
@@ -37,6 +37,18 @@ export function createPaymentsApi(): Pick<
         result[row.studentId] = row.collectionRate;
       }
       return result;
+    },
+
+    async getClassStats(studentIds: string[], classId?: string) {
+      const stats = await fetchStats(studentIds, classId);
+      if (!stats) return null;
+      return {
+        totalStudents: stats.totalStudents,
+        totalExpectedFcfa: stats.totalExpectedFcfa,
+        totalCollectedFcfa: stats.totalCollectedFcfa,
+        totalRemainingFcfa: stats.totalRemainingFcfa,
+        collectionRate: stats.collectionRate,
+      };
     },
   };
 }
