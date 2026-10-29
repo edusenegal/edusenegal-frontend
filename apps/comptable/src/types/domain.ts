@@ -718,6 +718,48 @@ export interface StudentPickerEntry {
   id: string;
   nom: string;
   classe: string;
+  classId: string;
+}
+
+/** Classe pour le sélecteur d'encaissement (classe → élève). */
+export interface ClassOption {
+  id: string;
+  name: string;
+}
+
+/** Progression de paiement d'un élève (dû NET de bourse) — récap d'encaissement. */
+export interface StudentPaymentProgress {
+  studentId: string;
+  expectedGrossFcfa: number;
+  scholarship: boolean;
+  scholarshipPercentage: number;
+  scholarshipCoveredFcfa: number;
+  scholarshipPayerName: string | null;
+  expectedNetFcfa: number;
+  paidFcfa: number;
+  remainingFcfa: number;
+  progressPercentage: number;
+  status: string;
+}
+
+/** Parent/tuteur d'un élève (fiche de recouvrement). */
+export interface StudentParentContact {
+  id: string;
+  prenom: string;
+  nom: string;
+  telephone: string | null;
+}
+
+/** Fiche détaillée d'un élève affichée dans le recouvrement comptable. */
+export interface StudentFullDetail {
+  id: string;
+  prenom: string;
+  nom: string;
+  dateNaissance: string | null; // dd/mm/yyyy
+  classe: string;
+  classId: string;
+  telephone: string | null;
+  parents: StudentParentContact[];
 }
 
 /**
@@ -795,6 +837,19 @@ export interface PaymentTransaction {
  */
 export interface CashIncomeEntry extends PaymentTransaction {
   studentId: string;
+}
+
+/** Résultat paginé générique (liste comptable). */
+export interface Paged<T> {
+  content: T[];
+  total: number;
+  totalPages: number;
+  page: number;
+}
+
+/** Encaissement enrichi du nom de l'élève pour l'affichage comptable. */
+export interface IncomeRow extends CashIncomeEntry {
+  studentNom: string;
 }
 
 /** Traduit `RestoTicketStatus` (payment-service) : ISSUED, REDEEMED, EXPIRED, CANCELLED. */

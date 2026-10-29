@@ -92,7 +92,7 @@ export default function AbsenceReviewPage() {
       header: 'Actions',
       render: (a) =>
         a.status === 'APPROVED' || a.status === 'REJECTED' ? (
-          <span style={{ color: 'var(--color-text-faint)' }}>Traitée{a.reviewedBy ? ` — ${a.reviewedBy}` : ''}</span>
+          <span style={{ color: 'var(--color-text-faint)' }}>Traitée{a.reviewedByNom ?? a.reviewedBy ? ` — ${a.reviewedByNom ?? a.reviewedBy}` : ''}</span>
         ) : (
           <div className={styles.actionRow}>
             {a.status === 'PENDING' ? (

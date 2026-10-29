@@ -1,18 +1,21 @@
 import { Avatar } from '@/components/ui/Avatar/Avatar';
-import { Badge, Meter, Table, type Column } from '@/components/ui';
+import { Badge, Button, Meter, Table, type Column } from '@/components/ui';
 import type { Student } from '@/types/domain';
 
 interface StudentsTableProps {
   students: Student[];
   showClass?: boolean;
   onRowClick?(student: Student): void;
+  /** Quand fourni, ajoute une colonne d'actions Bloquer/Débloquer (écran Élèves). */
+  onToggleBlock?(student: Student): void;
+  blockPendingId?: string | null;
 }
 
 const STATUS_TONE = { actif: 'success', suspendu: 'danger', transfere: 'neutral' } as const;
 const STATUS_LABEL = { actif: 'Actif', suspendu: 'Suspendu', transfere: 'Transféré' } as const;
 
 /** Table des élèves — réutilisée par la fiche de classe et l'écran Élèves. */
-export function StudentsTable({ students, showClass = false, onRowClick }: StudentsTableProps) {
+export function StudentsTable({ students, showClass = false, onRowClick, onToggleBlock, blockPendingId }: StudentsTableProps) {
   const columns: Column<Student>[] = [
     {
       key: 'nom',
@@ -42,6 +45,27 @@ export function StudentsTable({ students, showClass = false, onRowClick }: Stude
       header: 'Statut',
       render: (s) => <Badge tone={STATUS_TONE[s.statut]}>{STATUS_LABEL[s.statut]}</Badge>,
     },
+    ...(onToggleBlock
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            render: (s: Student) => (
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={blockPendingId === s.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleBlock(s);
+                }}
+              >
+                {s.statut === 'suspendu' ? 'Débloquer' : 'Bloquer'}
+              </Button>
+            ),
+          } as Column<Student>,
+        ]
+      : []),
   ];
 
   return <Table columns={columns} rows={students} rowKey={(s) => s.id} onRowClick={onRowClick} />;

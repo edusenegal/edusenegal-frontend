@@ -63,6 +63,7 @@ import type {
   AttendanceTrendPoint,
   TransferRequest,
   YearResult,
+  TeacherScheduleSlot,
 } from '@/types/domain';
 import { frToISO, isoToFR } from '@/utils/format';
 import * as fixtures from './fixtures';
@@ -123,6 +124,7 @@ function buildMockAbsenceRequests(students: Student[]): AbsenceRequestSummary[] 
       hasJustification: i % 2 !== 0,
       status: 'PENDING',
       reviewedBy: null,
+      reviewedByNom: null,
       reviewedAt: null,
     }));
 }
@@ -294,6 +296,9 @@ function buildMockSessionDetail(
     absent,
     late,
     attendanceRate: rate,
+    locked: false,
+    lockedByNom: null,
+    lockedAt: null,
     students: sessionStudents,
   };
 }
@@ -725,6 +730,11 @@ export function createMockServices(): Services {
         const found = state.teachers.find((t) => t.id === teacherId);
         if (!found) notFound('Enseignant');
         return respond(found);
+      },
+      async getSchedule(): Promise<TeacherScheduleSlot[]> {
+        // Mock pur (tests) : emploi du temps non simulé ici — le portage réel
+        // (createTeachersApi) couvre l'application.
+        return respond([]);
       },
       async create(input): Promise<Teacher> {
         const teacher: Teacher = {
@@ -1269,6 +1279,7 @@ export function createMockServices(): Services {
         if (!found) notFound('Demande d\u2019absence');
         found.status = status;
         found.reviewedBy = `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`;
+        found.reviewedByNom = `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}`;
         found.reviewedAt = new Date().toISOString();
         return respond(found, 300);
       },
@@ -1303,6 +1314,16 @@ export function createMockServices(): Services {
         if (!detail) notFound('Séance');
         return respond(detail);
       },
+      async lockSession(sessionId: string): Promise<AttendanceSessionDetail> {
+        const detail = buildMockSessionDetail(state.classes, state.students, state.absenceRequests, sessionId);
+        if (!detail) notFound('Séance');
+        return respond({ ...detail, locked: true, lockedByNom: `${fixtures.DIRECTOR.prenom} ${fixtures.DIRECTOR.nom}` });
+      },
+      async unlockSession(sessionId: string): Promise<AttendanceSessionDetail> {
+        const detail = buildMockSessionDetail(state.classes, state.students, state.absenceRequests, sessionId);
+        if (!detail) notFound('Séance');
+        return respond({ ...detail, locked: false, lockedByNom: null });
+      },
       async updateStudentStatus(sessionId: string, studentId: string, status): Promise<AttendanceSessionDetail> {
         const student = state.students.find((s) => s.id === studentId);
         if (!student) notFound('Élève');
@@ -1334,6 +1355,7 @@ export function createMockServices(): Services {
             hasJustification: false,
             status: 'PENDING',
             reviewedBy: null,
+      reviewedByNom: null,
             reviewedAt: null,
           });
         } else if (status !== 'ABSENT' && wasAbsent) {

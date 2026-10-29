@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, CardHeader, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Field, Input, Segmented, Select, Sheet, StateView, Table, type Column, type SegmentedOption } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { todayISO } from '@/utils/format';
 import type { AttendanceSession, AttendanceStatus, AttendanceStudentEntry, TimetableSlot } from '@/types/domain';
@@ -34,6 +34,14 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
   justifie: 'Justifié',
 };
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'retard', 'justifie'];
+
+/** Fenêtre d'affichage de l'historique de l'appel — jour / semaine / mois. */
+type HistoryPeriod = 'jour' | 'semaine' | 'mois';
+const HISTORY_PERIOD_OPTIONS: SegmentedOption<HistoryPeriod>[] = [
+  { value: 'jour', label: "Aujourd'hui" },
+  { value: 'semaine', label: 'Cette semaine' },
+  { value: 'mois', label: 'Ce mois' },
+];
 
 /** `date` (yyyy-mm-dd) → jour de semaine FR attendu par `TimetableSlot.jour` — même conversion que `isSlotNow`. */
 function weekdayOfDate(dateISO: string): TimetableSlot['jour'] | null {
@@ -86,6 +94,10 @@ export default function AttendancePage() {
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Fenêtre d'affichage de l'historique (demande : « durant la journée, par
+  // semaine ou le mois ») — filtrée côté client sur les 30 jours déjà chargés,
+  // sans appel réseau supplémentaire.
+  const [historyPeriod, setHistoryPeriod] = useState<HistoryPeriod>('jour');
 
   // CORRECTION (signalé) "le créneau reste toujours 8:00-10:00" : en dehors
   // du raccourci « Appel pour… » (qui pré-remplit period depuis le créneau
@@ -149,7 +161,6 @@ export default function AttendancePage() {
     onSuccess: () => {
       setDetailSession(null);
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-sheet'] });
     },
     onError: (e) => setDetailError(e instanceof Error ? e.message : "Échec de l'enregistrement."),
   });
@@ -177,24 +188,29 @@ export default function AttendancePage() {
     enabled: classId !== '',
   });
 
-  const sheetQuery = useQuery({
-    queryKey: ['attendance-sheet', classId, subjectId, date],
-    queryFn: () => attendance.getSheet(classId, subjectId, date),
-    enabled: classId !== '' && subjectId !== '' && date !== '',
-  });
+  // Liste de la classe triée par ordre alphabétique (nom puis prénom) —
+  // demande explicite : « la liste des élèves par ordre alphabétique » pour
+  // faire l'appel.
+  const sortedRoster = useMemo(
+    () =>
+      [...(rosterQuery.data ?? [])].sort((a, b) => {
+        const byNom = (a.nom ?? '').localeCompare(b.nom ?? '', 'fr', { sensitivity: 'base' });
+        return byNom !== 0 ? byNom : (a.prenom ?? '').localeCompare(b.prenom ?? '', 'fr', { sensitivity: 'base' });
+      }),
+    [rosterQuery.data],
+  );
 
   const effectiveStatuses = useMemo(() => {
     const merged: Record<string, AttendanceStatus> = {};
-    for (const s of rosterQuery.data ?? []) {
-      merged[s.id] =
-        statuses[s.id] ?? sheetQuery.data?.students.find((e) => e.studentId === s.id)?.statut ?? 'present';
+    for (const s of sortedRoster) {
+      merged[s.id] = statuses[s.id] ?? 'present';
     }
     return merged;
-  }, [rosterQuery.data, sheetQuery.data, statuses]);
+  }, [sortedRoster, statuses]);
 
   const markMutation = useMutation({
     mutationFn: () => {
-      const eleves: AttendanceStudentEntry[] = (rosterQuery.data ?? []).map((s) => ({
+      const eleves: AttendanceStudentEntry[] = sortedRoster.map((s) => ({
         studentId: s.id,
         statut: effectiveStatuses[s.id] ?? 'present',
       }));
@@ -203,11 +219,10 @@ export default function AttendancePage() {
     onSuccess: () => {
       setSaved(true);
       setError(null);
-      queryClient.invalidateQueries({ queryKey: ['attendance-sheet', classId, subjectId, date] });
-      // CORRECTION (signalé) "la liste reste toujours" : l'historique
-      // ci-dessous n'était jamais invalidé après l'enregistrement d'un
-      // nouvel appel (seule la fiche "déjà saisi" du formulaire l'était) —
-      // le nouveau créneau n'apparaissait donc jamais sans recharger la page.
+      // L'historique est la source de vérité de « appel déjà enregistré »
+      // (voir `currentSession`) : on l'invalide pour que le nouveau créneau
+      // apparaisse aussitôt en haut de la liste et que la saisie bascule sur
+      // le récapitulatif sans recharger la page.
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Échec de l’enregistrement.'),
@@ -251,11 +266,45 @@ export default function AttendancePage() {
     return map;
   }, [subjectsQuery.data, timetableQuery.data]);
 
+  // Appel déjà enregistré pour le créneau sélectionné (sert à masquer la
+  // liste après enregistrement et à ouvrir son détail pour correction).
+  const currentSession = useMemo(
+    () =>
+      (historyQuery.data ?? []).find(
+        (h) => h.classId === classId && h.subjectId === subjectId && h.date === date && h.period === period,
+      ) ?? null,
+    [historyQuery.data, classId, subjectId, date, period],
+  );
+
+  // Récapitulatif de l'appel déjà enregistré pour CE créneau — calculé depuis
+  // l'historique (la vérité par créneau), et non plus depuis la feuille
+  // agrégée par date qui renvoyait 0/0 et masquait à tort la liste alors
+  // qu'aucun appel n'avait encore été fait.
+  const recordedTotal = currentSession?.students.length ?? 0;
+  const recordedPresent = currentSession?.students.filter((e) => e.statut === 'present').length ?? 0;
+  const recordedRate = recordedTotal ? Math.round((recordedPresent / recordedTotal) * 100) : 0;
+
+  const historyFromDisplayISO = useMemo(() => {
+    const d = new Date();
+    const days = historyPeriod === 'jour' ? 0 : historyPeriod === 'semaine' ? 6 : 29;
+    d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+  }, [historyPeriod]);
+  const displayedHistory = useMemo(
+    () => (historyQuery.data ?? []).filter((h) => h.date >= historyFromDisplayISO),
+    [historyQuery.data, historyFromDisplayISO],
+  );
+
   const historyColumns: Column<AttendanceSession>[] = [
     { key: 'date', header: 'Date', render: (s) => s.date },
     { key: 'classe', header: 'Classe', render: (s) => classNameById.get(s.classId) ?? s.classId },
     { key: 'matiere', header: 'Matière', render: (s) => s.subjectName ?? subjectNameById.get(s.subjectId) ?? s.subjectId },
     { key: 'creneau', header: 'Créneau', render: (s) => s.period },
+    {
+      key: 'etat',
+      header: 'État',
+      render: (s) => (s.locked ? <Badge tone="neutral">🔒 Verrouillé</Badge> : <Badge tone="success">Modifiable</Badge>),
+    },
     {
       key: 'resume',
       header: 'Résumé',
@@ -265,6 +314,16 @@ export default function AttendancePage() {
         return absents === 0 && retards === 0
           ? `${s.students.length} présents`
           : `${absents} absent${absents > 1 ? 's' : ''}${retards > 0 ? `, ${retards} retard${retards > 1 ? 's' : ''}` : ''}`;
+      },
+    },
+    {
+      key: 'taux',
+      header: 'Taux présence',
+      align: 'right',
+      render: (s) => {
+        const total = s.students.length;
+        const present = s.students.filter((e) => e.statut === 'present').length;
+        return total ? `${Math.round((present / total) * 100)}%` : '—';
       },
     },
     {
@@ -330,65 +389,96 @@ export default function AttendancePage() {
 
       {classId && subjectId ? (
         <Card>
-          <CardHeader
-            title="Élèves"
-            action={
-              <Button variant="primary" size="sm" loading={markMutation.isPending} onClick={onSubmit}>
-                Enregistrer l’appel
-              </Button>
-            }
-          />
-          {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{error}</p> : null}
-          {saved ? <p style={{ color: 'var(--color-success)', fontSize: 13, margin: '0 0 8px' }}>Appel enregistré.</p> : null}
-          <StateView loading={rosterQuery.isLoading} error={rosterQuery.error} empty={rosterQuery.data?.length === 0}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {(rosterQuery.data ?? []).map((s) => (
-                <div
-                  key={s.id}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--color-border)' }}
+          {currentSession ? (
+            // Appel déjà enregistré pour CE créneau : la liste est masquée
+            // (demande explicite), la correction se fait via le détail de
+            // l'appel — tant que le surveillant général ne l'a pas verrouillé.
+            <>
+              <CardHeader title="Élèves" />
+              <p style={{ fontSize: 13, margin: '0 0 8px' }}>
+                <Badge tone="info">Appel enregistré</Badge> {recordedPresent}/{recordedTotal} présents (
+                {recordedRate}%).
+              </p>
+              {currentSession?.locked ? (
+                <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+                  🔒 Appel verrouillé par la direction — il ne peut plus être modifié.
+                </p>
+              ) : (
+                <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+                  La liste est masquée après enregistrement. Pour corriger l'état d'un élève, ouvrez le détail de cet appel.
+                </p>
+              )}
+              {currentSession ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentSession.locked}
+                  onClick={() => openDetail(currentSession)}
                 >
-                  <span>
-                    {s.prenom} {s.nom}
-                  </span>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {STATUSES.map((st) => (
-                      <Button
-                        key={st}
-                        variant={effectiveStatuses[s.id] === st ? 'primary' : 'ghost'}
-                        size="sm"
-                        onClick={() => setStatuses((prev) => ({ ...prev, [s.id]: st }))}
-                      >
-                        {STATUS_LABEL[st]}
-                      </Button>
-                    ))}
-                  </div>
+                  Modifier cet appel
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <CardHeader
+                title="Élèves"
+                action={
+                  <Button variant="primary" size="sm" loading={markMutation.isPending} onClick={onSubmit}>
+                    Enregistrer l’appel
+                  </Button>
+                }
+              />
+              {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{error}</p> : null}
+              {saved ? <p style={{ color: 'var(--color-success)', fontSize: 13, margin: '0 0 8px' }}>Appel enregistré.</p> : null}
+              <StateView loading={rosterQuery.isLoading} error={rosterQuery.error} empty={sortedRoster.length === 0}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {sortedRoster.map((s) => (
+                    <div
+                      key={s.id}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--color-border)' }}
+                    >
+                      <span>
+                        {s.prenom} {s.nom}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {STATUSES.map((st) => (
+                          <Button
+                            key={st}
+                            variant={effectiveStatuses[s.id] === st ? 'primary' : 'ghost'}
+                            size="sm"
+                            onClick={() => setStatuses((prev) => ({ ...prev, [s.id]: st }))}
+                          >
+                            {STATUS_LABEL[st]}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </StateView>
-          {sheetQuery.data ? (
-            <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 10 }}>
-              <Badge tone="info">Déjà saisi</Badge> {sheetQuery.data.present}/{sheetQuery.data.totalStudents} présents (
-              {sheetQuery.data.attendanceRate}%).
-            </p>
-          ) : null}
+              </StateView>
+            </>
+          )}
         </Card>
       ) : null}
 
       <Card padded style={{ marginTop: 16 }}>
-        <CardHeader title="Historique de l'appel" />
+        <CardHeader
+          title="Historique de l'appel"
+          action={<Segmented<HistoryPeriod> options={HISTORY_PERIOD_OPTIONS} value={historyPeriod} onChange={setHistoryPeriod} />}
+        />
         <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
-          Les 30 derniers jours. Cliquez sur « Détails » pour revoir ou corriger les absents et les retards.
+          Tous vos appels de la période. Cliquez sur « Détails » pour revoir ou corriger les absents et les retards tant que la direction n'a pas verrouillé l'appel.
         </p>
         <StateView
           loading={historyQuery.isLoading}
           error={historyQuery.error}
           onRetry={() => historyQuery.refetch()}
-          empty={historyQuery.data?.length === 0}
+          empty={displayedHistory.length === 0}
         >
           <Table<AttendanceSession>
             columns={historyColumns}
-            rows={historyQuery.data ?? []}
+            rows={displayedHistory}
             rowKey={(s) => s.id}
           />
         </StateView>
@@ -400,7 +490,12 @@ export default function AttendancePage() {
         onClose={() => setDetailSession(null)}
         width="md"
         footer={
-          <Button variant="primary" loading={detailMutation.isPending} onClick={() => detailMutation.mutate()}>
+          <Button
+            variant="primary"
+            loading={detailMutation.isPending}
+            disabled={detailSession?.locked}
+            onClick={() => detailMutation.mutate()}
+          >
             Enregistrer les modifications
           </Button>
         }
@@ -413,6 +508,11 @@ export default function AttendancePage() {
               {detailSession.date} ·{' '}
               {detailSession.period}
             </p>
+            {detailSession.locked ? (
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
+                🔒 Appel verrouillé par la direction — vous ne pouvez plus modifier les états.
+              </p>
+            ) : null}
             {detailError ? (
               <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{detailError}</p>
             ) : null}
@@ -442,6 +542,7 @@ export default function AttendancePage() {
                           key={st}
                           variant={detailStatuses[s.id] === st ? 'primary' : 'ghost'}
                           size="sm"
+                          disabled={detailSession.locked}
                           onClick={() => setDetailStatuses((prev) => ({ ...prev, [s.id]: st }))}
                         >
                           {STATUS_LABEL[st]}

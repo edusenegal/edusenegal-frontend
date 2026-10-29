@@ -18,6 +18,11 @@ import type {
   Scholarship,
   School,
   SchoolLedger,
+  ClassOption,
+  IncomeRow,
+  Paged,
+  StudentFullDetail,
+  StudentPaymentProgress,
   StudentPickerEntry,
   StudentWallet,
   WalletCreditType,
@@ -49,7 +54,15 @@ export interface SchoolPort {
  */
 export interface ExpensesPort {
   /** Backend : `GET /api/v1/accounting/expenses?schoolId&academicYearId&status&category`. */
-  list(filters?: { status?: ExpenseStatus; category?: ExpenseCategory }): Promise<Expense[]>;
+  list(filters?: {
+    status?: ExpenseStatus;
+    category?: ExpenseCategory;
+    from?: string; // ISO yyyy-mm-dd
+    to?: string;   // ISO yyyy-mm-dd
+    sort?: 'date' | 'created';
+    page?: number;
+    size?: number;
+  }): Promise<Paged<Expense>>;
   /** Backend : `GET /api/v1/accounting/expenses/{id}`. */
   findById(expenseId: string): Promise<Expense>;
   /**
@@ -215,6 +228,10 @@ export interface StudentsPort {
    * seul ne couvre pas ACCOUNTANT côté backend.
    */
   listAll(): Promise<StudentPickerEntry[]>;
+  /** Classes de l'école (sélecteur d'encaissement). */
+  listClasses(): Promise<ClassOption[]>;
+  /** Fiche détaillée (identité, classe, parents) — recouvrement. */
+  getDetail(studentId: string, classId?: string): Promise<StudentFullDetail>;
 }
 
 /**
@@ -279,6 +296,19 @@ export interface PaymentsPort {
    * utilisé par l'écran Recouvrement. Backend : `GET /payments/stats/by-students`.
    */
   getCollection(studentIds: string[]): Promise<CollectionResult>;
+  /** Progression (dû net de bourse, payé, solde) d'un élève. Backend : `GET /payments/student/{id}/progress`. */
+  getStudentProgress(studentId: string, classId?: string): Promise<StudentPaymentProgress>;
+  /** Encaissements paginés/filtrables (comptabilité). Backend : `GET /payments/incomes`. */
+  getIncomes(filters?: {
+    type?: PaymentType;
+    channel?: PaymentChannel;
+    from?: string; // ISO yyyy-mm-dd
+    to?: string;   // ISO yyyy-mm-dd
+    page?: number;
+    size?: number;
+  }): Promise<Paged<IncomeRow>>;
+  /** Envoie une alerte de retard ciblée. Backend : `POST /payments/overdue-alerts/{schoolId}/student/{studentId}`. */
+  sendStudentAlert(studentId: string, classId?: string): Promise<void>;
 }
 
 /**

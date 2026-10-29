@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -87,6 +87,7 @@ export default function AttendanceOverviewPage() {
   const schoolStats = useQuery({
     queryKey: ['attendance-school-stats', from, to],
     queryFn: () => studentAttendance.getSchoolStats(from, to),
+    placeholderData: keepPreviousData,
     // Rafraîchi régulièrement pour refléter chaque appel saisi en cours de
     // journée (demande : « mis à jour après chaque fin de créneau »).
     refetchInterval: period === 'jour' ? 60_000 : false,
@@ -96,10 +97,12 @@ export default function AttendanceOverviewPage() {
   const prevStats = useQuery({
     queryKey: ['attendance-school-stats-prev', prevRange.from, prevRange.to],
     queryFn: () => studentAttendance.getSchoolStats(prevRange.from, prevRange.to),
+    placeholderData: keepPreviousData,
   });
   const classesStats = useQuery({
     queryKey: ['attendance-classes-stats', from, to],
     queryFn: () => studentAttendance.getClassesStats(from, to),
+    placeholderData: keepPreviousData,
   });
 
   // Vue "par créneau" en temps réel (item #426, demande censeur/surveillant
@@ -109,6 +112,12 @@ export default function AttendanceOverviewPage() {
   const sessionsQuery = useQuery({
     queryKey: ['attendance-school-sessions', today],
     queryFn: () => studentAttendance.getSchoolSessions(today, today),
+    placeholderData: keepPreviousData,
+    // « Par créneau — aujourd'hui » se veut temps réel : un appel que le prof
+    // vient d'enregistrer doit apparaître sans rechargement manuel. Seules les
+    // tuiles de stats se rafraîchissaient ; la liste des séances, non.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   // Évolution du taux de présence/absence (#426) — granularité jour/semaine/mois.
@@ -117,6 +126,7 @@ export default function AttendanceOverviewPage() {
   const trendQuery = useQuery({
     queryKey: ['attendance-school-trend', trendGranularity, trendRange.from, trendRange.to],
     queryFn: () => studentAttendance.getSchoolTrend(trendRange.from, trendRange.to, trendGranularity),
+    placeholderData: keepPreviousData,
   });
 
   const s = schoolStats.data;
@@ -125,12 +135,17 @@ export default function AttendanceOverviewPage() {
   const signed = (d: number) => `${d > 0 ? '+' : d < 0 ? '' : '±'}${d}`;
   const countDelta = (cur: number, p?: number): string | undefined =>
     prev && p !== undefined ? `${signed(cur - p)} vs ${prevLabel}` : undefined;
+  // CORRECTION (page blanche sur « 7/30 derniers jours ») : `s!` affirmait à
+  // tort que `schoolStats.data` était toujours présent. Au changement de
+  // période, la requête `prevStats` peut répondre AVANT `schoolStats` — `prev`
+  // est alors défini pendant que `s` est encore `undefined`, et `s!.attendanceRate`
+  // lançait un TypeError qui démontait tout l'écran. On garde donc sur `s`.
   const rateDelta =
-    prev !== undefined && prev !== null
-      ? `${(s!.attendanceRate - prev.attendanceRate) >= 0 ? '+' : ''}${(s!.attendanceRate - prev.attendanceRate).toFixed(1)} pts vs ${prevLabel}`
+    s && prev != null
+      ? `${(s.attendanceRate - prev.attendanceRate) >= 0 ? '+' : ''}${(s.attendanceRate - prev.attendanceRate).toFixed(1)} pts vs ${prevLabel}`
       : undefined;
   const rateTrendTone: 'success' | 'danger' | 'neutral' =
-    prev ? (s && s.attendanceRate >= prev.attendanceRate ? 'success' : 'danger') : 'neutral';
+    s && prev ? (s.attendanceRate >= prev.attendanceRate ? 'success' : 'danger') : 'neutral';
 
   const columns: Column<ClassAttendanceRate>[] = [
     { key: 'classe', header: 'Classe', render: (c) => c.className },

@@ -7,8 +7,9 @@ import type { StaffMember, StaffStatus } from '@/types/domain';
  *  écran (« Enseignants »), la direction ne se gère pas elle-même, et les
  *  élèves/parents ne sont pas du personnel. */
 const EXCLUDED_ROLES = new Set<string>([
-  'TEACHER',
-  'INSTITUTEUR',
+  // Les enseignants sont désormais INCLUS (demande direction) — ils gardent
+  // aussi leur écran dédié « Enseignants ». On exclut seulement la direction
+  // (pas d'auto-gestion) et les apprenants/familles (pas du personnel).
   'DIRECTOR',
   'STUDENT',
   'PHD_STUDENT',

@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { BrandingGate } from '@/app/BrandingGate';
 import { Providers } from '@/app/providers';
 import '@/styles/global.css';
+import { startPushLifecycle } from '@/services/push/bootstrap';
+
+startPushLifecycle();
 
 const container = document.getElementById('root');
 

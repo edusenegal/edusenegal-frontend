@@ -7,6 +7,7 @@ import LoginPage from '@/features/auth/LoginPage';
 
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
 const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage'));
+const EncaissementsPage = lazy(() => import('@/features/encaissements/EncaissementsPage'));
 const CashSessionPage = lazy(() => import('@/features/cash-session/CashSessionPage'));
 const LedgerPage = lazy(() => import('@/features/ledger/LedgerPage'));
 const SalaryPaymentsPage = lazy(() => import('@/features/salary-payments/SalaryPaymentsPage'));
@@ -26,6 +27,7 @@ export function AppRoutes() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="depenses" element={<ExpensesPage />} />
+            <Route path="encaissements" element={<EncaissementsPage />} />
             <Route path="caisse" element={<CashSessionPage />} />
             <Route path="grand-livre" element={<LedgerPage />} />
             <Route path="salaires" element={<SalaryPaymentsPage />} />

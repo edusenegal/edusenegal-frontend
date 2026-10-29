@@ -89,6 +89,17 @@ export interface ScheduleSlot {
   kind: ScheduleSlotKind;
 }
 
+/** Créneau de l'emploi du temps d'UN professeur (toutes classes confondues). */
+export interface TeacherScheduleSlot {
+  jour: 'Lundi' | 'Mardi' | 'Mercredi' | 'Jeudi' | 'Vendredi' | 'Samedi';
+  heureDebut: string; // "08:00"
+  heureFin: string;
+  matiere: string | null;
+  classe: string;
+  salle: string | null;
+  remplacant: string | null;
+}
+
 /**
  * État de verrouillage de la version ACTIVE de l'emploi du temps d'une
  * classe (task #425, demande censeur/surveillant général) — reflète
@@ -309,6 +320,10 @@ export interface AttendanceSessionDetail {
   absent: number;
   late: number;
   attendanceRate: number;
+  /** Appel verrouillé par la direction : plus modifiable, élève ne peut plus justifier. */
+  locked: boolean;
+  lockedByNom: string | null;
+  lockedAt: string | null;
   students: AttendanceSessionStudent[];
 }
 
@@ -345,6 +360,8 @@ export interface AbsenceRequestSummary {
   hasJustification: boolean;
   status: AbsenceReviewStatus;
   reviewedBy: string | null;
+  /** Nom « Prénom Nom » du personnel qui a traité l'absence (résolu côté client). */
+  reviewedByNom: string | null;
   reviewedAt: string | null;
 }
 

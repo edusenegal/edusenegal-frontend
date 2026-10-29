@@ -12,6 +12,7 @@ import type {
   AttendanceTrendPointResponseDto,
   ClassAttendanceStatsResponseDto,
   StudentAttendanceDetailDto,
+  UserResponseDto,
 } from '@/types/api';
 import type { StudentAttendancePort } from '@/services/ports';
 import type {
@@ -123,6 +124,7 @@ async function toSessionDetail(dto: AttendanceSessionDetailResponseDto): Promise
   const subjectNameById = new Map(subjects.map((s) => [s.id, s.nom]));
   const teacherNameById = new Map(teachers.map((t) => [t.id, t.nom]));
   const studentNameById = new Map(students.map((s) => [s.id, `${s.prenom} ${s.nom}`]));
+  const staffById = await resolveStaffNames([dto.lockedBy]);
 
   return {
     id: dto.id,
@@ -140,6 +142,9 @@ async function toSessionDetail(dto: AttendanceSessionDetailResponseDto): Promise
     absent: dto.absent,
     late: dto.late,
     attendanceRate: dto.attendanceRate,
+    locked: dto.locked,
+    lockedByNom: dto.lockedBy ? staffById.get(dto.lockedBy) ?? dto.lockedBy : null,
+    lockedAt: dto.lockedAt,
     students: dto.students.map((s) => toSessionStudent(s, studentNameById)),
   };
 }
@@ -153,7 +158,11 @@ function extensionFor(contentType: string): string {
   return 'bin';
 }
 
-function fromAbsenceDto(dto: AbsenceRequestDto, nameById: Map<string, string>): AbsenceRequestSummary {
+function fromAbsenceDto(
+  dto: AbsenceRequestDto,
+  nameById: Map<string, string>,
+  staffById?: Map<string, string>,
+): AbsenceRequestSummary {
   return {
     id: dto.id,
     studentId: dto.studentId,
@@ -165,8 +174,30 @@ function fromAbsenceDto(dto: AbsenceRequestDto, nameById: Map<string, string>): 
     hasJustification: dto.justificationUrl !== null,
     status: dto.status,
     reviewedBy: dto.reviewedBy,
+    reviewedByNom: dto.reviewedBy ? (staffById?.get(dto.reviewedBy) ?? null) : null,
     reviewedAt: dto.reviewedAt,
   };
+}
+
+/**
+ * Résout « Prénom Nom » d'un ensemble d'ids de personnel (traiteurs d'absence)
+ * via `GET /users/{id}` — accessible au censeur/surveillant. Ids dédoublonnés
+ * pour limiter les appels ; un id introuvable est simplement ignoré.
+ */
+async function resolveStaffNames(ids: Array<string | null>): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((x): x is string => !!x))];
+  const map = new Map<string, string>();
+  await Promise.all(
+    unique.map(async (id) => {
+      try {
+        const u = await request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(id)}`);
+        map.set(id, `${u.firstName} ${u.lastName}`);
+      } catch {
+        /* id introuvable — on laisse l'id brut en repli */
+      }
+    }),
+  );
+  return map;
 }
 
 /**
@@ -216,14 +247,27 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
 
     async getAbsentStudents(classId, from, to): Promise<AbsentStudentEntry[]> {
       const { schoolId } = sessionContext();
-      const [sheet, students] = await Promise.all([
+      // On croise DEUX sources d'absents, toutes deux scopées à la plage :
+      //  1. la feuille d'appel (AttendanceRecord) — fiable quand le prof a fait
+      //     l'appel pour CE jour ET cette classe ;
+      //  2. les demandes d'absence (AbsenceRequest) — créées automatiquement
+      //     dès qu'un élève est marqué ABSENT, visibles dans « à traiter ».
+      // Sans (2), un élève bien marqué absent n'apparaissait pas ici dès que
+      // la feuille du jour n'était pas (ou plus) retrouvée par date exacte,
+      // alors qu'il figurait dans « Demandes à traiter » — l'incohérence
+      // signalée. L'union (dédoublonnée par élève) rend les deux vues
+      // cohérentes.
+      const [sheet, students, absences] = await Promise.all([
         request<AttendanceSheetResponseDto>('/api/v1/attendances/analytics/class/sheet/range', {
           query: { schoolId, classId, from, to },
         }),
         createStudentsApi().list(classId),
+        request<AbsenceRequestDto[]>(`/api/v1/attendances/absence/school/${encodeURIComponent(schoolId)}`),
       ]);
       const nameById = new Map(students.map((s) => [s.id, `${s.prenom} ${s.nom}`]));
-      return sheet.students
+      const roster = new Set(students.map((s) => s.id));
+
+      const rows: AbsentStudentEntry[] = sheet.students
         .filter((s) => s.status === 'ABSENT' || s.status === 'LATE')
         .map((s) => ({
           studentId: s.studentId,
@@ -231,6 +275,21 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
           status: s.status,
           note: s.note,
         }));
+
+      const seen = new Set(rows.map((r) => r.studentId));
+      for (const a of absences) {
+        if (!roster.has(a.studentId) || seen.has(a.studentId)) continue;
+        // Chevauchement avec la plage demandée (ISO yyyy-mm-dd comparable).
+        if (a.absenceDateFrom > to || a.absenceDateTo < from) continue;
+        rows.push({
+          studentId: a.studentId,
+          studentNom: nameById.get(a.studentId) ?? a.studentId,
+          status: 'ABSENT',
+          note: a.reason ?? null,
+        });
+        seen.add(a.studentId);
+      }
+      return rows;
     },
 
     async listSchoolAbsences(status?: AbsenceReviewStatus): Promise<AbsenceRequestSummary[]> {
@@ -242,8 +301,9 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
         createStudentsApi().list(),
       ]);
       const nameById = new Map(students.map((s) => [s.id, `${s.prenom} ${s.nom}`]));
+      const staffById = await resolveStaffNames(dtos.map((d) => d.reviewedBy));
       return dtos
-        .map((dto) => fromAbsenceDto(dto, nameById))
+        .map((dto) => fromAbsenceDto(dto, nameById, staffById))
         .sort((a, b) => b.dateFrom.localeCompare(a.dateFrom));
     },
 
@@ -254,7 +314,8 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
       );
       const students = await createStudentsApi().list();
       const nameById = new Map(students.map((s) => [s.id, `${s.prenom} ${s.nom}`]));
-      return fromAbsenceDto(dto, nameById);
+      const staffById = await resolveStaffNames([dto.reviewedBy]);
+      return fromAbsenceDto(dto, nameById, staffById);
     },
 
     async getSchoolSessions(from, to): Promise<AttendanceSession[]> {
@@ -311,6 +372,24 @@ export function createStudentAttendanceApi(): StudentAttendancePort {
       const dto = await request<AttendanceSessionDetailResponseDto>(
         `/api/v1/attendances/analytics/session/${encodeURIComponent(sessionId)}`,
         { query: { schoolId } },
+      );
+      return toSessionDetail(dto);
+    },
+
+    async lockSession(sessionId): Promise<AttendanceSessionDetail> {
+      const { schoolId } = sessionContext();
+      const dto = await request<AttendanceSessionDetailResponseDto>(
+        `/api/v1/attendances/analytics/session/${encodeURIComponent(sessionId)}/lock`,
+        { method: 'PUT', query: { schoolId } },
+      );
+      return toSessionDetail(dto);
+    },
+
+    async unlockSession(sessionId): Promise<AttendanceSessionDetail> {
+      const { schoolId } = sessionContext();
+      const dto = await request<AttendanceSessionDetailResponseDto>(
+        `/api/v1/attendances/analytics/session/${encodeURIComponent(sessionId)}/unlock`,
+        { method: 'PUT', query: { schoolId } },
       );
       return toSessionDetail(dto);
     },

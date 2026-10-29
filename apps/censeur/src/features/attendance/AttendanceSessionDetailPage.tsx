@@ -74,6 +74,12 @@ export default function AttendanceSessionDetailPage() {
       setDownloadError(err instanceof AppError ? err.message : 'Impossible de télécharger le justificatif. Réessaie.'),
   });
 
+  const lockMutation = useMutation({
+    mutationFn: (lock: boolean) =>
+      lock ? studentAttendance.lockSession(sessionId) : studentAttendance.unlockSession(sessionId),
+    onSuccess: (updated) => queryClient.setQueryData(['attendance-session-detail', sessionId], updated),
+  });
+
   function openTarget(s: AttendanceSessionStudent) {
     setTarget(s);
     setForm({ status: s.status, note: s.note ?? '' });
@@ -125,6 +131,7 @@ export default function AttendanceSessionDetailPage() {
         <Button
           variant="secondary"
           size="sm"
+          disabled={d?.locked}
           onClick={(e) => {
             e.stopPropagation();
             openTarget(s);
@@ -151,7 +158,25 @@ export default function AttendanceSessionDetailPage() {
       <PageHeader
         title={d ? `${d.matiere ?? 'Créneau'} — ${d.dayOfWeek} ${d.period}` : 'Détail du créneau'}
         subtitle={d ? `${d.date} · ${d.className}${d.professeur ? ` · ${d.professeur}` : ''}` : undefined}
+        action={
+          d ? (
+            <Button
+              variant={d.locked ? 'secondary' : 'primary'}
+              loading={lockMutation.isPending}
+              onClick={() => lockMutation.mutate(!d.locked)}
+            >
+              {d.locked ? 'Déverrouiller l’appel' : 'Verrouiller l’appel'}
+            </Button>
+          ) : undefined
+        }
       />
+
+      {d?.locked ? (
+        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+          🔒 Appel verrouillé{d.lockedByNom ? ` par ${d.lockedByNom}` : ''} — le professeur ne peut plus
+          modifier les états et les élèves ne peuvent plus justifier ces absences.
+        </p>
+      ) : null}
 
       {downloadError ? <p className={styles.error}>{downloadError}</p> : null}
 

@@ -99,25 +99,28 @@ function fromApiExpense(dto: ExpenseResponseDto): Expense {
 
 export function createExpensesApi(): ExpensesPort {
   return {
-    async list(filters): Promise<Expense[]> {
+    async list(filters) {
       const { schoolId } = sessionContext();
       const academicYearId = await resolveYearId();
-      // CORRECTION — la liste peut dépasser la taille de page par défaut
-      // (20) : un comptable qui filtre « en attente » sur un établissement
-      // actif doit voir TOUTES les dépenses en attente, pas seulement les
-      // 20 les plus récentes. 200 couvre largement un volume annuel par
-      // école ; une vraie pagination d'écran viendrait si ce plafond était
-      // un jour atteint en pratique.
       const page = await request<ApiPage<ExpenseResponseDto>>('/api/v1/accounting/expenses', {
         query: {
           schoolId,
           academicYearId,
           status: filters?.status ? STATUS_TO_API[filters.status] : undefined,
           category: filters?.category ? CATEGORY_TO_API[filters.category] : undefined,
-          size: 200,
+          from: filters?.from,
+          to: filters?.to,
+          sort: filters?.sort === 'created' ? 'created' : 'date',
+          page: filters?.page ?? 0,
+          size: filters?.size ?? 20,
         },
       });
-      return page.content.map(fromApiExpense);
+      return {
+        content: page.content.map(fromApiExpense),
+        total: page.totalElements,
+        totalPages: page.totalPages,
+        page: page.number,
+      };
     },
 
     async findById(expenseId): Promise<Expense> {

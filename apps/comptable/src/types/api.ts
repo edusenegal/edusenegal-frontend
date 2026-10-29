@@ -1022,3 +1022,19 @@ export interface ScholarshipResponseDto {
   createdAt: string; // ISO LocalDateTime
   updatedAt: string;
 }
+
+/** GET /api/v1/payments/student/{id}/progress */
+export interface StudentPaymentProgressResponseDto {
+  studentId: string;
+  classId: string | null;
+  expectedGrossFcfa: number;
+  scholarship: boolean;
+  scholarshipPercentage: number;
+  scholarshipCoveredFcfa: number;
+  scholarshipPayerName: string | null;
+  expectedNetFcfa: number;
+  paidFcfa: number;
+  remainingFcfa: number;
+  progressPercentage: number;
+  status: string;
+}

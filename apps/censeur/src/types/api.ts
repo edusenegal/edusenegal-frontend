@@ -1156,6 +1156,9 @@ export interface AttendanceSessionDetailResponseDto {
   absent: number;
   late: number;
   attendanceRate: number;
+  locked: boolean;
+  lockedBy: string | null;
+  lockedAt: string | null;
   students: StudentAttendanceDetailDto[];
 }
 

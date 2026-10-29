@@ -417,6 +417,9 @@ export interface AttendanceRecordDto {
   period: string;
   records: StudentAttendanceDto[];
   syncStatus: 'SYNCED' | 'PENDING_SYNC';
+  locked?: boolean;
+  lockedBy?: string | null;
+  lockedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

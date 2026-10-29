@@ -8,6 +8,8 @@ import type { StaffMember, StaffStatus } from '@/types/domain';
 
 /** Libellés affichés pour chaque rôle technique (UserRole). */
 const ROLE_LABELS: Record<string, string> = {
+  TEACHER: 'Enseignant',
+  INSTITUTEUR: 'Instituteur',
   CENSEUR: 'Censeur',
   SUPERVISOR: 'Surveillant général',
   ACCOUNTANT: 'Comptable',
@@ -176,7 +178,7 @@ export default function PersonnelListPage() {
     <div>
       <PageHeader
         title="Personnel"
-        subtitle="Censeurs, surveillants, comptables, bibliothécaires et autres membres du personnel."
+        subtitle="Tout le personnel de l’établissement : enseignants, censeurs, surveillants, comptables, bibliothécaires…"
         action={
           <Button variant="primary" onClick={openCreate}>
             + Ajouter un membre

@@ -23,6 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', label: 'Tableau de bord', icon: '📊' },
       { to: '/depenses', label: 'Dépenses', icon: '💰' },
+      { to: '/encaissements', label: 'Encaissements', icon: '💳' },
       { to: '/caisse', label: 'Caisse', icon: '🧾' },
       { to: '/grand-livre', label: 'Grand livre', icon: '📒' },
       { to: '/salaires', label: 'Salaires', icon: '💵' },

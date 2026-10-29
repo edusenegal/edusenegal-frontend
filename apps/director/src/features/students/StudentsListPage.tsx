@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Card, Input, Pager, Select, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
@@ -20,6 +20,26 @@ const PAGE_SIZE = 20;
 export default function StudentsListPage() {
   const navigate = useNavigate();
   const { students, classes, paymentConfig, academicResults } = useServices();
+  const queryClient = useQueryClient();
+
+  // Blocage/déblocage d'un élève directement depuis la liste (demande
+  // direction) — même endpoint que la fiche élève (PATCH /users/{id}/block).
+  const blockMutation = useMutation({
+    mutationFn: ({ id, blocked }: { id: string; blocked: boolean }) =>
+      blocked ? students.block(id) : students.unblock(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
+    },
+  });
+
+  function onToggleBlock(s: { id: string; prenom: string; nom: string; statut: string }) {
+    const willBlock = s.statut !== 'suspendu';
+    const msg = willBlock
+      ? `Bloquer ${s.prenom} ${s.nom} ? L’élève ne pourra plus se connecter.`
+      : `Débloquer ${s.prenom} ${s.nom} ? Son accès sera rétabli.`;
+    if (confirm(msg)) blockMutation.mutate({ id: s.id, blocked: willBlock });
+  }
   const [classFilter, setClassFilter] = useState('');
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -173,7 +193,13 @@ export default function StudentsListPage() {
       />
       <Card>
         <StateView loading={isLoading} error={loadError} empty={filtered.length === 0}>
-          <StudentsTable students={filtered} showClass={!classFilter} onRowClick={(s) => navigate(`/eleves/${s.id}`)} />
+          <StudentsTable
+            students={filtered}
+            showClass={!classFilter}
+            onRowClick={(s) => navigate(`/eleves/${s.id}`)}
+            onToggleBlock={onToggleBlock}
+            blockPendingId={blockMutation.isPending ? (blockMutation.variables?.id ?? null) : null}
+          />
         </StateView>
         {!classFilter ? (
           <Pager page={page} totalPages={totalPages} totalElements={totalElements} onChange={setPage} />

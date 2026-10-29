@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, DateInput, Field, Input, Select, Sheet, StateView, Textarea } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { sendServiceNote } from '@/api/notifications.api';
 import { isoToFR, todayISO } from '@/utils/format';
 import type { BadgeTone } from '@/components/ui';
 import type { Notice, NoticeDestType } from '@/types/domain';
@@ -11,7 +12,7 @@ const DEST_TONE: Record<NoticeDestType, BadgeTone> = { ecole: 'info', classe: 's
 const DEST_PREFIX: Record<NoticeDestType, string> = { ecole: '', classe: 'Classe ', personnel: '', eleve: 'Élève ' };
 
 export default function NoticesPage() {
-  const { notices, classes, students } = useServices();
+  const { notices, classes, students, personnel } = useServices();
   const queryClient = useQueryClient();
 
   const list = useQuery({ queryKey: ['notices'], queryFn: () => notices.list() });
@@ -32,11 +33,36 @@ export default function NoticesPage() {
     enabled: destType === 'eleve' && !!classId,
   });
 
+  // Personnel pour la note de service (tout le personnel ou une sélection).
+  const [personnelScope, setPersonnelScope] = useState<'all' | 'selection'>('all');
+  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
+  const staffList = useQuery({
+    queryKey: ['personnel'],
+    queryFn: () => personnel.list(),
+    enabled: destType === 'personnel' && personnelScope === 'selection',
+  });
+  const toggleStaff = (id: string) =>
+    setSelectedStaff((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const sortedStaff = useMemo(
+    () => [...(staffList.data ?? [])].sort((a, b) => (a.nom ?? '').localeCompare(b.nom ?? '', 'fr')),
+    [staffList.data],
+  );
+
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       let destLabel = "Toute l’école";
       if (destType === 'classe') destLabel = classList.data?.find((c) => c.id === classId)?.name ?? '';
-      if (destType === 'personnel') destLabel = 'Personnel';
+      if (destType === 'personnel') {
+        const allStaff = personnelScope === 'all';
+        destLabel = allStaff ? 'Tout le personnel' : `${selectedStaff.length} agent(s)`;
+        // Envoi réel des notifications (push + in-app) aux personnes concernées.
+        await sendServiceNote({
+          title: titre.trim(),
+          body: corps.trim(),
+          allStaff,
+          recipientIds: allStaff ? undefined : selectedStaff,
+        });
+      }
       if (destType === 'eleve') {
         const s = studentsOfClass.data?.find((x) => x.id === studentId);
         destLabel = s ? `${s.prenom} ${s.nom} (${s.classe})` : '';
@@ -57,6 +83,8 @@ export default function NoticesPage() {
     setClassId('');
     setStudentId('');
     setDate(todayISO());
+    setPersonnelScope('all');
+    setSelectedStaff([]);
     setError(null);
   }
 
@@ -71,6 +99,10 @@ export default function NoticesPage() {
     }
     if (destType === 'eleve' && (!classId || !studentId)) {
       setError('Choisissez la classe puis l’élève concerné.');
+      return;
+    }
+    if (destType === 'personnel' && personnelScope === 'selection' && selectedStaff.length === 0) {
+      setError('Sélectionnez au moins un membre du personnel.');
       return;
     }
     setError(null);
@@ -173,6 +205,49 @@ export default function NoticesPage() {
                 </option>
               ))}
             </Select>
+          </Field>
+        ) : null}
+        {destType === 'personnel' ? (
+          <Field label="Portée" required>
+            <Select
+              id="n-staff-scope"
+              value={personnelScope}
+              onChange={(e) => setPersonnelScope(e.target.value as 'all' | 'selection')}
+            >
+              <option value="all">Tout le personnel</option>
+              <option value="selection">Une sélection</option>
+            </Select>
+          </Field>
+        ) : null}
+        {destType === 'personnel' && personnelScope === 'selection' ? (
+          <Field label="Membres du personnel" required>
+            <div
+              style={{
+                maxHeight: 220,
+                overflowY: 'auto',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                padding: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}
+            >
+              {staffList.isLoading ? (
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Chargement…</span>
+              ) : sortedStaff.length === 0 ? (
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Aucun membre du personnel.</span>
+              ) : (
+                sortedStaff.map((s) => (
+                  <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selectedStaff.includes(s.id)} onChange={() => toggleStaff(s.id)} />
+                    <span>
+                      {s.prenom} {s.nom} <span style={{ color: 'var(--color-text-muted)' }}>· {s.role}</span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
           </Field>
         ) : null}
         <Field label="Date" required>

@@ -147,8 +147,17 @@ function toAxiosAppError(error: AxiosError): AppError {
   // l'utilisateur final côté backend (jamais une trace technique), donc on
   // l'affiche telle quelle plutôt que le message générique "Vérifiez le
   // formulaire" qui ne correspond à rien ici (aucun champ n'est en cause).
-  if (data?.code === 'INSUFFICIENT_FUNDS' && data.message) {
-    return new AppError('validation', data.message, response.status, detail);
+  // Codes métier dont le message backend EST une phrase destinée à
+  // l'utilisateur final (pas une trace technique) : on l'affiche tel quel
+  // plutôt que le message générique "Vérifiez le formulaire".
+  const SURFACE_BACKEND_MESSAGE = new Set<string>([
+    'INSUFFICIENT_FUNDS',
+    'PAYSLIP_PDF_GENERATION_FAILED',
+    'PAYSLIP_TEMPLATE_MISSING',
+    'BULLETIN DE PAIE_NOT_FOUND',
+  ]);
+  if (code && data?.message && SURFACE_BACKEND_MESSAGE.has(code)) {
+    return new AppError(kind, data.message, response.status, detail, code);
   }
   // Le message affiché reste le nôtre : celui du backend part dans `detail`,
   // pour les journaux, sans exposer de trace technique à la direction.
@@ -219,6 +228,17 @@ axiosInstance.interceptors.response.use(
   },
   async (error: unknown) => {
     const axiosError = error as AxiosError;
+    // Réponse d'erreur d'un téléchargement (responseType blob) : le corps JSON
+    // d'erreur arrive en Blob, son message serait perdu. On le relit en texte
+    // et on le reparse pour pouvoir afficher la vraie raison.
+    if (axiosError.response && axiosError.response.data instanceof Blob) {
+      try {
+        const text = await axiosError.response.data.text();
+        (axiosError.response as { data: unknown }).data = text ? JSON.parse(text) : undefined;
+      } catch {
+        /* corps illisible — on garde le repli générique */
+      }
+    }
     const original = axiosError.config as RequestConfig | undefined;
     const { method, url } = describeRequest(original);
     const durationMs = performance.now() - (original?._startedAt ?? performance.now());

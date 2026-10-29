@@ -240,6 +240,8 @@ export interface AttendanceSession {
   subjectName?: string;
   date: string; // yyyy-mm-dd
   period: string;
+  /** Appel verrouillé par la direction : le professeur ne peut plus le modifier. */
+  locked: boolean;
   students: AttendanceStudentEntry[];
 }
 

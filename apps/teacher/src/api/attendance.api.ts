@@ -102,6 +102,7 @@ export function createAttendanceApi(): AttendancePort {
           subjectName: dto.subjectName ?? undefined,
           date: dto.date,
           period: dto.period,
+          locked: dto.locked ?? false,
           students: dto.records.map((r) => ({
             studentId: r.studentId,
             statut: STATUS_FROM_API[r.status],

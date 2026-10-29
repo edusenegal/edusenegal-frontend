@@ -6,7 +6,7 @@ import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet,
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO } from '@/utils/format';
-import type { SalaryMode, SignedDocument, StaffStatus, Teacher } from '@/types/domain';
+import type { SalaryMode, SignedDocument, StaffStatus, Teacher, TeacherScheduleSlot } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import styles from './TeacherDetailPage.module.css';
 
@@ -17,7 +17,7 @@ const STATUT_LABEL: Record<StaffStatus, string> = {
   en_attente: 'En attente d’activation',
 };
 
-type Tab = 'profil' | 'classes' | 'documents' | 'remuneration' | 'absences';
+type Tab = 'profil' | 'classes' | 'emploi' | 'documents' | 'remuneration' | 'absences';
 
 const SALARY_MODE_LABEL: Record<SalaryMode, string> = {
   fixe: 'Fixe (mensuel)',
@@ -68,6 +68,7 @@ export default function TeacherDetailPage() {
   const tabs: { value: Tab; label: string }[] = [
     { value: 'profil', label: 'Profil' },
     { value: 'classes', label: 'Classes' },
+    { value: 'emploi', label: 'Emploi du temps' },
     { value: 'documents', label: 'Documents' },
     { value: 'remuneration', label: 'Rémunération' },
     { value: 'absences', label: 'Absences' },
@@ -152,6 +153,8 @@ export default function TeacherDetailPage() {
                 </div>
               </>
             ) : null}
+
+            {tab === 'emploi' ? <ScheduleTab teacherId={teacherId} /> : null}
 
             {tab === 'documents' ? (
               <>
@@ -594,5 +597,80 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
         </table>
       </StateView>
     </>
+  );
+}
+
+
+const SCHEDULE_DAYS: TeacherScheduleSlot['jour'][] = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+/**
+ * Emploi du temps du professeur dans cet établissement (lecture seule pour le
+ * censeur/surveillant général). Données réelles via `teachers.getSchedule` —
+ * `GET /timetables/teacher/{id}` (schedule-service), toutes classes confondues.
+ */
+function ScheduleTab({ teacherId }: { teacherId: string }) {
+  const { teachers } = useServices();
+  const query = useQuery({
+    queryKey: ['teacher-schedule', teacherId],
+    queryFn: () => teachers.getSchedule(teacherId),
+  });
+
+  const byDay = new Map<string, TeacherScheduleSlot[]>();
+  for (const slot of query.data ?? []) {
+    const list = byDay.get(slot.jour) ?? [];
+    list.push(slot);
+    byDay.set(slot.jour, list);
+  }
+  for (const list of byDay.values()) list.sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+
+  return (
+    <StateView
+      loading={query.isLoading}
+      error={query.error}
+      empty={(query.data?.length ?? 0) === 0}
+      emptyLabel="Aucun créneau dans l'emploi du temps de cet enseignant."
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+        {SCHEDULE_DAYS.map((day) => {
+          const slots = byDay.get(day) ?? [];
+          return (
+            <Card key={day} padded>
+              <h3 style={{ fontSize: 13.5, margin: '0 0 8px', color: 'var(--color-text-muted)' }}>{day}</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {slots.length === 0 ? (
+                  <p style={{ fontSize: 12.5, color: 'var(--color-text-faint)' }}>Aucun cours.</p>
+                ) : (
+                  slots.map((slot, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        padding: '8px 10px',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 8,
+                        background: 'var(--color-surface)',
+                      }}
+                    >
+                      <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                        {slot.heureDebut} – {slot.heureFin}
+                      </div>
+                      <div style={{ fontWeight: 600 }}>{slot.matiere ?? 'Permanence'}</div>
+                      <div style={{ fontSize: 12.5 }}>{slot.classe}</div>
+                      {slot.salle ? (
+                        <div style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>Salle {slot.salle}</div>
+                      ) : null}
+                      {slot.remplacant ? (
+                        <div style={{ marginTop: 4 }}>
+                          <Badge tone="warning">Remplacé par {slot.remplacant}</Badge>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </StateView>
   );
 }

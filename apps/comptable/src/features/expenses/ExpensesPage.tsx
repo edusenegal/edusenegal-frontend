@@ -19,6 +19,7 @@ import {
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { fmtXOF, todayISO } from '@/utils/format';
+import { exportRowsToXlsx } from '@/utils/xlsx';
 import type { Expense, ExpenseCategory, ExpenseDecision, ExpenseStatus } from '@/types/domain';
 
 const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
@@ -84,12 +85,50 @@ export default function ExpensesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
-  const list = useQuery({ queryKey: ['expenses'], queryFn: () => expenses.list() });
+  // Filtres comptables + pagination backend.
+  const [categorie, setCategorie] = useState<ExpenseCategory | 'toutes'>('toutes');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
 
-  const filtered = useMemo(() => {
-    const rows = list.data ?? [];
-    return tab === 'tous' ? rows : rows.filter((r) => r.statut === tab);
-  }, [list.data, tab]);
+  const serverFilters = useMemo(
+    () => ({
+      status: tab === 'tous' ? undefined : (tab as ExpenseStatus),
+      category: categorie === 'toutes' ? undefined : categorie,
+      from: from || undefined,
+      to: to || undefined,
+      sort: 'created' as const,   // tri par dernière créée (demande comptabilité)
+      page,
+      size: PAGE_SIZE,
+    }),
+    [tab, categorie, from, to, page],
+  );
+
+  const list = useQuery({
+    queryKey: ['expenses', serverFilters],
+    queryFn: () => expenses.list(serverFilters),
+  });
+
+  const filtered = list.data?.content ?? [];
+  const totalPages = list.data?.totalPages ?? 0;
+  const totalElements = list.data?.total ?? 0;
+
+  // Export Excel de la vue courante (mêmes filtres, toutes les pages).
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const all = await expenses.list({ ...serverFilters, page: 0, size: 5000 });
+      const rows = all.content.map((e) => ({
+        Date: e.dateDepense,
+        Catégorie: CATEGORY_LABEL[e.categorie],
+        Libellé: e.libelle,
+        Fournisseur: e.fournisseur ?? '',
+        'Montant (FCFA)': e.montantFcfa,
+        Statut: STATUS_LABEL[e.statut],
+      }));
+      exportRowsToXlsx(`depenses_${new Date().toISOString().slice(0, 10)}`, rows, 'Dépenses');
+    },
+  });
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -221,18 +260,71 @@ export default function ExpensesPage() {
       <PageHeader
         title="Dépenses"
         subtitle="Demandes de paiement de l’établissement — saisie, soumission et décision finale du circuit de validation."
-        action={<Button variant="primary" onClick={() => setCreateOpen(true)}>+ Nouvelle dépense</Button>}
+        action={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              variant="secondary"
+              loading={exportMutation.isPending}
+              disabled={totalElements === 0}
+              onClick={() => exportMutation.mutate()}
+            >
+              Exporter Excel
+            </Button>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>+ Nouvelle dépense</Button>
+          </div>
+        }
       />
 
       <Segmented
         value={tab}
-        onChange={(v) => setTab(v as ExpenseStatus | 'tous')}
+        onChange={(v) => { setTab(v as ExpenseStatus | 'tous'); setPage(0); }}
         options={TABS.map((t) => ({ value: t.value, label: t.label }))}
       />
+
+      <Card padded style={{ marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'end' }}>
+          <Field label="Catégorie">
+            <Select
+              value={categorie}
+              onChange={(e) => { setCategorie(e.target.value as ExpenseCategory | 'toutes'); setPage(0); }}
+            >
+              <option value="toutes">Toutes catégories</option>
+              {(Object.keys(CATEGORY_LABEL) as ExpenseCategory[]).map((c) => (
+                <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Du">
+            <DateInput value={from} onChange={(e) => { setFrom(e.target.value); setPage(0); }} />
+          </Field>
+          <Field label="Au">
+            <DateInput value={to} onChange={(e) => { setTo(e.target.value); setPage(0); }} />
+          </Field>
+          <Button
+            variant="ghost"
+            onClick={() => { setCategorie('toutes'); setFrom(''); setTo(''); setTab('tous'); setPage(0); }}
+          >
+            Réinitialiser
+          </Button>
+        </div>
+      </Card>
 
       <Card style={{ marginTop: 12 }}>
         <StateView loading={list.isLoading} error={list.error} empty={filtered.length === 0}>
           <Table columns={columns} rows={filtered} rowKey={(r) => r.id} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, fontSize: 13 }}>
+            <span style={{ color: 'var(--color-text-muted)' }}>
+              {totalElements} dépense(s) · page {page + 1} / {Math.max(1, totalPages)}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="ghost" size="sm" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                Précédent
+              </Button>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+                Suivant
+              </Button>
+            </div>
+          </div>
         </StateView>
       </Card>
 

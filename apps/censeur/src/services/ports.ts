@@ -66,6 +66,7 @@ import type {
   TimetableLock,
   TransferRequest,
   YearResult,
+  TeacherScheduleSlot,
 } from '@/types/domain';
 
 export interface AuthPort {
@@ -212,6 +213,9 @@ export interface StudentAttendancePort {
    * l'état de sa demande à justifier.
    */
   getSessionDetail(sessionId: string): Promise<AttendanceSessionDetail>;
+  /** Verrouille/déverrouille un appel (surveillant général / censeur / directeur). */
+  lockSession(sessionId: string): Promise<AttendanceSessionDetail>;
+  unlockSession(sessionId: string): Promise<AttendanceSessionDetail>;
 
   /**
    * Corrige l'état d'UN SEUL élève sur une séance déjà saisie (clic sur un
@@ -319,6 +323,8 @@ export interface ClassesPort {
 export interface TeachersPort {
   list(): Promise<Teacher[]>;
   get(teacherId: string): Promise<Teacher>;
+  /** Emploi du temps hebdomadaire du professeur. Backend : `GET /timetables/teacher/{teacherId}?schoolId`. */
+  getSchedule(teacherId: string): Promise<TeacherScheduleSlot[]>;
   /**
    * La rémunération ne se saisit pas à la création — un enseignant nouvellement
    * créé n'a aucun salaire configuré côté backend (`SchoolSalaryProfileResponse`

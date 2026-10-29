@@ -1,14 +1,17 @@
 import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
 import type {
+  ApiPage,
   ClassPaymentStatsDto,
+  StudentPaymentProgressResponseDto,
   ApiPaymentChannel,
   ApiPaymentType,
   PaymentTransactionResponseDto,
   RecordCashRequestDto,
+  UserResponseDto,
 } from '@/types/api';
 import type { PaymentsPort } from '@/services/ports';
-import type { PaymentChannel, PaymentTransaction, PaymentType } from '@/types/domain';
+import type { IncomeRow, Paged, PaymentChannel, PaymentTransaction, PaymentType } from '@/types/domain';
 import { frToISO, isoToFR } from '@/utils/format';
 
 const TYPE_FROM_API: Record<ApiPaymentType, PaymentType> = {
@@ -38,6 +41,13 @@ const CHANNEL_FROM_API: Record<ApiPaymentChannel, PaymentChannel> = {
   CASH: 'especes',
   CHEQUE: 'cheque',
   VIREMENT_BANCAIRE: 'virement_bancaire',
+};
+const CHANNEL_TO_API: Record<PaymentChannel, ApiPaymentChannel> = {
+  wave: 'WAVE',
+  orange_money: 'ORANGE_MONEY',
+  especes: 'CASH',
+  cheque: 'CHEQUE',
+  virement_bancaire: 'VIREMENT_BANCAIRE',
 };
 
 /** "2026-11-05T10:30:00" → "05/11/2026 10:30". */
@@ -136,5 +146,71 @@ export function createPaymentsApi(): PaymentsPort {
           status: r.status,
         })),
       };
-    },  };
+    },
+
+    async getIncomes(filters): Promise<Paged<IncomeRow>> {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      const [page, students] = await Promise.all([
+        request<ApiPage<PaymentTransactionResponseDto & { studentId: string }>>('/api/v1/payments/incomes', {
+          query: {
+            schoolId,
+            yearId,
+            type: filters?.type ? TYPE_TO_API[filters.type] : undefined,
+            channel: filters?.channel ? CHANNEL_TO_API[filters.channel] : undefined,
+            from: filters?.from,
+            to: filters?.to,
+            page: filters?.page ?? 0,
+            size: filters?.size ?? 20,
+          },
+        }),
+        // Résolution des noms d'élèves (le backend ne renvoie que l'id).
+        request<UserResponseDto[]>(`/api/v1/users/school/${encodeURIComponent(schoolId)}`, {
+          query: { role: 'STUDENT' },
+        }).catch(() => [] as UserResponseDto[]),
+      ]);
+      const nameById = new Map(students.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
+      return {
+        content: page.content.map((dto) => ({
+          ...fromApiTransaction(dto),
+          studentId: dto.studentId,
+          studentNom: nameById.get(dto.studentId) ?? dto.studentId,
+        })),
+        total: page.totalElements,
+        totalPages: page.totalPages,
+        page: page.number,
+      };
+    },
+
+    async sendStudentAlert(studentId, classId) {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      await request<void>(
+        `/api/v1/payments/overdue-alerts/${encodeURIComponent(schoolId)}/student/${encodeURIComponent(studentId)}`,
+        { method: 'POST', query: { yearId, classId } },
+      );
+    },
+
+    async getStudentProgress(studentId, classId) {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      const dto = await request<StudentPaymentProgressResponseDto>(
+        `/api/v1/payments/student/${encodeURIComponent(studentId)}/progress`,
+        { query: { schoolId, yearId, classId } },
+      );
+      return {
+        studentId: dto.studentId,
+        expectedGrossFcfa: dto.expectedGrossFcfa,
+        scholarship: dto.scholarship,
+        scholarshipPercentage: dto.scholarshipPercentage,
+        scholarshipCoveredFcfa: dto.scholarshipCoveredFcfa,
+        scholarshipPayerName: dto.scholarshipPayerName,
+        expectedNetFcfa: dto.expectedNetFcfa,
+        paidFcfa: dto.paidFcfa,
+        remainingFcfa: dto.remainingFcfa,
+        progressPercentage: dto.progressPercentage,
+        status: dto.status,
+      };
+    },
+  };
 }
