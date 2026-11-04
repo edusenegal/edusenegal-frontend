@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { Subject } from '@/types/domain';
 import { SubjectFormSheet } from './SubjectFormSheet';
@@ -11,6 +11,7 @@ export default function SubjectsListPage() {
   const navigate = useNavigate();
   const { subjects } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
 
   const list = useQuery({ queryKey: ['subjects'], queryFn: () => subjects.list() });
@@ -49,7 +50,7 @@ export default function SubjectsListPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer la matière « ${s.nom} » de l’établissement ?`)) removeMutation.mutate(s.id);
+              void confirm({ title: 'Supprimer la matière', message: `Supprimer la matière « ${s.nom} » de l’établissement ?`, danger: true }).then((ok) => { if (ok) removeMutation.mutate(s.id); });
             }}
           >
             Retirer

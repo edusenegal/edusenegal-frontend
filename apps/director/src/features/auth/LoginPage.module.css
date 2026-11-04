@@ -1,85 +1,69 @@
+/* ============================================================
+   Page de connexion « split-screen » — commune à toutes les apps.
+   Le thème (couleur d'accent + dégradé du panneau) est injecté par
+   LoginPage via les variables CSS --accent / --panel sur .screen.
+   ============================================================ */
 .screen {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--brand-sidebar-bg);
-  padding: var(--space-md);
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1024px) {
+  .screen { grid-template-columns: 1.05fr 1fr; }
 }
 
-.card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-xl);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  margin-bottom: var(--space-2xs);
-  font-size: var(--text-md);
-}
-
-.logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--brand-primary);
+/* ---------------- Panneau visuel (gauche) ---------------- */
+.visual {
+  position: relative;
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px 48px;
   color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--panel);
 }
+@media (min-width: 1024px) { .visual { display: flex; } }
+.blob { position: absolute; border-radius: 50%; filter: blur(64px); z-index: -1; }
+.blobA { width: 340px; height: 340px; top: -90px; right: -70px; background: var(--accent); opacity: .40; }
+.blobB { width: 300px; height: 300px; bottom: -80px; left: -70px; background: #fff; opacity: .10; }
+.brandRow { display: flex; align-items: center; gap: 12px; }
+.logoMark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: rgba(255, 255, 255, 0.15); }
+.brandName { font-size: 17px; font-weight: 800; letter-spacing: .2px; }
+.brandTag { display: block; font-size: 11.5px; opacity: .72; margin-top: 1px; }
+.roleIcon { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 16px; background: rgba(255,255,255,.15); margin-bottom: 18px; }
+.roleTitle { font-size: 33px; line-height: 1.12; font-weight: 800; margin: 0 0 14px; color: #FFD700; }
+.roleSubtitle { font-size: 15px; line-height: 1.55; opacity: .88; max-width: 430px; margin: 0 0 30px; }
+.features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.features li { display: flex; align-items: center; gap: 13px; font-size: 15px; font-weight: 500; }
+.featIcon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: rgba(255,255,255,.13); flex-shrink: 0; }
+.quote { font-size: 14px; font-style: italic; opacity: .82; margin: 0; max-width: 370px; line-height: 1.5; }
 
-.hint {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  margin: 0 0 var(--space-lg);
-}
-
-.mode {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin: 0 0 var(--space-md);
-  padding: 0;
-  border: 0;
-}
-
-.modeLegend {
-  width: 100%;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-2xs);
-  padding: 0;
-}
-
-.modeOption {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.error {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
-  margin: 0 0 var(--space-sm);
-}
-
-.submit {
-  width: 100%;
-  margin-top: var(--space-xs);
-}
-
-.demo {
-  margin: var(--space-md) 0 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-faint);
-  text-align: center;
-}
+/* ---------------- Formulaire (droite) ---------------- */
+.formSide { display: flex; align-items: center; justify-content: center; padding: 40px 22px; background: var(--color-bg, #f6f7f9); }
+.formInner { width: 100%; max-width: 408px; }
+.formTop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.logoSmall { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 16px; color: var(--color-text, #1c2434); }
+.logoSmall svg { color: var(--accent); }
+.portalBadge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--accent); }
+.welcome { font-size: 25px; font-weight: 800; margin: 0 0 4px; color: var(--color-text, #1c2434); }
+.welcomeSub { font-size: 14px; font-weight: 600; color: var(--accent); margin: 0 0 24px; }
+.toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #eceef3; padding: 5px; border-radius: 12px; margin-bottom: 20px; }
+.toggleBtn, .toggleActive { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: none; cursor: pointer; font-size: 13.5px; font-weight: 600; padding: 10px; border-radius: 9px; background: transparent; color: #5a6475; transition: all .15s; }
+.toggleActive { background: var(--accent); color: #fff; box-shadow: 0 5px 14px rgba(0,0,0,.14); }
+.field { margin-bottom: 16px; }
+.label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 7px; color: #38414f; }
+.req { color: #e5484d; }
+.inputWrap { position: relative; display: flex; align-items: center; }
+.inputIcon { position: absolute; left: 13px; color: #9aa2b1; pointer-events: none; display: grid; }
+.input { width: 100%; box-sizing: border-box; padding: 13px 14px 13px 42px; font-size: 14px; border: 1.5px solid #e2e6ec; border-radius: 11px; background: #fff; color: #1c2434; outline: none; transition: border-color .15s; }
+.input:focus { border-color: var(--accent); }
+.eyeBtn { position: absolute; right: 8px; background: none; border: none; cursor: pointer; color: #9aa2b1; padding: 6px; display: grid; place-items: center; }
+.error { color: #e5484d; font-size: 13px; margin: 2px 0 12px; }
+.submit { width: 100%; margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; font-size: 14.5px; font-weight: 700; padding: 14px; border-radius: 12px; background: var(--accent); color: #fff; transition: filter .15s; }
+.submit:hover { filter: brightness(1.07); }
+.submit:disabled { opacity: .7; cursor: default; }
+.forgot { display: block; text-align: center; margin: 16px auto 0; font-size: 13px; font-weight: 600; color: var(--accent); background: none; border: none; cursor: pointer; }
+.footer { display: flex; align-items: center; justify-content: space-between; margin-top: 34px; padding-top: 18px; border-top: 1px solid #eceef2; font-size: 11.5px; color: #99a0ac; }
+.secure { display: inline-flex; align-items: center; gap: 6px; }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, StateView } from '@/components/ui';
+import { Badge, Button, Card, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { SubjectCoefficient } from '@/types/domain';
 import { CourseDocumentsSection } from '@/components/documents/CourseDocumentsSection';
@@ -17,6 +17,7 @@ export default function SubjectDetailPage() {
   const navigate = useNavigate();
   const { subjects, classes } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<DraftRow[]>([]);
 
   const subjectQuery = useQuery({ queryKey: ['subject', subjectId], queryFn: () => subjects.get(subjectId) });
@@ -63,7 +64,7 @@ export default function SubjectDetailPage() {
 
   function onDelete() {
     if (!s) return;
-    if (confirm(`Supprimer la matière « ${s.nom} » de l’établissement ?`)) removeMutation.mutate();
+    void confirm({ title: 'Supprimer la matière', message: `Supprimer la matière « ${s.nom} » de l’établissement ?`, danger: true }).then((ok) => { if (ok) removeMutation.mutate(); });
   }
 
   function updateRow(classeId: string, patch: Partial<Pick<DraftRow, 'valeur' | 'enseignee'>>) {

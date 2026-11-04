@@ -113,3 +113,12 @@ export function fmtBytes(bytes: number): string {
   const mo = ko / 1024;
   return `${mo.toFixed(mo < 10 ? 1 : 0)} Mo`;
 }
+
+/**
+ * Formate un pourcentage : au plus 2 décimales, sans zéros inutiles
+ * (87.87878… → "87.88", 95 → "95", 87.5 → "87.5"). "—" si non fini.
+ */
+export function fmtPct(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  return String(Math.round(value * 100) / 100);
+}

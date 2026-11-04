@@ -1,32 +1,13 @@
 import { useState, type FormEvent } from 'react';
+import { roleLabel } from '@/utils/roles';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Field, Input, Select, Sheet, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import type { StaffMember, StaffStatus } from '@/types/domain';
 
 /** Libellés affichés pour chaque rôle technique (UserRole). */
-const ROLE_LABELS: Record<string, string> = {
-  TEACHER: 'Enseignant',
-  INSTITUTEUR: 'Instituteur',
-  CENSEUR: 'Censeur',
-  SUPERVISOR: 'Surveillant général',
-  ACCOUNTANT: 'Comptable',
-  LIBRARIAN: 'Bibliothécaire',
-  SECRETARY_GENERAL: 'Secrétaire général',
-  REGISTRAR: 'Scolarité / Inscriptions',
-  HR_DIRECTOR: 'Directeur RH',
-  FINANCE_DIRECTOR: 'Directeur financier',
-  IT_MANAGER: 'Responsable informatique',
-  CANTEEN_STAFF: 'Personnel de cantine',
-  VICE_RECTOR: 'Vice-recteur',
-  DEAN: 'Doyen',
-  DEPARTMENT_HEAD: 'Chef de département',
-  LAB_DIRECTOR: 'Directeur de laboratoire',
-  BOARD_MEMBER: 'Membre du conseil',
-};
-
 /** Rôles proposés à la création depuis l'espace direction. */
 const CREATABLE_ROLES = [
   'CENSEUR',
@@ -52,13 +33,11 @@ const STATUS_LABEL: Record<StaffStatus, string> = {
   en_attente: 'En attente',
 };
 
-function roleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role;
-}
 
 export default function PersonnelListPage() {
   const { personnel } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const listQuery = useQuery({ queryKey: ['personnel'], queryFn: () => personnel.list() });
 
@@ -131,16 +110,22 @@ export default function PersonnelListPage() {
     saveMutation.mutate();
   }
 
-  function onToggleBlock(m: StaffMember) {
+  async function onToggleBlock(m: StaffMember) {
     const willBlock = m.statut !== 'suspendu';
     const msg = willBlock
       ? `Bloquer ${m.prenom} ${m.nom} ? La personne ne pourra plus se connecter.`
       : `Débloquer ${m.prenom} ${m.nom} ? Son accès sera rétabli.`;
-    if (confirm(msg)) blockMutation.mutate({ id: m.id, blocked: willBlock });
+    if (await confirm({ title: willBlock ? 'Bloquer' : 'Débloquer', message: msg, danger: willBlock })) blockMutation.mutate({ id: m.id, blocked: willBlock });
   }
 
-  function onRemove(m: StaffMember) {
-    if (confirm(`Retirer ${m.prenom} ${m.nom} de l’établissement ? Cette action est définitive.`)) {
+  async function onRemove(m: StaffMember) {
+    if (
+      await confirm({
+        title: 'Retirer du personnel',
+        message: `Retirer ${m.prenom} ${m.nom} de l’établissement ? Cette action est définitive.`,
+        danger: true,
+      })
+    ) {
       removeMutation.mutate(m.id);
     }
   }

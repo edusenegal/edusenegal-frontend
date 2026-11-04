@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { createQueryClient } from '@/app/query-client';
+import { ConfirmProvider } from '@/components/ui';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { ServicesContext } from '@/hooks/useServices';
 import { services } from '@/services';
@@ -19,7 +20,9 @@ export function Providers({ children, servicesOverride, queryClientOverride }: P
   return (
     <QueryClientProvider client={queryClient}>
       <ServicesContext.Provider value={servicesOverride ?? services}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </AuthProvider>
       </ServicesContext.Provider>
     </QueryClientProvider>
   );

@@ -3,6 +3,8 @@ import { fetchSchoolClasses } from '@/api/context';
 import type {
   AddToSchoolRequestDto,
   ApiDocumentType,
+  ApiExamType,
+  ExamCalendarResponseDto,
   ApiSalaryMode,
   ClassInfoDto,
   CreateUserRequestDto,
@@ -14,9 +16,20 @@ import type {
   UpdateUserRequestDto,
   UserLookupResponseDto,
   UserResponseDto,
+  TimetableSlotResponseDto,
 } from '@/types/api';
 import type { TeachersPort } from '@/services/ports';
-import type { SalaryMode, SalarySlip, SignedDocument, Teacher, TeacherLookupResult, StaffStatus } from '@/types/domain';
+import type {
+  SalaryMode,
+  SalarySlip,
+  SignedDocument,
+  Teacher,
+  TeacherLookupResult,
+  StaffStatus,
+  TeacherScheduleSlot,
+  ClassEvent,
+  EventType,
+} from '@/types/domain';
 import { buildDownloadFilename, downloadBlob, frToISO, isoToFR } from '@/utils/format';
 
 /**
@@ -174,6 +187,52 @@ function splitName(nomComplet: string): { firstName: string; lastName: string } 
  * backend : « studentId ou classId selon le type », en réalité n'importe
  * quel id sujet du document, personnel compris).
  */
+/** Jour backend `MON`..`SAT` → libellé FR (emploi du temps enseignant). */
+const SCHEDULE_DAY_LABEL: Record<string, TeacherScheduleSlot['jour']> = {
+  MON: 'Lundi',
+  TUE: 'Mardi',
+  WED: 'Mercredi',
+  THU: 'Jeudi',
+  FRI: 'Vendredi',
+  SAT: 'Samedi',
+};
+
+/** `ApiExamType` (6 valeurs backend) → `EventType` (4 côté frontend) — même repli que `classes.api.ts`. */
+const API_EXAM_TO_EVENT: Record<ApiExamType, EventType> = {
+  DEVOIR1: 'Devoir',
+  DEVOIR2: 'Devoir',
+  COMPOSITION: 'Composition',
+  INTERRO: 'Devoir',
+  EXAMEN_BLANC: 'Examen',
+  CONSEIL_DE_CLASSE: 'Conseil de classe',
+};
+
+function isoDateToFr(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+/** `ExamCalendarResponse` → `ClassEvent` — identique à `classes.api.ts#fromExamResponse`, avec le nom de classe en plus (vue prof multi-classes). */
+function fromExamResponse(dto: ExamCalendarResponseDto): ClassEvent {
+  return {
+    id: dto.id,
+    classeId: dto.classId,
+    classe: dto.className ?? null,
+    type: API_EXAM_TO_EVENT[dto.type],
+    titre: dto.title,
+    subjectId: dto.subjectId,
+    matiere: dto.subjectName,
+    teacherId: dto.teacherId,
+    professeur: dto.teacherName,
+    semestre: (dto.semesterNumber === 2 ? 2 : 1) as 1 | 2,
+    date: isoDateToFr(dto.date),
+    heureDebut: dto.startTime,
+    heureFin: dto.endTime,
+    salle: dto.room,
+    notes: '',
+  };
+}
+
 export function createTeachersApi(): TeachersPort {
   async function getOne(teacherId: string): Promise<Teacher> {
     const { schoolId } = sessionContext();
@@ -212,6 +271,48 @@ export function createTeachersApi(): TeachersPort {
     },
 
     get: getOne,
+
+    /** Emploi du temps hebdomadaire — `GET /timetables/teacher/{id}?schoolId` (schedule-service), toutes classes confondues. */
+    async getSchedule(teacherId): Promise<TeacherScheduleSlot[]> {
+      const { schoolId } = sessionContext();
+      const [slots, classesDtos] = await Promise.all([
+        request<TimetableSlotResponseDto[]>(`/api/v1/timetables/teacher/${encodeURIComponent(teacherId)}`, {
+          query: { schoolId },
+        }),
+        fetchSchoolClasses(schoolId),
+      ]);
+      const classNameById = new Map(classesDtos.map((c) => [c.id, c.fullName]));
+      // Déduplication défensive : un enseignant n'a qu'un créneau à un moment
+      // donné — on collapse tout doublon d'affichage (jour/horaire/classe/matière/salle).
+      const seen = new Set<string>();
+      return slots
+        .filter((dto) => !dto.grayedOut)
+        .map((dto) => ({
+          jour: SCHEDULE_DAY_LABEL[dto.dayOfWeek] ?? 'Lundi',
+          heureDebut: dto.startTime,
+          heureFin: dto.endTime,
+          matiere: dto.subjectName ?? null,
+          classe: classNameById.get(dto.classId) ?? '—',
+          salle: dto.room ?? null,
+          remplacant: dto.replacementTeacherName ?? null,
+        }))
+        .filter((slot) => {
+          const key = `${slot.jour}|${slot.heureDebut}|${slot.heureFin}|${slot.classe}|${slot.matiere ?? ''}|${slot.salle ?? ''}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+    },
+
+    /** Évaluations planifiées par ce professeur — `GET /exams/teacher/{id}?schoolId` (schedule-service), triées par date. */
+    async getPlannedEvaluations(teacherId): Promise<ClassEvent[]> {
+      const { schoolId } = sessionContext();
+      const dtos = await request<ExamCalendarResponseDto[]>(
+        `/api/v1/exams/teacher/${encodeURIComponent(teacherId)}`,
+        { query: { schoolId } },
+      );
+      return dtos.map(fromExamResponse).sort((a, b) => frToISO(a.date).localeCompare(frToISO(b.date)));
+    },
 
     async create(input): Promise<Teacher> {
       const { schoolId } = sessionContext();

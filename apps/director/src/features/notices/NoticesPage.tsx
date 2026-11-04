@@ -5,6 +5,7 @@ import { Badge, Button, Card, DateInput, Field, Input, Select, Sheet, StateView,
 import { useServices } from '@/hooks/useServices';
 import { sendServiceNote } from '@/api/notifications.api';
 import { isoToFR, todayISO } from '@/utils/format';
+import { roleLabel } from '@/utils/roles';
 import type { BadgeTone } from '@/components/ui';
 import type { Notice, NoticeDestType } from '@/types/domain';
 
@@ -67,7 +68,17 @@ export default function NoticesPage() {
         const s = studentsOfClass.data?.find((x) => x.id === studentId);
         destLabel = s ? `${s.prenom} ${s.nom} (${s.classe})` : '';
       }
-      return notices.create({ titre: titre.trim(), corps: corps.trim(), destType, destLabel, date: isoToFR(date) });
+      // Date ET heure d'émission : la date choisie + l'heure courante (une note
+      // de service est émise maintenant), pour afficher "jj/mm/aaaa hh:mm".
+      const now = new Date();
+      const heure = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      return notices.create({
+        titre: titre.trim(),
+        corps: corps.trim(),
+        destType,
+        destLabel,
+        date: `${isoToFR(date)} ${heure}`,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notices'] });
@@ -242,7 +253,7 @@ export default function NoticesPage() {
                   <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
                     <input type="checkbox" checked={selectedStaff.includes(s.id)} onChange={() => toggleStaff(s.id)} />
                     <span>
-                      {s.prenom} {s.nom} <span style={{ color: 'var(--color-text-muted)' }}>· {s.role}</span>
+                      {s.prenom} {s.nom} <span style={{ color: 'var(--color-text-muted)' }}>· {roleLabel(s.role)}</span>
                     </span>
                   </label>
                 ))

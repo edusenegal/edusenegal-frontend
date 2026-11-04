@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Card, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
+import { Button, Card, Field, Input, Select, Sheet, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import type { ClassRoom } from '@/types/domain';
@@ -20,6 +20,7 @@ import type { ClassRoom } from '@/types/domain';
 export default function RoomsPage() {
   const { rooms, classes } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRoom | null>(null);
   const [nom, setNom] = useState('');
@@ -110,7 +111,7 @@ export default function RoomsPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Supprimer la salle « ${r.nom} » ?`)) removeMutation.mutate(r.id);
+              void confirm({ title: 'Supprimer la salle', message: `Supprimer la salle « ${r.nom} » ?`, danger: true }).then((ok) => { if (ok) removeMutation.mutate(r.id); });
             }}
           >
             Retirer

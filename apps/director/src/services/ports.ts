@@ -48,6 +48,7 @@ import type {
   SalaryRequest,
   SalarySlip,
   ScheduleSlot,
+  TeacherScheduleSlot,
   School,
   SemesterResult,
   SignedDocument,
@@ -252,11 +253,26 @@ export interface ClassesPort {
   enroll(classId: string, studentId: string): Promise<void>;
   /** Backend : `DELETE /api/v1/classes/{classId}/students/{studentId}` (class-service). */
   unenroll(classId: string, studentId: string): Promise<void>;
+  /**
+   * Backend : `PUT /api/v1/classes/{classId}` (class-service) — SEULS le tag
+   * (division) et la capacité (effectif limite) sont modifiables ; le niveau,
+   * la série et l'année sont l'identité de la classe.
+   */
+  update(classId: string, input: { tag: string | null; capacite: number }): Promise<ClassGroup>;
+  /**
+   * Backend : `DELETE /api/v1/classes/{classId}` (class-service) — supprime la
+   * classe ; tous les élèves qui s'y trouvaient deviennent « sans classe ».
+   */
+  remove(classId: string): Promise<void>;
 }
 
 export interface TeachersPort {
   list(): Promise<Teacher[]>;
   get(teacherId: string): Promise<Teacher>;
+  /** Emploi du temps hebdomadaire du professeur (toutes classes). Backend : `GET /timetables/teacher/{teacherId}?schoolId`. */
+  getSchedule(teacherId: string): Promise<TeacherScheduleSlot[]>;
+  /** Évaluations (devoirs/examens/compos) planifiées par ce professeur. Backend : `GET /exams/teacher/{teacherId}?schoolId`. */
+  getPlannedEvaluations(teacherId: string): Promise<ClassEvent[]>;
   /**
    * La rémunération ne se saisit pas à la création — un enseignant nouvellement
    * créé n'a aucun salaire configuré côté backend (`SchoolSalaryProfileResponse`

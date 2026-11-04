@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Card, Input, Pager, Select, StateView } from '@/components/ui';
+import { Button, Card, Input, Pager, Select, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { StudentsTable } from './StudentsTable';
 import { StudentFormSheet } from './StudentFormSheet';
@@ -21,6 +21,7 @@ export default function StudentsListPage() {
   const navigate = useNavigate();
   const { students, classes, paymentConfig, academicResults } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   // Blocage/déblocage d'un élève directement depuis la liste (demande
   // direction) — même endpoint que la fiche élève (PATCH /users/{id}/block).
@@ -33,12 +34,12 @@ export default function StudentsListPage() {
     },
   });
 
-  function onToggleBlock(s: { id: string; prenom: string; nom: string; statut: string }) {
+  async function onToggleBlock(s: { id: string; prenom: string; nom: string; statut: string }) {
     const willBlock = s.statut !== 'suspendu';
     const msg = willBlock
       ? `Bloquer ${s.prenom} ${s.nom} ? L’élève ne pourra plus se connecter.`
       : `Débloquer ${s.prenom} ${s.nom} ? Son accès sera rétabli.`;
-    if (confirm(msg)) blockMutation.mutate({ id: s.id, blocked: willBlock });
+    if (await confirm({ title: willBlock ? 'Bloquer l’élève' : 'Débloquer l’élève', message: msg, danger: willBlock })) blockMutation.mutate({ id: s.id, blocked: willBlock });
   }
   const [classFilter, setClassFilter] = useState('');
   const [search, setSearch] = useState('');

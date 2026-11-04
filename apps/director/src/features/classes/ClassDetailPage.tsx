@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { fmtPct } from '@/utils/format';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Input, Segmented, Select, StateView, StatTile } from '@/components/ui';
+import { Badge, Button, Card, Input, Segmented, Select, Sheet, StateView, StatTile, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { StudentsTable } from '@/features/students/StudentsTable';
 import { StudentFormSheet } from '@/features/students/StudentFormSheet';
@@ -10,6 +11,7 @@ import { MonthWeekPicker, mondayOf } from './MonthWeekPicker';
 import { PlanEventSheet } from './PlanEventSheet';
 import { ScheduleGrid } from './ScheduleGrid';
 import { ScheduleSlotSheet } from './ScheduleSlotSheet';
+import { ClassFormSheet } from './ClassFormSheet';
 import styles from './ClassDetailPage.module.css';
 import type { ScheduleSlot } from '@/types/domain';
 
@@ -27,6 +29,7 @@ export default function ClassDetailPage() {
   const navigate = useNavigate();
   const { classes, teachers, students: studentsPort, paymentConfig, academicResults, subjects, rooms } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>('stats');
   const [planOpen, setPlanOpen] = useState(false);
   const [homeroomDraft, setHomeroomDraft] = useState('');
@@ -34,6 +37,15 @@ export default function ClassDetailPage() {
   const [studentSearch, setStudentSearch] = useState('');
   // Création d'élève directement dans cette classe (nouvelle demande direction).
   const [studentFormOpen, setStudentFormOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: () => classes.remove(classId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      navigate('/classes');
+    },
+  });
 
   const classQuery = useQuery({ queryKey: ['class', classId], queryFn: () => classes.get(classId) });
   const teacherList = useQuery({ queryKey: ['teachers'], queryFn: () => teachers.list() });
@@ -186,6 +198,16 @@ export default function ClassDetailPage() {
         title={c?.name ?? '…'}
         subtitle={c ? `${c.level}${c.series ? ' ' + c.series : ''} · ${c.effectif}/${c.capacite} élèves` : undefined}
       />
+      {c ? (
+        <div style={{ display: 'flex', gap: 8, margin: '-4px 0 14px' }}>
+          <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+            Modifier
+          </Button>
+          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+            Supprimer
+          </Button>
+        </div>
+      ) : null}
 
       <StateView loading={classQuery.isLoading} error={classQuery.error}>
         <Card>
@@ -217,7 +239,7 @@ export default function ClassDetailPage() {
                   <StatTile label="Moyenne de classe" value={`${moyenne}/20`} />
                   <StatTile
                     label="Taux de paiement"
-                    value={tauxPaiementDisponible ? `${tauxPaiement}%` : '—'}
+                    value={tauxPaiementDisponible ? `${fmtPct(tauxPaiement)}%` : '—'}
                     tone={tauxPaiementDisponible ? (tauxPaiement >= 80 ? 'success' : 'danger') : 'neutral'}
                   />
                   <StatTile label="Effectif" value={String(studentsOfClass.length)} />
@@ -340,8 +362,14 @@ export default function ClassDetailPage() {
                               variant="ghost"
                               size="sm"
                               loading={cancelEventMutation.isPending && cancelEventMutation.variables === e.id}
-                              onClick={() => {
-                                if (confirm(`Annuler « ${e.titre} » ? Les élèves, le professeur et la direction seront notifiés.`)) {
+                              onClick={async () => {
+                                if (
+                                  await confirm({
+                                    title: 'Annuler l’évaluation',
+                                    message: `Annuler « ${e.titre} » ? Les élèves, le professeur et la direction seront notifiés.`,
+                                    danger: true,
+                                  })
+                                ) {
                                   cancelEventMutation.mutate(e.id);
                                 }
                               }}
@@ -404,6 +432,29 @@ export default function ClassDetailPage() {
           </div>
         </Card>
       </StateView>
+
+      <ClassFormSheet open={editOpen} editing={c ?? null} onClose={() => setEditOpen(false)} />
+      <Sheet
+        title="Supprimer la classe"
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
+              Annuler
+            </Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
+              Supprimer définitivement
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Cette action supprime définitivement la classe <strong>{c?.name ?? ''}</strong>. Les{' '}
+          {c?.effectif ?? 0} élève(s) qui s’y trouvent deviendront « sans classe » et devront être
+          réaffectés à une autre classe.
+        </p>
+      </Sheet>
     </div>
   );
 }

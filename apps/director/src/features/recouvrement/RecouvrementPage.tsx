@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, Meter, StateView, StatTile, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { fmtXOF } from '@/utils/format';
+import { fmtXOF, fmtPct } from '@/utils/format';
 
 interface ClassRow {
   classId: string;
@@ -99,7 +99,7 @@ export default function RecouvrementPage() {
       render: (l) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 }}>
           <Meter value={l.rate} tone={rateTone(l.rate)} />
-          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{l.rate}%</span>
+          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{fmtPct(l.rate)}%</span>
         </div>
       ),
     },
@@ -117,7 +117,7 @@ export default function RecouvrementPage() {
       render: (c) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 }}>
           <Meter value={c.rate} tone={rateTone(c.rate)} />
-          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{c.rate}%</span>
+          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{fmtPct(c.rate)}%</span>
         </div>
       ),
     },
@@ -132,7 +132,7 @@ export default function RecouvrementPage() {
 
       <StateView loading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
-          <StatTile label="Taux de recouvrement" value={`${school.rate}%`} tone={rateTone(school.rate)} />
+          <StatTile label="Taux de recouvrement" value={`${fmtPct(school.rate)}%`} tone={rateTone(school.rate)} />
           <StatTile label="Dû (net de bourse)" value={fmtXOF(school.expected)} />
           <StatTile label="Encaissé" value={fmtXOF(school.collected)} tone="success" />
           <StatTile label="Reste à recouvrer" value={fmtXOF(Math.max(0, school.expected - school.collected))} tone={school.expected - school.collected > 0 ? 'warning' : 'success'} />

@@ -58,6 +58,7 @@ import type {
   TeacherLookupResult,
   TransferRequest,
   YearResult,
+  TeacherScheduleSlot,
 } from '@/types/domain';
 import { frToISO } from '@/utils/format';
 import * as fixtures from './fixtures';
@@ -461,6 +462,29 @@ export function createMockServices(): Services {
         recomputeClassEffectifs();
         await respond(undefined, 200);
       },
+      async update(classId: string, input: { tag: string | null; capacite: number }): Promise<ClassGroup> {
+        const classe = state.classes.find((c) => c.id === classId);
+        if (!classe) notFound('Classe');
+        if (input.capacite < classe.effectif) {
+          throw new AppError('validation', `Effectif limite (${input.capacite}) inférieur aux ${classe.effectif} élève(s) inscrit(s).`);
+        }
+        classe.tag = input.tag;
+        classe.capacite = input.capacite;
+        const base = `${classe.level}${classe.series ? ' ' + classe.series : ''}`;
+        classe.name = input.tag ? `${base} ${input.tag}` : base;
+        return respond(classe, 300);
+      },
+      async remove(classId: string): Promise<void> {
+        const classe = state.classes.find((c) => c.id === classId);
+        if (!classe) notFound('Classe');
+        // Les élèves de la classe deviennent « sans classe ».
+        state.students.forEach((s) => {
+          if (s.classeId === classId) { s.classeId = ''; s.classe = ''; }
+        });
+        state.classes = state.classes.filter((c) => c.id !== classId);
+        recomputeClassEffectifs();
+        await respond(undefined, 300);
+      },
       async unenroll(classId: string, studentId: string): Promise<void> {
         const classe = state.classes.find((c) => c.id === classId);
         const student = state.students.find((s) => s.id === studentId);
@@ -527,6 +551,21 @@ export function createMockServices(): Services {
         const found = state.teachers.find((t) => t.id === teacherId);
         if (!found) notFound('Enseignant');
         return respond(found);
+      },
+
+      // Emploi du temps : l'emploi du temps par classe du mock n'est pas indexé
+      // par enseignant — on renvoie une liste vide (démo hors-ligne). Les données
+      // réelles viennent de `GET /timetables/teacher/{id}`.
+      async getSchedule(): Promise<TeacherScheduleSlot[]> {
+        return respond([]);
+      },
+      async getPlannedEvaluations(teacherId: string): Promise<ClassEvent[]> {
+        const nameById = new Map(state.classes.map((c) => [c.id, c.name]));
+        const events = state.classEvents
+          .filter((e) => e.teacherId === teacherId)
+          .map((e) => ({ ...e, classe: nameById.get(e.classeId) ?? null }))
+          .sort((a, b) => frToISO(a.date).localeCompare(frToISO(b.date)));
+        return respond(events);
       },
       async create(input): Promise<Teacher> {
         const teacher: Teacher = {

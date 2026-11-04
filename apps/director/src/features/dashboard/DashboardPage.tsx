@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, StateView, StatTile, Badge } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { fmtXOF } from '@/utils/format';
+import { fmtXOF, fmtPct } from '@/utils/format';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -27,7 +27,7 @@ export default function DashboardPage() {
             <StatTile label="Effectif total" value={String(s.effectifTotal)} delta={`${s.effectifGarcons} G · ${s.effectifFilles} F`} />
             <StatTile
               label="Présence du jour"
-              value={`${s.presenceDuJour}%`}
+              value={`${fmtPct(s.presenceDuJour)}%`}
               delta={`${s.presenceDuJourVariation > 0 ? '+' : ''}${s.presenceDuJourVariation} pt${Math.abs(s.presenceDuJourVariation) >= 2 ? 's' : ''} vs hier`}
               tone={s.presenceDuJourVariation >= 0 ? 'success' : 'danger'}
               onClick={() => navigate('/presence')}

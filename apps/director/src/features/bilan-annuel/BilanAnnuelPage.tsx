@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { StateView, StatTile } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { AnnualFigure } from '@/types/domain';
-import { fmtXOF } from '@/utils/format';
+import { fmtXOF, fmtPct } from '@/utils/format';
 import styles from './BilanAnnuelPage.module.css';
 
 /** "+" devant un nombre positif, jamais devant "0" ou un nombre déjà négatif. */
@@ -65,7 +65,7 @@ export default function BilanAnnuelPage() {
             />
             <StatTile
               label="Taux de présence"
-              value={`${b.tauxPresence.valeurActuelle}%`}
+              value={`${fmtPct(b.tauxPresence.valeurActuelle)}%`}
               delta={deltaLabel(b.tauxPresence, ' (points)')}
               tone={tone(b.tauxPresence)}
             />

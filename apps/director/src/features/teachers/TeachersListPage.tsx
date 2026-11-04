@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Avatar } from '@/components/ui/Avatar/Avatar';
-import { Badge, Button, Card, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { StaffStatus, Teacher } from '@/types/domain';
 
@@ -25,6 +25,7 @@ export default function TeachersListPage() {
   const navigate = useNavigate();
   const { teachers, subjects } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
 
   const list = useQuery({ queryKey: ['teachers'], queryFn: () => teachers.list() });
@@ -69,7 +70,7 @@ export default function TeachersListPage() {
           size="sm"
           onClick={(e) => {
             e.stopPropagation();
-            if (confirm(`Retirer ${t.nom} de l’établissement ?`)) removeMutation.mutate(t.id);
+            void confirm({ title: 'Retirer l’enseignant', message: `Retirer ${t.nom} de l’établissement ?`, danger: true }).then((ok) => { if (ok) removeMutation.mutate(t.id); });
           }}
         >
           Retirer

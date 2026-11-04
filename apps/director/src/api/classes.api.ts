@@ -96,6 +96,7 @@ function fromExamResponse(dto: ExamCalendarResponseDto): ClassEvent {
   return {
     id: dto.id,
     classeId: dto.classId,
+    classe: dto.className ?? null,
     type: API_TYPE_TO_EVENT[dto.type],
     titre: dto.title,
     subjectId: dto.subjectId,
@@ -324,6 +325,16 @@ export function createClassesApi(): ClassesPort {
       );
     },
 
+    async update(classId, input): Promise<ClassGroup> {
+      const dto = await request<ClassResponseDto>(`/api/v1/classes/${encodeURIComponent(classId)}`, {
+        method: 'PUT',
+        body: { tag: input.tag, capacity: input.capacite },
+      });
+      return fromClassResponse(dto);
+    },
+    async remove(classId): Promise<void> {
+      await request<void>(`/api/v1/classes/${encodeURIComponent(classId)}`, { method: 'DELETE' });
+    },
     async unenroll(classId: string, studentId: string): Promise<void> {
       await request<ClassResponseDto>(
         `/api/v1/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`,

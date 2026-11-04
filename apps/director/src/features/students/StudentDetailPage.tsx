@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
+import { fmtPct } from '@/utils/format';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Field, Select, Sheet, StateView } from '@/components/ui';
+import { Badge, Button, Card, Field, Select, Sheet, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
@@ -17,6 +18,7 @@ export default function StudentDetailPage() {
   const navigate = useNavigate();
   const { students, classes, academicResults, paymentConfig } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
   // Assignation de classe (nouvelle demande direction) — un élève créé sans
   // classe depuis la liste « Élèves » (voir `StudentFormSheet`) se la voit
@@ -58,7 +60,7 @@ export default function StudentDetailPage() {
   const absencesLabel = marksQuery.isLoading ? '…' : String(marksQuery.data?.absent ?? 0);
   const retardsLabel = marksQuery.isLoading ? '…' : String(marksQuery.data?.late ?? 0);
   const rate = rateQuery.data?.[studentId];
-  const tauxLabel = rateQuery.isLoading ? '…' : typeof rate === 'number' ? `${rate}%` : '—';
+  const tauxLabel = rateQuery.isLoading ? '…' : typeof rate === 'number' ? `${fmtPct(rate)}%` : '—';
 
   const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list(), enabled: assignOpen });
 
@@ -99,9 +101,15 @@ export default function StudentDetailPage() {
     },
   });
 
-  function onDelete() {
+  async function onDelete() {
     if (!s) return;
-    if (confirm(`Supprimer ${s.prenom} ${s.nom} de l’établissement ? Cette action est définitive.`)) {
+    if (
+      await confirm({
+        title: 'Supprimer l’élève',
+        message: `Supprimer ${s.prenom} ${s.nom} de l’établissement ? Cette action est définitive.`,
+        danger: true,
+      })
+    ) {
       removeMutation.mutate();
     }
   }
@@ -119,13 +127,13 @@ export default function StudentDetailPage() {
     },
   });
 
-  function onToggleBlock() {
+  async function onToggleBlock() {
     if (!s) return;
     const willBlock = s.statut !== 'suspendu';
     const msg = willBlock
       ? `Bloquer ${s.prenom} ${s.nom} ? L’élève ne pourra plus se connecter tant qu’il n’est pas débloqué.`
       : `Débloquer ${s.prenom} ${s.nom} ? L’accès à son compte sera rétabli.`;
-    if (confirm(msg)) {
+    if (await confirm({ title: willBlock ? 'Bloquer l’élève' : 'Débloquer l’élève', message: msg, danger: willBlock })) {
       blockMutation.mutate(willBlock);
     }
   }

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Segmented, StateView, StatTile, Table, type Column, type SegmentedOption } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { todayISO } from '@/utils/format';
+import { todayISO, fmtPct } from '@/utils/format';
 import type { ClassAttendanceRate } from '@/types/domain';
 import styles from './AttendanceOverviewPage.module.css';
 
@@ -98,7 +98,7 @@ export default function AttendanceOverviewPage() {
     { key: 'present', header: 'Présents', render: (c) => String(c.present), align: 'right' },
     { key: 'absent', header: 'Absents', render: (c) => String(c.absent), align: 'right' },
     { key: 'retard', header: 'Retards', render: (c) => String(c.late), align: 'right' },
-    { key: 'taux', header: 'Taux de présence', render: (c) => `${c.attendanceRate}%`, align: 'right' },
+    { key: 'taux', header: 'Taux de présence', render: (c) => `${fmtPct(c.attendanceRate)}%`, align: 'right' },
   ];
 
   return (
@@ -133,7 +133,7 @@ export default function AttendanceOverviewPage() {
               tone={s.late > 0 ? 'warning' : 'success'}
               delta={countDelta(s.late, prev?.late)}
             />
-            <StatTile label="Taux de présence" value={`${s.attendanceRate}%`} tone={rateTrendTone} delta={rateDelta} />
+            <StatTile label="Taux de présence" value={`${fmtPct(s.attendanceRate)}%`} tone={rateTrendTone} delta={rateDelta} />
           </div>
         ) : null}
       </StateView>

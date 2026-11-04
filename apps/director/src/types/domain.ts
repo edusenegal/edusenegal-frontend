@@ -54,6 +54,8 @@ export type EventType = 'Devoir' | 'Examen' | 'Composition' | 'Conseil de classe
 export interface ClassEvent {
   id: string;
   classeId: string;
+  /** Nom de la classe résolu côté backend (`ExamCalendarResponse.className`) — vue enseignant multi-classes. */
+  classe?: string | null;
   type: EventType;
   titre: string;
   /** Id de la matière (liste déroulante des matières ENSEIGNÉES DANS CETTE CLASSE) — `null` pour un conseil de classe. */
@@ -874,4 +876,18 @@ export interface Expense {
   piecesJointes: string[];
   historiqueValidation: ExpenseValidationStep[];
   creeLe: string;
+}
+
+/**
+ * Un créneau de l'emploi du temps hebdomadaire d'un enseignant (toutes
+ * classes confondues). Backend : `GET /timetables/teacher/{id}` (schedule-service).
+ */
+export interface TeacherScheduleSlot {
+  jour: 'Lundi' | 'Mardi' | 'Mercredi' | 'Jeudi' | 'Vendredi' | 'Samedi';
+  heureDebut: string; // "08:00"
+  heureFin: string;
+  matiere: string | null;
+  classe: string;
+  salle: string | null;
+  remplacant: string | null;
 }

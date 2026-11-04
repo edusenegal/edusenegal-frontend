@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
+import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO } from '@/utils/format';
-import type { SalaryMode, SignedDocument, StaffStatus, Teacher } from '@/types/domain';
+import type { ClassEvent, EventType, SalaryMode, SignedDocument, StaffStatus, Teacher, TeacherScheduleSlot } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { TeacherFormSheet } from './TeacherFormSheet';
 import styles from './TeacherDetailPage.module.css';
@@ -18,7 +18,7 @@ const STATUT_LABEL: Record<StaffStatus, string> = {
   en_attente: 'En attente d’activation',
 };
 
-type Tab = 'profil' | 'classes' | 'documents' | 'remuneration' | 'absences';
+type Tab = 'profil' | 'classes' | 'emploi' | 'documents' | 'remuneration' | 'absences';
 
 const SALARY_MODE_LABEL: Record<SalaryMode, string> = {
   fixe: 'Fixe (mensuel)',
@@ -31,6 +31,7 @@ export default function TeacherDetailPage() {
   const navigate = useNavigate();
   const { teachers, classes, subjects } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>('profil');
   const [editOpen, setEditOpen] = useState(false);
   const [classToAdd, setClassToAdd] = useState('');
@@ -71,6 +72,7 @@ export default function TeacherDetailPage() {
   const tabs: { value: Tab; label: string }[] = [
     { value: 'profil', label: 'Profil' },
     { value: 'classes', label: 'Classes' },
+    { value: 'emploi', label: 'Emploi du temps' },
     { value: 'documents', label: 'Documents' },
     { value: 'remuneration', label: 'Rémunération' },
     { value: 'absences', label: 'Absences' },
@@ -125,7 +127,8 @@ export default function TeacherDetailPage() {
                           loading={removeClassMutation.isPending && removeClassMutation.variables === classIdByName.get(cn)}
                           onClick={() => {
                             const classId = classIdByName.get(cn);
-                            if (classId) removeClassMutation.mutate(classId);
+                            if (!classId) return;
+                            void confirm({ title: 'Retirer la classe', message: `Retirer ${cn} de cet enseignant ?`, danger: true }).then((ok) => { if (ok) removeClassMutation.mutate(classId); });
                           }}
                         >
                           ✕ Retirer
@@ -154,6 +157,8 @@ export default function TeacherDetailPage() {
                 </div>
               </>
             ) : null}
+
+            {tab === 'emploi' ? <ScheduleTab teacherId={teacherId} /> : null}
 
             {tab === 'documents' ? (
               <>
@@ -674,7 +679,7 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
                 </td>
                 <td>{a.motif ?? '—'}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <Button variant="ghost" size="sm" onClick={() => removeMutation.mutate(a.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer l’absence', message: 'Supprimer cette absence enregistrée ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(a.id); }); }}>
                     ✕
                   </Button>
                 </td>
@@ -684,5 +689,124 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
         </table>
       </StateView>
     </>
+  );
+}
+
+
+const SCHEDULE_DAYS: TeacherScheduleSlot['jour'][] = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+const EVENT_TONE: Record<EventType, 'info' | 'warning' | 'danger' | 'neutral'> = {
+  Devoir: 'info',
+  Composition: 'warning',
+  Examen: 'danger',
+  'Conseil de classe': 'neutral',
+};
+
+/**
+ * Emploi du temps de l'enseignant (lecture seule pour le directeur) ET les
+ * évaluations qu'il a planifiées — devoirs, examens, compositions.
+ * Données réelles : `GET /timetables/teacher/{id}` et `GET /exams/teacher/{id}`
+ * (schedule-service), toutes classes confondues.
+ */
+function ScheduleTab({ teacherId }: { teacherId: string }) {
+  const { teachers } = useServices();
+  const scheduleQuery = useQuery({
+    queryKey: ['teacher-schedule', teacherId],
+    queryFn: () => teachers.getSchedule(teacherId),
+  });
+  const evalQuery = useQuery({
+    queryKey: ['teacher-evaluations', teacherId],
+    queryFn: () => teachers.getPlannedEvaluations(teacherId),
+  });
+
+  const byDay = new Map<string, TeacherScheduleSlot[]>();
+  for (const slot of scheduleQuery.data ?? []) {
+    const list = byDay.get(slot.jour) ?? [];
+    list.push(slot);
+    byDay.set(slot.jour, list);
+  }
+  for (const list of byDay.values()) list.sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+      <section>
+        <h3 style={{ fontSize: 14, margin: '0 0 10px' }}>Emploi du temps hebdomadaire</h3>
+        <StateView
+          loading={scheduleQuery.isLoading}
+          error={scheduleQuery.error}
+          empty={(scheduleQuery.data?.length ?? 0) === 0}
+          emptyLabel="Aucun créneau dans l'emploi du temps de cet enseignant."
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+            {SCHEDULE_DAYS.map((day) => {
+              const slots = byDay.get(day) ?? [];
+              return (
+                <Card key={day} padded>
+                  <h4 style={{ fontSize: 13.5, margin: '0 0 8px', color: 'var(--color-text-muted)' }}>{day}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {slots.length === 0 ? (
+                      <p style={{ fontSize: 12.5, color: 'var(--color-text-faint)' }}>Aucun cours.</p>
+                    ) : (
+                      slots.map((slot, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: '8px 10px',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 8,
+                            background: 'var(--color-surface)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                            {slot.heureDebut} – {slot.heureFin}
+                          </div>
+                          <div style={{ fontWeight: 600 }}>{slot.matiere ?? 'Permanence'}</div>
+                          <div style={{ fontSize: 12.5 }}>{slot.classe}</div>
+                          {slot.salle ? (
+                            <div style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>Salle {slot.salle}</div>
+                          ) : null}
+                          {slot.remplacant ? (
+                            <div style={{ marginTop: 4 }}>
+                              <Badge tone="warning">Remplacé par {slot.remplacant}</Badge>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </StateView>
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, margin: '0 0 10px' }}>Évaluations planifiées</h3>
+        <StateView
+          loading={evalQuery.isLoading}
+          error={evalQuery.error}
+          empty={(evalQuery.data?.length ?? 0) === 0}
+          emptyLabel="Aucune évaluation (devoir, examen, composition) planifiée par cet enseignant."
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(evalQuery.data ?? []).map((ev: ClassEvent) => (
+              <Card key={ev.id} padded>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <Badge tone={EVENT_TONE[ev.type]}>{ev.type}</Badge>
+                  <strong style={{ fontSize: 14 }}>{ev.titre}</strong>
+                  <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                    {ev.date} · {ev.heureDebut}–{ev.heureFin}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  {[ev.classe, ev.matiere, ev.salle ? `Salle ${ev.salle}` : null].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </StateView>
+      </section>
+    </div>
   );
 }
