@@ -13,3 +13,5 @@ export { Table } from './Table/Table';
 export type { Column } from './Table/Table';
 export { Meter } from './Meter/Meter';
 export { StatTile } from './StatTile/StatTile';
+export { ConfirmProvider, useConfirm } from './Confirm/Confirm';
+export type { ConfirmOptions } from './Confirm/Confirm';

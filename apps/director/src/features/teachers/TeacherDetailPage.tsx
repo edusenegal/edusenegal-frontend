@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
-import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO } from '@/utils/format';
+import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO, exportCsv } from '@/utils/format';
 import type { ClassEvent, EventType, SalaryMode, SignedDocument, StaffStatus, Teacher, TeacherScheduleSlot } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { TeacherFormSheet } from './TeacherFormSheet';
@@ -599,6 +599,7 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
   const { staffAbsences } = useServices();
   const queryClient = useQueryClient();
 
+  const confirm = useConfirm();
   const absences = useQuery({ queryKey: ['teacher-absences', teacherId], queryFn: () => staffAbsences.list(teacherId) });
 
   const [dateDebut, setDateDebut] = useState(todayISO());
@@ -730,7 +731,29 @@ function ScheduleTab({ teacherId }: { teacherId: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
       <section>
-        <h3 style={{ fontSize: 14, margin: '0 0 10px' }}>Emploi du temps hebdomadaire</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ fontSize: 14, margin: 0 }}>Emploi du temps hebdomadaire</h3>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={(scheduleQuery.data?.length ?? 0) === 0}
+            onClick={() => {
+              const headers = ['Jour', 'Début', 'Fin', 'Classe', 'Matière', 'Salle', 'Remplaçant'];
+              const data = (scheduleQuery.data ?? []).map((sl) => [
+                sl.jour,
+                sl.heureDebut,
+                sl.heureFin,
+                sl.classe,
+                sl.matiere ?? '',
+                sl.salle ?? '',
+                sl.remplacant ?? '',
+              ]);
+              exportCsv('emploi_du_temps_enseignant.csv', headers, data);
+            }}
+          >
+            Exporter (CSV)
+          </Button>
+        </div>
         <StateView
           loading={scheduleQuery.isLoading}
           error={scheduleQuery.error}

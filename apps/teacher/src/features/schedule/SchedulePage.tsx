@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, Segmented, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { exportCsv } from '@/utils/format';
 import type { TimetableSlot } from '@/types/domain';
 import { SlotDetailSheet } from './SlotDetailSheet';
 
@@ -54,6 +55,12 @@ function dateForWeekdayThisWeek(day: TimetableSlot['jour']): Date {
 export default function SchedulePage() {
   const { timetable } = useServices();
   const query = useQuery({ queryKey: ['timetable', 'mine'], queryFn: () => timetable.mine() });
+  function exportSchedule() {
+    const headers = ['Jour', 'Début', 'Fin', 'Classe', 'Matière', 'Salle'];
+    const rows = (query.data ?? []).map((sl) => [sl.jour, sl.heureDebut, sl.heureFin, sl.classe, sl.matiere ?? '', sl.salle ?? '']);
+    exportCsv('emploi_du_temps.csv', headers, rows);
+  }
+
   const [view, setView] = useState<'semaine' | 'mois'>('semaine');
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
@@ -114,14 +121,24 @@ export default function SchedulePage() {
         title="Emploi du temps"
         subtitle="Vos créneaux de cours, toutes classes confondues. Cliquez un créneau pour voir ou modifier son détail."
         action={
-          <Segmented
-            options={[
-              { value: 'semaine', label: 'Semaine' },
-              { value: 'mois', label: 'Mois' },
-            ]}
-            value={view}
-            onChange={(v) => setView(v)}
-          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={(query.data?.length ?? 0) === 0}
+              onClick={exportSchedule}
+            >
+              Exporter (CSV)
+            </Button>
+            <Segmented
+              options={[
+                { value: 'semaine', label: 'Semaine' },
+                { value: 'mois', label: 'Mois' },
+              ]}
+              value={view}
+              onChange={(v) => setView(v)}
+            />
+          </div>
         }
       />
       <StateView loading={query.isLoading} error={query.error} empty={(query.data?.length ?? 0) === 0}>

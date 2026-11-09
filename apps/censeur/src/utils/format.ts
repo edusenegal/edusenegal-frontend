@@ -113,3 +113,30 @@ export function fmtBytes(bytes: number): string {
   const mo = ko / 1024;
   return `${mo.toFixed(mo < 10 ? 1 : 0)} Mo`;
 }
+
+/**
+ * Formate un pourcentage : au plus 2 décimales, sans zéros inutiles
+ * (87.87878… → "87.88", 95 → "95", 87.5 → "87.5"). "—" si non fini.
+ */
+export function fmtPct(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  return String(Math.round(value * 100) / 100);
+}
+
+/**
+ * Exporte des données tabulaires en CSV (séparateur « ; » pour Excel FR, BOM
+ * UTF-8 pour les accents) et déclenche le téléchargement.
+ */
+export function exportCsv(
+  filename: string,
+  headers: string[],
+  rows: Array<Array<string | number | null | undefined>>,
+): void {
+  const esc = (v: string | number | null | undefined) => {
+    const s = v == null ? '' : String(v);
+    return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers, ...rows].map((r) => r.map(esc).join(';'));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, filename);
+}

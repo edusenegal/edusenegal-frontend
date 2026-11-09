@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { fmtPct } from '@/utils/format';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, StateView, StatTile, Badge } from '@/components/ui';
@@ -28,7 +29,7 @@ export default function DashboardPage() {
             <StatTile label="Effectif total" value={String(s.effectifTotal)} delta={`${s.effectifGarcons} G · ${s.effectifFilles} F`} />
             <StatTile
               label="Présence du jour"
-              value={`${s.presenceDuJour}%`}
+              value={`${fmtPct(s.presenceDuJour)}%`}
               delta={`${s.presenceDuJourVariation > 0 ? '+' : ''}${s.presenceDuJourVariation} pt${Math.abs(s.presenceDuJourVariation) >= 2 ? 's' : ''} vs hier`}
               tone={s.presenceDuJourVariation >= 0 ? 'success' : 'danger'}
               onClick={() => navigate('/presence')}

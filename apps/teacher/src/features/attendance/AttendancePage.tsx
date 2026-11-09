@@ -128,6 +128,11 @@ export default function AttendancePage() {
     queryFn: () => attendance.getHistory(historyFrom, historyTo),
   });
   const [detailSession, setDetailSession] = useState<AttendanceSession | null>(null);
+  // Appels enregistrés durant cette session d'écran — filet optimiste pour que
+  // la ligne d'historique et le récap apparaissent AUSSITÔT après un
+  // enregistrement réussi, sans dépendre du re-fetch de l'historique (qui peut
+  // renvoyer vide si le backend n'attribue pas encore le créneau à ce prof).
+  const [savedSessions, setSavedSessions] = useState<AttendanceSession[]>([]);
   const [detailStatuses, setDetailStatuses] = useState<Record<string, AttendanceStatus>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
 
@@ -159,6 +164,26 @@ export default function AttendancePage() {
       });
     },
     onSuccess: () => {
+      // Répercute la correction sur le filet optimiste (si cet appel y figure).
+      if (detailSession) {
+        const corrected = detailSession;
+        setSavedSessions((prev) =>
+          prev.map((p) =>
+            p.classId === corrected.classId &&
+            p.subjectId === corrected.subjectId &&
+            p.date === corrected.date &&
+            p.period === corrected.period
+              ? {
+                  ...p,
+                  students: corrected.students.map((st) => ({
+                    studentId: st.studentId,
+                    statut: detailStatuses[st.studentId] ?? st.statut,
+                  })),
+                }
+              : p,
+          ),
+        );
+      }
       setDetailSession(null);
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
     },
@@ -219,10 +244,29 @@ export default function AttendancePage() {
     onSuccess: () => {
       setSaved(true);
       setError(null);
-      // L'historique est la source de vérité de « appel déjà enregistré »
-      // (voir `currentSession`) : on l'invalide pour que le nouveau créneau
-      // apparaisse aussitôt en haut de la liste et que la saisie bascule sur
-      // le récapitulatif sans recharger la page.
+      // Filet optimiste : on mémorise l'appel qui vient d'être enregistré pour
+      // que la ligne d'historique ET le récap s'affichent immédiatement, même
+      // si le re-fetch de l'historique tarde ou renvoie vide.
+      const snapshot: AttendanceSession = {
+        id: `local-${classId}-${subjectId}-${date}-${period}`,
+        classId,
+        subjectId,
+        subjectName: undefined,
+        date,
+        period,
+        locked: false,
+        students: sortedRoster.map((s) => ({
+          studentId: s.id,
+          statut: effectiveStatuses[s.id] ?? 'present',
+        })),
+      };
+      setSavedSessions((prev) => [
+        snapshot,
+        ...prev.filter(
+          (p) =>
+            !(p.classId === classId && p.subjectId === subjectId && p.date === date && p.period === period),
+        ),
+      ]);
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Échec de l’enregistrement.'),
@@ -268,12 +312,15 @@ export default function AttendancePage() {
 
   // Appel déjà enregistré pour le créneau sélectionné (sert à masquer la
   // liste après enregistrement et à ouvrir son détail pour correction).
+  const sameSlot = (h: AttendanceSession) =>
+    h.classId === classId && h.subjectId === subjectId && h.date === date && h.period === period;
   const currentSession = useMemo(
     () =>
-      (historyQuery.data ?? []).find(
-        (h) => h.classId === classId && h.subjectId === subjectId && h.date === date && h.period === period,
-      ) ?? null,
-    [historyQuery.data, classId, subjectId, date, period],
+      (historyQuery.data ?? []).find(sameSlot) ??
+      savedSessions.find(sameSlot) ??
+      null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [historyQuery.data, savedSessions, classId, subjectId, date, period],
   );
 
   // Récapitulatif de l'appel déjà enregistré pour CE créneau — calculé depuis
@@ -290,10 +337,20 @@ export default function AttendancePage() {
     d.setDate(d.getDate() - days);
     return d.toISOString().slice(0, 10);
   }, [historyPeriod]);
-  const displayedHistory = useMemo(
-    () => (historyQuery.data ?? []).filter((h) => h.date >= historyFromDisplayISO),
-    [historyQuery.data, historyFromDisplayISO],
-  );
+  const displayedHistory = useMemo(() => {
+    const rows = [...(historyQuery.data ?? [])];
+    for (const saved of savedSessions) {
+      const already = rows.some(
+        (h) =>
+          h.classId === saved.classId &&
+          h.subjectId === saved.subjectId &&
+          h.date === saved.date &&
+          h.period === saved.period,
+      );
+      if (!already) rows.unshift(saved);
+    }
+    return rows.filter((h) => h.date >= historyFromDisplayISO);
+  }, [historyQuery.data, savedSessions, historyFromDisplayISO]);
 
   const historyColumns: Column<AttendanceSession>[] = [
     { key: 'date', header: 'Date', render: (s) => s.date },
@@ -516,6 +573,53 @@ export default function AttendancePage() {
             {detailError ? (
               <p style={{ color: 'var(--color-danger)', fontSize: 13, margin: '0 0 8px' }}>{detailError}</p>
             ) : null}
+            {(() => {
+              const names = new Map(
+                (detailRosterQuery.data ?? []).map((s) => [s.id, `${s.prenom} ${s.nom}`] as const),
+              );
+              const pick = (st: AttendanceStatus) =>
+                Object.entries(detailStatuses)
+                  .filter(([, value]) => value === st)
+                  .map(([id]) => names.get(id) ?? id);
+              const absents = pick('absent');
+              const retards = pick('retard');
+              return (
+                <div
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    margin: '0 0 12px',
+                    background: 'var(--color-surface-muted, #faf9fb)',
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+                    Absents du jour · {absents.length} absent{absents.length > 1 ? 's' : ''}
+                    {retards.length > 0 ? `, ${retards.length} retard${retards.length > 1 ? 's' : ''}` : ''}
+                  </div>
+                  {absents.length === 0 && retards.length === 0 ? (
+                    <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: 0 }}>
+                      Toute la classe était présente.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {absents.map((n) => (
+                        <div key={`a-${n}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                          <Badge tone="danger">Absent</Badge>
+                          <span>{n}</span>
+                        </div>
+                      ))}
+                      {retards.map((n) => (
+                        <div key={`r-${n}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                          <Badge tone="warning">Retard</Badge>
+                          <span>{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <StateView
               loading={detailRosterQuery.isLoading}
               error={detailRosterQuery.error}

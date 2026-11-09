@@ -1,10 +1,46 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMyNotifications, getUnreadCount, markAllNotificationsRead } from '@/api/notifications.api';
+import {
+  getMyNotifications,
+  getUnreadCount,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationItem,
+} from '@/api/notifications.api';
 
-/** Cloche de notifications : compteur de non-lus + liste déroulante. */
+/** entityType (métadonnées backend) → route de cette app. */
+const ROUTE_BY_ENTITY: Record<string, string> = {
+  timetable: '/emploi-du-temps',
+};
+
+function isServiceNote(n: NotificationItem): boolean {
+  return n.entityType === 'service-note' || n.type === 'SERVICE_NOTE';
+}
+
+function formatWhen(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Cloche de notifications : compteur de non-lus + liste déroulante. Ouvrir une
+ * note de service affiche un popup avec le détail complet ; une notification
+ * d'emploi du temps redirige vers l'emploi du temps. Cliquer une notification
+ * la marque comme lue.
+ */
 export function NotificationsBell() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<NotificationItem | null>(null);
   const queryClient = useQueryClient();
 
   const unread = useQuery({
@@ -18,16 +54,30 @@ export function NotificationsBell() {
     queryFn: getMyNotifications,
     enabled: open,
   });
-  const readAll = useMutation({
-    mutationFn: markAllNotificationsRead,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'list'] });
-    },
-  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'list'] });
+  };
+  const readAll = useMutation({ mutationFn: markAllNotificationsRead, onSuccess: invalidate });
+  const readOne = useMutation({ mutationFn: markNotificationRead, onSuccess: invalidate });
 
   const count = unread.data ?? 0;
   const items = list.data ?? [];
+
+  function openItem(n: NotificationItem) {
+    if (!n.read) readOne.mutate(n.id);
+    if (isServiceNote(n)) {
+      setDetail(n);
+      setOpen(false);
+      return;
+    }
+    const route = n.entityType ? ROUTE_BY_ENTITY[n.entityType] : undefined;
+    if (route) {
+      setOpen(false);
+      navigate(route);
+    }
+  }
 
   return (
     <div style={{ position: 'relative' }}>
@@ -79,16 +129,82 @@ export function NotificationsBell() {
             ) : items.length === 0 ? (
               <p style={{ padding: 12, fontSize: 13, color: 'var(--color-text-muted, #666)' }}>Aucune notification.</p>
             ) : (
-              items.map((n) => (
-                <div
-                  key={n.id}
-                  style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border, #eee)', background: n.read ? 'transparent' : 'var(--color-primary-soft, #f3f3fb)' }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{n.title}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--color-text-muted, #555)', marginTop: 2 }}>{n.body}</div>
-                </div>
-              ))
+              items.map((n) => {
+                const note = isServiceNote(n);
+                const route = n.entityType ? ROUTE_BY_ENTITY[n.entityType] : undefined;
+                const clickable = note || !!route;
+                return (
+                  <div
+                    key={n.id}
+                    role={clickable ? 'button' : undefined}
+                    onClick={() => openItem(n)}
+                    style={{
+                      padding: '10px 12px',
+                      borderBottom: '1px solid var(--color-border, #eee)',
+                      background: n.read ? 'transparent' : 'var(--color-primary-soft, #f3f3fb)',
+                      cursor: clickable ? 'pointer' : 'default',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{n.title}</div>
+                    <div
+                      style={{
+                        fontSize: 12.5, color: 'var(--color-text-muted, #555)', marginTop: 2,
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                      }}
+                    >
+                      {n.body}
+                    </div>
+                    {note ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--color-primary, #5b5bd6)', marginTop: 4 }}>Voir le détail →</div>
+                    ) : route ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--color-primary, #5b5bd6)', marginTop: 4 }}>Voir →</div>
+                    ) : null}
+                  </div>
+                );
+              })
             )}
+          </div>
+        </>
+      ) : null}
+
+      {detail ? (
+        <>
+          <div
+            onClick={() => setDetail(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 60 }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              width: 'min(520px, calc(100vw - 32px))', maxHeight: '80vh', overflowY: 'auto',
+              background: 'var(--color-surface, #fff)', border: '1px solid var(--color-border, #e3e3e3)',
+              borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,.25)', zIndex: 70, padding: 20,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--color-primary, #5b5bd6)' }}>
+                  Note de service
+                </div>
+                <h3 style={{ margin: '4px 0 0', fontSize: 17 }}>{detail.title}</h3>
+                {detail.createdAt ? (
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted, #666)', marginTop: 2 }}>{formatWhen(detail.createdAt)}</div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                aria-label="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1, color: 'var(--color-text-muted, #666)' }}
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ marginTop: 16, fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--color-text, #222)' }}>
+              {detail.body}
+            </p>
           </div>
         </>
       ) : null}

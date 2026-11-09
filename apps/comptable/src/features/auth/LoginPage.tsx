@@ -1,11 +1,30 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Button, Field, Input, Sheet } from '@/components/ui';
+import { Sheet } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/auth.store';
 import { AppError } from '@/services/errors';
 import styles from './LoginPage.module.css';
+import { AuthIcon, type IconName } from './authIcons';
+
+/* Configuration du rôle — COMPTABILITÉ (thème vert émeraude) */
+const ROLE = {
+  accent: '#059669',
+  panel: 'linear-gradient(140deg, #022c22 0%, #064e3b 55%, #065f46 100%)',
+  icon: 'wallet' as IconName,
+  title: 'Comptabilité',
+  pitch: 'Une gestion financière claire, sécurisée et transparente.',
+  features: [
+    { label: 'Suivi budgétaire', icon: 'chart' as IconName },
+    { label: 'Factures et paiements', icon: 'receipt' as IconName },
+    { label: 'Rapports financiers', icon: 'trending' as IconName },
+    { label: 'Transparence', icon: 'shield' as IconName },
+  ],
+  quote: 'Des chiffres fiables pour une meilleure gestion.',
+  portal: 'Comptabilité',
+  welcomeSub: 'Comptabilité',
+};
 
 export default function LoginPage() {
   const { auth } = useServices();
@@ -18,14 +37,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginByPhone, setLoginByPhone] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // CORRECTION (demande explicite) : un compte valide mais sans le rôle
-  // ACCOUNTANT (voir `fetchAccountantProfile`) a droit à un popup qui dit
-  // clairement « vous n'avez pas accès », pas au message générique de
-  // connexion échouée affiché en ligne sous le formulaire.
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
-  // Compte bloqué (SUSPENDED) : popup dédié après code ACCOUNT_SUSPENDED (422) de la passerelle.
   const [blocked, setBlocked] = useState<string | null>(null);
+  const [forgot, setForgot] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () => auth.login(email, password, loginByPhone),
@@ -63,65 +79,105 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={styles.screen}>
-      <form className={styles.card} onSubmit={onSubmit}>
-        <div className={styles.brand}>
-          <span className={styles.logo} aria-hidden="true">
-            ◆
-          </span>
-          <b>EduSénégal — Comptabilité</b>
+    <div className={styles.screen} style={{ ['--accent' as string]: ROLE.accent, ['--panel' as string]: ROLE.panel }}>
+      <aside className={styles.visual}>
+        <span className={`${styles.blob} ${styles.blobA}`} />
+        <span className={`${styles.blob} ${styles.blobB}`} />
+
+        <div className={styles.brandRow}>
+          <span className={styles.logoMark}><AuthIcon name="cap" size={22} /></span>
+          <div>
+            <b className={styles.brandName}>EduSénégal</b>
+            <span className={styles.brandTag}>Ensemble pour une éducation de qualité</span>
+          </div>
         </div>
-        <p className={styles.hint}>Espace réservé au comptable de l’établissement.</p>
 
-        <fieldset className={styles.mode}>
-          <legend className={styles.modeLegend}>Je me connecte avec</legend>
-          <label className={styles.modeOption}>
-            <input
-              type="radio"
-              name="loginMode"
-              checked={loginByPhone}
-              onChange={() => setLoginByPhone(true)}
-            />
-            Téléphone
-          </label>
-          <label className={styles.modeOption}>
-            <input
-              type="radio"
-              name="loginMode"
-              checked={!loginByPhone}
-              onChange={() => setLoginByPhone(false)}
-            />
-            Matricule
-          </label>
-        </fieldset>
+        <div>
+          <div className={styles.roleIcon}><AuthIcon name={ROLE.icon} size={26} /></div>
+          <h1 className={styles.roleTitle}>{ROLE.title}</h1>
+          <p className={styles.roleSubtitle}>{ROLE.pitch}</p>
+          <ul className={styles.features}>
+            {ROLE.features.map((f) => (
+              <li key={f.label}>
+                <span className={styles.featIcon}><AuthIcon name={f.icon} size={17} /></span>
+                {f.label}
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        <Field label="Identifiant (téléphone ou matricule)" required>
-          <Input
-            type="text"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            placeholder={loginByPhone ? '77 000 00 00' : 'CEMT-LG-CP-0000001'}
-            required
-          />
-        </Field>
-        <Field label="Mot de passe" required>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-            minLength={4}
-          />
-        </Field>
+        <p className={styles.quote}>« {ROLE.quote} »</p>
+      </aside>
 
-        {error ? <p className={styles.error}>{error}</p> : null}
+      <main className={styles.formSide}>
+        <div className={styles.formInner}>
+          <div className={styles.formTop}>
+            <span className={styles.logoSmall}><AuthIcon name="cap" size={22} /> EduSénégal</span>
+            <span className={styles.portalBadge}><AuthIcon name={ROLE.icon} size={15} /> Portail {ROLE.portal}</span>
+          </div>
 
-        <Button type="submit" variant="primary" loading={mutation.isPending} className={styles.submit}>
-          Se connecter
-        </Button>
-      </form>
+          <h2 className={styles.welcome}>Bienvenue sur votre espace</h2>
+          <p className={styles.welcomeSub}>{ROLE.welcomeSub}</p>
+
+          <form onSubmit={onSubmit}>
+            <div className={styles.toggle} role="tablist" aria-label="Type d’identifiant">
+              <button type="button" role="tab" aria-selected={loginByPhone}
+                className={loginByPhone ? styles.toggleActive : styles.toggleBtn}
+                onClick={() => setLoginByPhone(true)}>
+                <AuthIcon name="phone" size={15} /> Téléphone
+              </button>
+              <button type="button" role="tab" aria-selected={!loginByPhone}
+                className={!loginByPhone ? styles.toggleActive : styles.toggleBtn}
+                onClick={() => setLoginByPhone(false)}>
+                Matricule
+              </button>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="login-id">
+                Identifiant (téléphone ou matricule) <span className={styles.req}>*</span>
+              </label>
+              <div className={styles.inputWrap}>
+                <span className={styles.inputIcon}><AuthIcon name="phone" size={18} /></span>
+                <input id="login-id" className={styles.input} type="text" value={email}
+                  onChange={(e) => setEmail(e.target.value)} autoComplete="username" required
+                  placeholder={loginByPhone ? '+221 77 000 00 00' : 'CPT-LG-0000000'} />
+              </div>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="login-pw">
+                Mot de passe <span className={styles.req}>*</span>
+              </label>
+              <div className={styles.inputWrap}>
+                <span className={styles.inputIcon}><AuthIcon name="lock" size={18} /></span>
+                <input id="login-pw" className={styles.input} type={showPassword ? 'text' : 'password'}
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password" required minLength={4} placeholder="Votre mot de passe" />
+                <button type="button" className={styles.eyeBtn} onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}>
+                  <AuthIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
+                </button>
+              </div>
+            </div>
+
+            {error ? <p className={styles.error}>{error}</p> : null}
+
+            <button type="submit" className={styles.submit} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Connexion…' : '→ Se connecter'}
+            </button>
+
+            <button type="button" className={styles.forgot} onClick={() => setForgot(true)}>
+              Mot de passe oublié ?
+            </button>
+          </form>
+
+          <div className={styles.footer}>
+            <span className={styles.secure}><AuthIcon name="shield" size={14} /> Connexion sécurisée</span>
+            <span>EduSénégal · Tous droits réservés</span>
+          </div>
+        </div>
+      </main>
 
       <Sheet title="Accès refusé" open={accessDenied !== null} onClose={() => setAccessDenied(null)}>
         <p>{accessDenied}</p>
@@ -136,6 +192,10 @@ export default function LoginPage() {
           Votre accès a été suspendu par l’administration de l’établissement. Rapprochez-vous de la
           direction pour le rétablir.
         </p>
+      </Sheet>
+
+      <Sheet title="Mot de passe oublié" open={forgot} onClose={() => setForgot(false)}>
+        <p>Pour réinitialiser votre mot de passe, rapprochez-vous de l’administration de votre établissement.</p>
       </Sheet>
     </div>
   );

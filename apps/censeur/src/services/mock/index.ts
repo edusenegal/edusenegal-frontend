@@ -736,6 +736,14 @@ export function createMockServices(): Services {
         // (createTeachersApi) couvre l'application.
         return respond([]);
       },
+      async getPlannedEvaluations(teacherId: string): Promise<ClassEvent[]> {
+        const nameById = new Map(state.classes.map((c) => [c.id, c.name]));
+        const events = state.classEvents
+          .filter((e) => e.teacherId === teacherId)
+          .map((e) => ({ ...e, classe: nameById.get(e.classeId) ?? null }))
+          .sort((a, b) => frToISO(a.date).localeCompare(frToISO(b.date)));
+        return respond(events);
+      },
       async create(input): Promise<Teacher> {
         const teacher: Teacher = {
           ...input,
@@ -1741,6 +1749,16 @@ export function createMockServices(): Services {
         if (!classe) notFound('Classe');
         state.lockedGradeKeys.add(`${classId}|${subjectId}|${semesterNumber}`);
         return respond(undefined, 300);
+      },
+
+      async getLockedSubjects(classId, semesterNumber): Promise<string[]> {
+        const prefix = `${classId}|`;
+        const suffix = `|${semesterNumber}`;
+        return respond(
+          Array.from(state.lockedGradeKeys)
+            .filter((k) => k.startsWith(prefix) && k.endsWith(suffix))
+            .map((k) => k.slice(prefix.length, k.length - suffix.length)),
+        );
       },
 
       async computeClassAverages(classId, semesterNumber): Promise<void> {

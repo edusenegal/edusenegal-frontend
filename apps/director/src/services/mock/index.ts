@@ -59,7 +59,10 @@ import type {
   TransferRequest,
   YearResult,
   TeacherScheduleSlot,
-} from '@/types/domain';
+
+  AttendanceSession,
+  AttendanceSessionDetail,
+  AttendanceTrendPoint,} from '@/types/domain';
 import { frToISO } from '@/utils/format';
 import * as fixtures from './fixtures';
 
@@ -1212,6 +1215,36 @@ export function createMockServices(): Services {
         found.reviewedAt = new Date().toISOString();
         return respond(found, 300);
       },
+      // Vue "par créneau" / verrouillage : l'app directeur utilise l'API réelle
+      // (createStudentAttendanceApi) ; ces implémentations mock ne servent qu'au
+      // typage et aux tests hors-ligne — pas de séances simulées ici.
+      async getSchoolSessions(): Promise<AttendanceSession[]> {
+        return respond([]);
+      },
+      async getClassSessions(): Promise<AttendanceSession[]> {
+        return respond([]);
+      },
+      async getSchoolTrend(): Promise<AttendanceTrendPoint[]> {
+        return respond([]);
+      },
+      async getClassTrend(): Promise<AttendanceTrendPoint[]> {
+        return respond([]);
+      },
+      async getSessionDetail(): Promise<AttendanceSessionDetail> {
+        return notFound('Séance');
+      },
+      async lockSession(): Promise<AttendanceSessionDetail> {
+        return notFound('Séance');
+      },
+      async unlockSession(): Promise<AttendanceSessionDetail> {
+        return notFound('Séance');
+      },
+      async updateStudentStatus(): Promise<AttendanceSessionDetail> {
+        return notFound('Séance');
+      },
+      async downloadJustification(): Promise<void> {
+        await respond(undefined, 150);
+      },
     },
 
     salaryRequests: {
@@ -1577,6 +1610,16 @@ export function createMockServices(): Services {
         if (!classe) notFound('Classe');
         state.lockedGradeKeys.add(`${classId}|${subjectId}|${semesterNumber}`);
         return respond(undefined, 300);
+      },
+
+      async getLockedSubjects(classId, semesterNumber): Promise<string[]> {
+        const prefix = `${classId}|`;
+        const suffix = `|${semesterNumber}`;
+        return respond(
+          Array.from(state.lockedGradeKeys)
+            .filter((k) => k.startsWith(prefix) && k.endsWith(suffix))
+            .map((k) => k.slice(prefix.length, k.length - suffix.length)),
+        );
       },
 
       async computeClassAverages(classId, semesterNumber): Promise<void> {

@@ -7,7 +7,7 @@ interface PageHeaderProps {
   action?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
+export function PageHeader({ subtitle, action }: PageHeaderProps) {
   return (
     <div className={styles.head}>
       <div>

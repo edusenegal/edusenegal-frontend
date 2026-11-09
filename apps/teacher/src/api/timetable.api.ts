@@ -53,7 +53,18 @@ export function createTimetableApi(): TimetablePort {
         fetchSchoolClasses(schoolId),
       ]);
       const classNameById = new Map(classes.map((c) => [c.id, c.fullName]));
-      return slots.map((dto) => toDomainSlot(dto, classNameById.get(dto.classId) ?? '—'));
+      // Déduplication défensive : un enseignant ne peut occuper qu'un créneau à
+      // un moment donné. On collapse tout doublon d'affichage (même jour, horaire,
+      // classe, matière et salle) venu de versions/classes dupliquées côté données.
+      const seen = new Set<string>();
+      return slots
+        .map((dto) => toDomainSlot(dto, classNameById.get(dto.classId) ?? '—'))
+        .filter((slot) => {
+          const key = `${slot.jour}|${slot.heureDebut}|${slot.heureFin}|${slot.classe}|${slot.matiere ?? ''}|${slot.salle ?? ''}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
     },
 
     async updateDescription(slotId, description): Promise<TimetableSlot> {

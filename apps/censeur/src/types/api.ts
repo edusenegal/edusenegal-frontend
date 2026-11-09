@@ -770,6 +770,7 @@ export interface ExamCalendarResponseDto {
   schoolId: string;
   academicYearId: string;
   classId: string;
+  className: string | null;
   subjectId: string | null;
   subjectName: string | null;
   teacherId: string | null;

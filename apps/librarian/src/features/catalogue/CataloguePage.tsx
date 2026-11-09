@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Field, Input, Select, Sheet, StateView, Table, type Column } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, Select, Sheet, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { WORK_TYPE_LABEL, type Copy, type Work, type WorkType } from '@/types/domain';
@@ -11,6 +11,7 @@ const WORK_TYPES: WorkType[] = ['livre', 'manuel', 'memoire', 'periodique', 'aut
 export default function CataloguePage() {
   const { library } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [search, setSearch] = useState('');
   const worksQuery = useQuery({ queryKey: ['works', search], queryFn: () => library.listWorks(search) });
 
@@ -107,8 +108,14 @@ export default function CataloguePage() {
     saveMutation.mutate();
   }
 
-  function onArchive(w: Work) {
-    if (confirm(`Retirer « ${w.titre} » du catalogue ? Les exemplaires seront supprimés.`)) {
+  async function onArchive(w: Work) {
+    if (
+      await confirm({
+        title: 'Retirer du catalogue',
+        message: `Retirer « ${w.titre} » du catalogue ? Les exemplaires seront supprimés.`,
+        danger: true,
+      })
+    ) {
       archiveMutation.mutate(w.id);
     }
   }

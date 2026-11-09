@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, Input, Sheet, StateView, Textarea } from '@/components/ui';
+import { Button, Field, Input, Sheet, StateView, Textarea, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { fmtBytes } from '@/utils/format';
 import type { TimetableSlot } from '@/types/domain';
@@ -29,6 +29,7 @@ function atTime(date: Date, time: string): Date {
 export function SlotDetailSheet({ slot, slotDate, onClose }: SlotDetailSheetProps) {
   const { timetable, courseDocuments } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [description, setDescription] = useState(slot?.description ?? '');
@@ -138,7 +139,7 @@ export function SlotDetailSheet({ slot, slotDate, onClose }: SlotDetailSheetProp
                     </a>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>{fmtBytes(doc.fileSizeBytes)}</span>
-                      <Button variant="ghost" size="sm" onClick={() => removeFile.mutate(doc.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer le document', message: 'Supprimer ce document du créneau ?', danger: true }).then((ok) => { if (ok) removeFile.mutate(doc.id); }); }}>
                         Supprimer
                       </Button>
                     </span>

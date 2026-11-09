@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { fmtPct } from '@/utils/format';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Input, Segmented, Select, StateView, StatTile } from '@/components/ui';
+import { Badge, Button, Card, Input, Segmented, Select, StateView, StatTile, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { StudentsTable } from '@/features/students/StudentsTable';
 import { StudentFormSheet } from '@/features/students/StudentFormSheet';
@@ -27,6 +28,7 @@ export default function ClassDetailPage() {
   const navigate = useNavigate();
   const { classes, teachers, students: studentsPort, paymentConfig, academicResults, subjects, rooms } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>('stats');
   const [planOpen, setPlanOpen] = useState(false);
   const [homeroomDraft, setHomeroomDraft] = useState('');
@@ -237,7 +239,7 @@ export default function ClassDetailPage() {
                   <StatTile label="Moyenne de classe" value={`${moyenne}/20`} />
                   <StatTile
                     label="Taux de paiement"
-                    value={tauxPaiementDisponible ? `${tauxPaiement}%` : '—'}
+                    value={tauxPaiementDisponible ? `${fmtPct(tauxPaiement)}%` : '—'}
                     tone={tauxPaiementDisponible ? (tauxPaiement >= 80 ? 'success' : 'danger') : 'neutral'}
                   />
                   <StatTile label="Effectif" value={String(studentsOfClass.length)} />
@@ -360,8 +362,14 @@ export default function ClassDetailPage() {
                               variant="ghost"
                               size="sm"
                               loading={cancelEventMutation.isPending && cancelEventMutation.variables === e.id}
-                              onClick={() => {
-                                if (confirm(`Annuler « ${e.titre} » ? Les élèves, le professeur et la direction seront notifiés.`)) {
+                              onClick={async () => {
+                                if (
+                                  await confirm({
+                                    title: 'Annuler l’évaluation',
+                                    message: `Annuler « ${e.titre} » ? Les élèves, le professeur et la direction seront notifiés.`,
+                                    danger: true,
+                                  })
+                                ) {
                                   cancelEventMutation.mutate(e.id);
                                 }
                               }}

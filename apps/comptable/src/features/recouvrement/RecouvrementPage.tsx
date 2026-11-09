@@ -16,7 +16,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { fmtXOF } from '@/utils/format';
+import { fmtXOF, fmtPct } from '@/utils/format';
 import type { PaymentChannel, PaymentTransaction, PaymentTransactionStatus, PaymentType } from '@/types/domain';
 
 interface Row {
@@ -195,7 +195,7 @@ export default function RecouvrementPage() {
       render: (c) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 }}>
           <Meter value={c.rate} tone={rateTone(c.rate)} />
-          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{c.rate}%</span>
+          <span style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{fmtPct(c.rate)}%</span>
         </div>
       ),
     },
@@ -206,7 +206,7 @@ export default function RecouvrementPage() {
     { key: 'classe', header: 'Classe', render: (r) => r.classe },
     { key: 'du', header: 'Dû (net bourse)', align: 'right', render: (r) => fmtXOF(r.expected) },
     { key: 'encaisse', header: 'Encaissé', align: 'right', render: (r) => fmtXOF(r.collected) },
-    { key: 'taux', header: 'Taux', align: 'right', render: (r) => `${r.rate}%` },
+    { key: 'taux', header: 'Taux', align: 'right', render: (r) => `${fmtPct(r.rate)}%` },
     { key: 'statut', header: 'Statut', render: (r) => <Badge tone={STATUS_TONE[r.status] ?? 'neutral'}>{STATUS_LABEL[r.status] ?? r.status}</Badge> },
     { key: 'go', header: '', align: 'right', render: () => <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Détails ›</span> },
   ];
@@ -232,7 +232,7 @@ export default function RecouvrementPage() {
 
       <StateView loading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
-          <StatTile label="Taux de recouvrement" value={`${school.rate}%`} tone={rateTone(school.rate)} />
+          <StatTile label="Taux de recouvrement" value={`${fmtPct(school.rate)}%`} tone={rateTone(school.rate)} />
           <StatTile label="Dû (net de bourse)" value={fmtXOF(school.expected)} />
           <StatTile label="Encaissé" value={fmtXOF(school.collected)} tone="success" />
           <StatTile label="Reste à recouvrer" value={fmtXOF(Math.max(0, school.expected - school.collected))} tone={school.expected - school.collected > 0 ? 'warning' : 'success'} />

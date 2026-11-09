@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, CardHeader, StateView } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 
 const STATUS_TONE = { ouverte: 'success', cloturee: 'neutral', planifiee: 'info' } as const;
@@ -11,6 +11,7 @@ const STATUS_LABEL = { ouverte: 'Ouverte', cloturee: 'Clôturée', planifiee: 'P
 export default function AcademicYearPage() {
   const { school } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   const years = useQuery({ queryKey: ['academic-years'], queryFn: () => school.listAcademicYears() });
@@ -67,8 +68,14 @@ export default function AcademicYearPage() {
                       variant="ghost"
                       size="sm"
                       loading={closeMutation.isPending && closeMutation.variables === y.id}
-                      onClick={() => {
-                        if (confirm(`Clôturer l’année scolaire ${y.label} ? Cette action est définitive.`)) {
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            title: 'Clôturer l’année',
+                            message: `Clôturer l’année scolaire ${y.label} ? Cette action est définitive.`,
+                            danger: true,
+                          })
+                        ) {
                           closeMutation.mutate(y.id);
                         }
                       }}

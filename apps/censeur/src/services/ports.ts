@@ -325,6 +325,8 @@ export interface TeachersPort {
   get(teacherId: string): Promise<Teacher>;
   /** Emploi du temps hebdomadaire du professeur. Backend : `GET /timetables/teacher/{teacherId}?schoolId`. */
   getSchedule(teacherId: string): Promise<TeacherScheduleSlot[]>;
+  /** Évaluations (devoirs/examens/compos) planifiées par ce professeur. Backend : `GET /exams/teacher/{teacherId}?schoolId`. */
+  getPlannedEvaluations(teacherId: string): Promise<ClassEvent[]>;
   /**
    * La rémunération ne se saisit pas à la création — un enseignant nouvellement
    * créé n'a aucun salaire configuré côté backend (`SchoolSalaryProfileResponse`
@@ -771,6 +773,8 @@ export interface AcademicResultsPort {
 
   /** Backend : `PUT /academic/grades/lock`. Verrouille les notes d'une matière pour une classe/semestre — préalable au calcul des moyennes. */
   lockGrades(classId: string, subjectId: string, semesterNumber: number): Promise<void>;
+  /** Matières déjà verrouillées pour cette classe/semestre (état persistant côté notes). */
+  getLockedSubjects(classId: string, semesterNumber: number): Promise<string[]>;
   /** Backend : `POST /academic/averages/class/{classId}/semester/{semester}`. */
   computeClassAverages(classId: string, semesterNumber: number): Promise<void>;
   /** Backend : `POST /academic/results/class/{classId}/semester/{semester}`. Calcule rangs/mentions à partir des moyennes déjà calculées. */

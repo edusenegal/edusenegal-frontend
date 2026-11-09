@@ -16,7 +16,7 @@ import {
   type SegmentedOption,
 } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
-import { todayISO } from '@/utils/format';
+import { todayISO, fmtPct, exportCsv } from '@/utils/format';
 import type { AttendanceSession, AttendanceTrendGranularity, AttendanceTrendPoint, ClassAttendanceRate } from '@/types/domain';
 import styles from './AttendanceOverviewPage.module.css';
 
@@ -120,6 +120,22 @@ export default function AttendanceOverviewPage() {
     refetchOnWindowFocus: true,
   });
 
+  function exportSessions() {
+    const headers = ['Classe', 'Jour', 'Créneau', 'Matière', 'Professeur', 'Présents', 'Absents', 'Retards', 'Taux présence'];
+    const data = (sessionsQuery.data ?? []).map((sess) => [
+      sess.className,
+      sess.dayOfWeek,
+      sess.period,
+      sess.matiere ?? '',
+      sess.professeur ?? '',
+      sess.present,
+      sess.absent,
+      sess.late,
+      `${Math.round(sess.attendanceRate)}%`,
+    ]);
+    exportCsv(`presence_du_jour_${today}.csv`, headers, data);
+  }
+
   // Évolution du taux de présence/absence (#426) — granularité jour/semaine/mois.
   const [trendGranularity, setTrendGranularity] = useState<AttendanceTrendGranularity>('DAY');
   const trendRange = useMemo(() => trendRangeFor(trendGranularity), [trendGranularity]);
@@ -153,7 +169,7 @@ export default function AttendanceOverviewPage() {
     { key: 'present', header: 'Présents', render: (c) => String(c.present), align: 'right' },
     { key: 'absent', header: 'Absents', render: (c) => String(c.absent), align: 'right' },
     { key: 'retard', header: 'Retards', render: (c) => String(c.late), align: 'right' },
-    { key: 'taux', header: 'Taux de présence', render: (c) => `${c.attendanceRate}%`, align: 'right' },
+    { key: 'taux', header: 'Taux de présence', render: (c) => `${fmtPct(c.attendanceRate)}%`, align: 'right' },
   ];
 
   const sessionColumns: Column<AttendanceSession>[] = [
@@ -235,7 +251,7 @@ export default function AttendanceOverviewPage() {
               tone={s.late > 0 ? 'warning' : 'success'}
               delta={countDelta(s.late, prev?.late)}
             />
-            <StatTile label="Taux de présence" value={`${s.attendanceRate}%`} tone={rateTrendTone} delta={rateDelta} />
+            <StatTile label="Taux de présence" value={`${fmtPct(s.attendanceRate)}%`} tone={rateTrendTone} delta={rateDelta} />
           </div>
         ) : null}
       </StateView>
@@ -261,7 +277,19 @@ export default function AttendanceOverviewPage() {
         (`AttendanceClassPage`).
       */}
       <Card padded style={{ marginTop: 'var(--space-lg)' }}>
-        <CardHeader title="Par créneau — aujourd'hui" />
+        <CardHeader
+          title="Par créneau — aujourd'hui"
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={(sessionsQuery.data?.length ?? 0) === 0}
+              onClick={exportSessions}
+            >
+              Exporter (CSV)
+            </Button>
+          }
+        />
         <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: -4, marginBottom: 12 }}>
           Taux de présence/absence en temps réel, créneau par créneau, pour toutes les classes de l’école.
         </p>

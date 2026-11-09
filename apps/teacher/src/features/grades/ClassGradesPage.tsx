@@ -16,6 +16,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
+import { exportCsv } from '@/utils/format';
 import type { AssessmentType, Grade, StudentRosterEntry } from '@/types/domain';
 
 /** Barème standard des notes — une note modifiée ne peut jamais le dépasser. */
@@ -97,6 +98,17 @@ export default function ClassGradesPage() {
     }
     return map;
   }, [gradesQuery.data]);
+
+  function exportGrades() {
+    const headers = ['Élève', ...presentTypes.map((t) => TYPE_LABEL[t] ?? t)];
+    const rows = (rosterQuery.data ?? []).map((st) => [
+      `${st.prenom} ${st.nom}`,
+      ...presentTypes.map((t) => gradeByStudentAndType.get(st.id)?.get(t)?.valeur ?? ''),
+    ]);
+    const cname = classesQuery.data?.find((c) => c.id === classId)?.nom ?? 'classe';
+    const sname = subjectsQuery.data?.find((sb) => sb.id === subjectId)?.nom ?? 'matiere';
+    exportCsv(`notes_${cname}_${sname}_S${semestre}.csv`, headers, rows);
+  }
 
   const updateMutation = useMutation({
     mutationFn: (input: { gradeId: string; valeur: number; commentaire?: string }) =>
@@ -193,7 +205,20 @@ export default function ClassGradesPage() {
 
   return (
     <div>
-      <PageHeader title="Notes d’une classe" subtitle="Consultez et modifiez les notes déjà saisies pour une matière et un semestre." />
+      <PageHeader
+        title="Notes d’une classe"
+        subtitle="Consultez et modifiez les notes déjà saisies pour une matière et un semestre."
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!classId || !subjectId || (gradesQuery.data?.length ?? 0) === 0}
+            onClick={exportGrades}
+          >
+            Exporter (CSV)
+          </Button>
+        }
+      />
 
       <Card padded style={{ marginBottom: 16 }}>
         <CardHeader title="Filtre" />

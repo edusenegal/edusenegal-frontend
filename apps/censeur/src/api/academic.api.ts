@@ -230,6 +230,13 @@ export function createAcademicResultsApi(): AcademicResultsPort {
       });
     },
 
+    async getLockedSubjects(classId: string, semesterNumber: number): Promise<string[]> {
+      const yearId = await resolveYearId();
+      return request<string[]>('/api/v1/academic/grades/locked-subjects', {
+        query: { classId, yearId, semesterNumber },
+      });
+    },
+
     async computeClassAverages(classId: string, semesterNumber: number): Promise<void> {
       const yearId = await resolveYearId();
       await request<void>(`/api/v1/academic/averages/class/${encodeURIComponent(classId)}/semester/${semesterNumber}`, {

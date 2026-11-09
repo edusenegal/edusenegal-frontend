@@ -62,7 +62,12 @@ import type {
   TeacherLookupResult,
   TransferRequest,
   YearResult,
-} from '@/types/domain';
+
+  AttendanceSession,
+  AttendanceSessionDetail,
+  AttendanceSessionStudent,
+  AttendanceTrendGranularity,
+  AttendanceTrendPoint,} from '@/types/domain';
 
 export interface AuthPort {
   /**
@@ -184,6 +189,33 @@ export interface StudentAttendancePort {
    * directeur.
    */
   reviewAbsence(absenceId: string, status: 'APPROVED' | 'REJECTED' | 'LOCKED'): Promise<AbsenceRequestSummary>;
+  /** Vue "par créneau" (#426) — une ligne par séance de l'école sur la plage (temps réel : from=to=aujourd'hui). */
+  getSchoolSessions(from: string, to: string): Promise<AttendanceSession[]>;
+  /** Idem, restreint à une seule classe (clic sur une classe depuis la vue école). */
+  getClassSessions(classId: string, from: string, to: string): Promise<AttendanceSession[]>;
+  /** Évolution du taux de présence/absence de l'école — jour, semaine ou mois (#426). */
+  getSchoolTrend(from: string, to: string, granularity: AttendanceTrendGranularity): Promise<AttendanceTrendPoint[]>;
+  /** Idem, restreint à une seule classe. */
+  getClassTrend(
+    classId: string,
+    from: string,
+    to: string,
+    granularity: AttendanceTrendGranularity,
+  ): Promise<AttendanceTrendPoint[]>;
+  /** Détail nommé d'une séance précise — liste des élèves + état des demandes à justifier. */
+  getSessionDetail(sessionId: string): Promise<AttendanceSessionDetail>;
+  /** Verrouille/déverrouille un appel (surveillant général / censeur / directeur). */
+  lockSession(sessionId: string): Promise<AttendanceSessionDetail>;
+  unlockSession(sessionId: string): Promise<AttendanceSessionDetail>;
+  /** Corrige l'état d'UN élève sur une séance déjà saisie (répercute sur sa demande à justifier). */
+  updateStudentStatus(
+    sessionId: string,
+    studentId: string,
+    status: AttendanceSessionStudent['status'],
+    note?: string | null,
+  ): Promise<AttendanceSessionDetail>;
+  /** Télécharge le justificatif déposé pour une demande d'absence (Blob). */
+  downloadJustification(absenceRequestId: string, studentNom: string): Promise<void>;
 }
 
 export interface BilanAnnuelPort {
@@ -740,6 +772,8 @@ export interface AcademicResultsPort {
 
   /** Backend : `PUT /academic/grades/lock`. Verrouille les notes d'une matière pour une classe/semestre — préalable au calcul des moyennes. */
   lockGrades(classId: string, subjectId: string, semesterNumber: number): Promise<void>;
+  /** Matières déjà verrouillées pour cette classe/semestre (état persistant côté notes). */
+  getLockedSubjects(classId: string, semesterNumber: number): Promise<string[]>;
   /** Backend : `POST /academic/averages/class/{classId}/semester/{semester}`. */
   computeClassAverages(classId: string, semesterNumber: number): Promise<void>;
   /** Backend : `POST /academic/results/class/{classId}/semester/{semester}`. Calcule rangs/mentions à partir des moyennes déjà calculées. */

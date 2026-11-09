@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
+import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
-import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO } from '@/utils/format';
-import type { SalaryMode, SignedDocument, StaffStatus, Teacher, TeacherScheduleSlot } from '@/types/domain';
+import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO, exportCsv } from '@/utils/format';
+import type { ClassEvent, EventType, SalaryMode, SignedDocument, StaffStatus, Teacher, TeacherScheduleSlot } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import styles from './TeacherDetailPage.module.css';
 
@@ -29,6 +29,7 @@ export default function TeacherDetailPage() {
   const { teacherId = '' } = useParams();
   const { teachers, classes, subjects } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>('profil');
   const [classToAdd, setClassToAdd] = useState('');
 
@@ -124,7 +125,8 @@ export default function TeacherDetailPage() {
                           loading={removeClassMutation.isPending && removeClassMutation.variables === classIdByName.get(cn)}
                           onClick={() => {
                             const classId = classIdByName.get(cn);
-                            if (classId) removeClassMutation.mutate(classId);
+                            if (!classId) return;
+                            void confirm({ title: 'Retirer la classe', message: `Retirer ${cn} de cet enseignant ?`, danger: true }).then((ok) => { if (ok) removeClassMutation.mutate(classId); });
                           }}
                         >
                           ✕ Retirer
@@ -507,6 +509,7 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
   const { staffAbsences } = useServices();
   const queryClient = useQueryClient();
 
+  const confirm = useConfirm();
   const absences = useQuery({ queryKey: ['teacher-absences', teacherId], queryFn: () => staffAbsences.list(teacherId) });
 
   const [dateDebut, setDateDebut] = useState(todayISO());
@@ -587,7 +590,7 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
                 </td>
                 <td>{a.motif ?? '—'}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <Button variant="ghost" size="sm" onClick={() => removeMutation.mutate(a.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer l’absence', message: 'Supprimer cette absence enregistrée ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(a.id); }); }}>
                     ✕
                   </Button>
                 </td>
@@ -603,16 +606,29 @@ function AbsencesTab({ teacherId }: { teacherId: string }) {
 
 const SCHEDULE_DAYS: TeacherScheduleSlot['jour'][] = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
+const EVENT_TONE: Record<EventType, 'info' | 'warning' | 'danger' | 'neutral'> = {
+  Devoir: 'info',
+  Composition: 'warning',
+  Examen: 'danger',
+  'Conseil de classe': 'neutral',
+};
+
 /**
  * Emploi du temps du professeur dans cet établissement (lecture seule pour le
- * censeur/surveillant général). Données réelles via `teachers.getSchedule` —
- * `GET /timetables/teacher/{id}` (schedule-service), toutes classes confondues.
+ * censeur/surveillant général) ET les évaluations qu'il a planifiées — devoirs,
+ * examens, compositions. Données réelles via `teachers.getSchedule`
+ * (`GET /timetables/teacher/{id}`) et `teachers.getPlannedEvaluations`
+ * (`GET /exams/teacher/{id}`), schedule-service, toutes classes confondues.
  */
 function ScheduleTab({ teacherId }: { teacherId: string }) {
   const { teachers } = useServices();
   const query = useQuery({
     queryKey: ['teacher-schedule', teacherId],
     queryFn: () => teachers.getSchedule(teacherId),
+  });
+  const evalQuery = useQuery({
+    queryKey: ['teacher-evaluations', teacherId],
+    queryFn: () => teachers.getPlannedEvaluations(teacherId),
   });
 
   const byDay = new Map<string, TeacherScheduleSlot[]>();
@@ -624,53 +640,107 @@ function ScheduleTab({ teacherId }: { teacherId: string }) {
   for (const list of byDay.values()) list.sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
 
   return (
-    <StateView
-      loading={query.isLoading}
-      error={query.error}
-      empty={(query.data?.length ?? 0) === 0}
-      emptyLabel="Aucun créneau dans l'emploi du temps de cet enseignant."
-    >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
-        {SCHEDULE_DAYS.map((day) => {
-          const slots = byDay.get(day) ?? [];
-          return (
-            <Card key={day} padded>
-              <h3 style={{ fontSize: 13.5, margin: '0 0 8px', color: 'var(--color-text-muted)' }}>{day}</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {slots.length === 0 ? (
-                  <p style={{ fontSize: 12.5, color: 'var(--color-text-faint)' }}>Aucun cours.</p>
-                ) : (
-                  slots.map((slot, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        padding: '8px 10px',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 8,
-                        background: 'var(--color-surface)',
-                      }}
-                    >
-                      <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
-                        {slot.heureDebut} – {slot.heureFin}
-                      </div>
-                      <div style={{ fontWeight: 600 }}>{slot.matiere ?? 'Permanence'}</div>
-                      <div style={{ fontSize: 12.5 }}>{slot.classe}</div>
-                      {slot.salle ? (
-                        <div style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>Salle {slot.salle}</div>
-                      ) : null}
-                      {slot.remplacant ? (
-                        <div style={{ marginTop: 4 }}>
-                          <Badge tone="warning">Remplacé par {slot.remplacant}</Badge>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+      <section>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ fontSize: 14, margin: 0 }}>Emploi du temps hebdomadaire</h3>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={(query.data?.length ?? 0) === 0}
+            onClick={() => {
+              const headers = ['Jour', 'Début', 'Fin', 'Classe', 'Matière', 'Salle', 'Remplaçant'];
+              const data = (query.data ?? []).map((sl) => [
+                sl.jour,
+                sl.heureDebut,
+                sl.heureFin,
+                sl.classe,
+                sl.matiere ?? '',
+                sl.salle ?? '',
+                sl.remplacant ?? '',
+              ]);
+              exportCsv('emploi_du_temps_enseignant.csv', headers, data);
+            }}
+          >
+            Exporter (CSV)
+          </Button>
+        </div>
+        <StateView
+          loading={query.isLoading}
+          error={query.error}
+          empty={(query.data?.length ?? 0) === 0}
+          emptyLabel="Aucun créneau dans l'emploi du temps de cet enseignant."
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+            {SCHEDULE_DAYS.map((day) => {
+              const slots = byDay.get(day) ?? [];
+              return (
+                <Card key={day} padded>
+                  <h4 style={{ fontSize: 13.5, margin: '0 0 8px', color: 'var(--color-text-muted)' }}>{day}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {slots.length === 0 ? (
+                      <p style={{ fontSize: 12.5, color: 'var(--color-text-faint)' }}>Aucun cours.</p>
+                    ) : (
+                      slots.map((slot, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: '8px 10px',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 8,
+                            background: 'var(--color-surface)',
+                          }}
+                        >
+                          <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                            {slot.heureDebut} – {slot.heureFin}
+                          </div>
+                          <div style={{ fontWeight: 600 }}>{slot.matiere ?? 'Permanence'}</div>
+                          <div style={{ fontSize: 12.5 }}>{slot.classe}</div>
+                          {slot.salle ? (
+                            <div style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>Salle {slot.salle}</div>
+                          ) : null}
+                          {slot.remplacant ? (
+                            <div style={{ marginTop: 4 }}>
+                              <Badge tone="warning">Remplacé par {slot.remplacant}</Badge>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    </StateView>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </StateView>
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, margin: '0 0 10px' }}>Évaluations planifiées</h3>
+        <StateView
+          loading={evalQuery.isLoading}
+          error={evalQuery.error}
+          empty={(evalQuery.data?.length ?? 0) === 0}
+          emptyLabel="Aucune évaluation (devoir, examen, composition) planifiée par cet enseignant."
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(evalQuery.data ?? []).map((ev: ClassEvent) => (
+              <Card key={ev.id} padded>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <Badge tone={EVENT_TONE[ev.type]}>{ev.type}</Badge>
+                  <strong style={{ fontSize: 14 }}>{ev.titre}</strong>
+                  <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                    {ev.date} · {ev.heureDebut}–{ev.heureFin}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  {[ev.classe, ev.matiere, ev.salle ? `Salle ${ev.salle}` : null].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </StateView>
+      </section>
+    </div>
   );
 }

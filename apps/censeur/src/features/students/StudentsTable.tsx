@@ -1,4 +1,5 @@
 import { Avatar } from '@/components/ui/Avatar/Avatar';
+import { fmtPct } from '@/utils/format';
 import { Badge, Meter, Table, type Column } from '@/components/ui';
 import type { Student } from '@/types/domain';
 
@@ -32,7 +33,7 @@ export function StudentsTable({ students, showClass = false, onRowClick }: Stude
       header: 'Paiement',
       render: (s) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
-          <span>{s.tauxPaiement}%</span>
+          <span>{fmtPct(s.tauxPaiement)}%</span>
           <Meter value={s.tauxPaiement} tone={s.tauxPaiement >= 80 ? 'success' : 'danger'} />
         </div>
       ),

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Card, CardHeader, Field, Input, Select, StateView, Table, type Column } from '@/components/ui';
+import { Button, Card, CardHeader, Field, Input, Select, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { ExamEvent, ExamType } from '@/types/domain';
 
@@ -18,6 +18,7 @@ const TYPES = Object.keys(TYPE_LABEL) as ExamType[];
 export default function ExamsPage() {
   const { myClasses, subjects, exams, rooms } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
   const subjectsQuery = useQuery({ queryKey: ['subjects', 'mine'], queryFn: () => subjects.listMine() });
@@ -90,7 +91,7 @@ export default function ExamsPage() {
       header: '',
       align: 'right',
       render: (e) => (
-        <Button variant="ghost" size="sm" onClick={() => removeMutation.mutate(e.id)}>
+        <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer', message: 'Supprimer définitivement cette évaluation ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(e.id); }); }}>
           Supprimer
         </Button>
       ),

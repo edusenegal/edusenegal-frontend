@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { fmtPct } from '@/utils/format';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StateView, StatTile } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
@@ -51,7 +52,7 @@ export default function BilanAnnuelPage() {
             />
             <StatTile
               label="Taux de présence"
-              value={`${b.tauxPresence.valeurActuelle}%`}
+              value={`${fmtPct(b.tauxPresence.valeurActuelle)}%`}
               delta={deltaLabel(b.tauxPresence, ' (points)')}
               tone={tone(b.tauxPresence)}
             />

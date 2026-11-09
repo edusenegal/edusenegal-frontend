@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [secondaryColor, setSecondaryColor] = useState('#1D9E75');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const logoPreviewUrl = useFilePreview(logoFile);
+  void logoPreviewUrl; // carte branding commentée — placeholder jusqu'à réactivation
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [telephone, setTelephone] = useState('');
@@ -81,6 +82,7 @@ export default function SettingsPage() {
       if (logoInputRef.current) logoInputRef.current.value = '';
     },
   });
+  void appearanceMutation; // carte branding commentée — placeholder jusqu'à réactivation
 
   const contactMutation = useMutation({
     mutationFn: () => school.updateContactInfo({ telephone, email }),
@@ -161,7 +163,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card padded>
+        {/* <Card padded>
           <CardHeader title="Apparence" />
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Field label="Logo de l’établissement" hint="Affiché dans la barre latérale et sur les bulletins.">
@@ -218,7 +220,7 @@ export default function SettingsPage() {
               Enregistrer
             </Button>
           </div>
-        </Card>
+        </Card> */}
 
       </div>
     </div>

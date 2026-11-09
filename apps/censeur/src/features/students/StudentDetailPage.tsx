@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
+import { fmtPct } from '@/utils/format';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, Field, Select, Sheet, StateView } from '@/components/ui';
+import { Badge, Button, Card, Field, Select, Sheet, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
@@ -17,6 +18,7 @@ export default function StudentDetailPage() {
   const navigate = useNavigate();
   const { students, classes } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
   // Assignation de classe (nouvelle demande direction) — un élève créé sans
   // classe depuis la liste « Élèves » (voir `StudentFormSheet`) se la voit
@@ -69,9 +71,15 @@ export default function StudentDetailPage() {
     },
   });
 
-  function onDelete() {
+  async function onDelete() {
     if (!s) return;
-    if (confirm(`Supprimer ${s.prenom} ${s.nom} de l’établissement ? Cette action est définitive.`)) {
+    if (
+      await confirm({
+        title: 'Supprimer l’élève',
+        message: `Supprimer ${s.prenom} ${s.nom} de l’établissement ? Cette action est définitive.`,
+        danger: true,
+      })
+    ) {
       removeMutation.mutate();
     }
   }
@@ -126,7 +134,7 @@ export default function StudentDetailPage() {
                 <Row k="Moyenne" v={`${s.moyenne.toFixed(1)}/20`} />
                 <Row k="Absences" v={String(s.absences)} />
                 <Row k="Retards" v={String(s.retards)} />
-                <Row k="Taux de paiement" v={`${s.tauxPaiement}%`} />
+                <Row k="Taux de paiement" v={`${fmtPct(s.tauxPaiement)}%`} />
               </div>
             </div>
           </Card>

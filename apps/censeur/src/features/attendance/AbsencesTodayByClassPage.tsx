@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, CardHeader, StateView, Table, type Column } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
-import { frToISO, todayISO } from '@/utils/format';
+import { frToISO, todayISO, exportCsv } from '@/utils/format';
 import type { AbsenceRequestSummary, AbsentStudentEntry, ClassGroup } from '@/types/domain';
 import styles from './AbsencesTodayByClassPage.module.css';
 
@@ -163,6 +163,19 @@ export default function AbsencesTodayByClassPage() {
     },
   ];
 
+  const STATUS_LABEL_CSV: Record<string, string> = {
+    ABSENT: 'Absent',
+    LATE: 'Retard',
+    PRESENT: 'Présent',
+    JUSTIFIED: 'Justifié',
+  };
+  function exportAbsents() {
+    if (!selectedClass) return;
+    const headers = ['Élève', 'Statut', 'Note'];
+    const data = rows.map((r) => [r.studentNom, STATUS_LABEL_CSV[r.status] ?? r.status, r.note ?? '']);
+    exportCsv(`absents_${selectedClass.name}_${today}.csv`, headers, data);
+  }
+
   return (
     <div>
       <Link to="/presence" className={styles.back}>
@@ -197,9 +210,14 @@ export default function AbsencesTodayByClassPage() {
         <Card style={{ marginTop: 'var(--space-lg)' }}>
           <div className={styles.toolbar}>
             <CardHeader title={`Absents aujourd'hui — ${selectedClass.name}`} />
-            <Button variant="secondary" size="sm" onClick={() => setSelectedClass(null)}>
-              Changer de classe
-            </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="secondary" size="sm" disabled={rows.length === 0} onClick={exportAbsents}>
+                Exporter (CSV)
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setSelectedClass(null)}>
+                Changer de classe
+              </Button>
+            </div>
           </div>
 
           {actionError ? <p className={styles.error}>{actionError}</p> : null}

@@ -96,6 +96,7 @@ function fromExamResponse(dto: ExamCalendarResponseDto): ClassEvent {
   return {
     id: dto.id,
     classeId: dto.classId,
+    classe: dto.className ?? null,
     type: API_TYPE_TO_EVENT[dto.type],
     titre: dto.title,
     subjectId: dto.subjectId,

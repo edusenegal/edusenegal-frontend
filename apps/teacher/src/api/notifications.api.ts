@@ -6,6 +6,10 @@ export interface NotificationItem {
   body: string;
   read: boolean;
   createdAt: string | null;
+  /** `metadata.entityType` (backend) — ex. `service-note`, `expense`, `timetable`. */
+  entityType?: string;
+  /** Type backend (enum) — ex. `SERVICE_NOTE`, `TIMETABLE_CHANGED`. */
+  type?: string;
 }
 
 export async function getMyNotifications(): Promise<NotificationItem[]> {
@@ -18,6 +22,10 @@ export async function getMyNotifications(): Promise<NotificationItem[]> {
     body: String(r.body ?? ''),
     read: Boolean(r.read),
     createdAt: (r.createdAt as string | null) ?? null,
+    entityType: ((r.metadata ?? {}) as Record<string, unknown>).entityType
+      ? String(((r.metadata ?? {}) as Record<string, unknown>).entityType)
+      : undefined,
+    type: r.type ? String(r.type) : undefined,
   }));
 }
 
@@ -31,6 +39,11 @@ export async function getUnreadCount(): Promise<number> {
 
 export async function markAllNotificationsRead(): Promise<void> {
   await request('/api/v1/notifications/my/read-all', { method: 'PUT' });
+}
+
+/** Marque UNE notification comme lue. Backend : `PUT /api/v1/notifications/{id}/read`. */
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await request(`/api/v1/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PUT' });
 }
 
 // ── Port `NotificationsPort` (services / useServices) ──────────────────────
@@ -53,6 +66,9 @@ export function createNotificationsApi(): NotificationsPort {
         corps: String(r.body ?? ''),
         lue: Boolean(r.read),
         recueLe: String(r.createdAt ?? ''),
+        entityType: ((r.metadata ?? {}) as Record<string, unknown>).entityType
+          ? String(((r.metadata ?? {}) as Record<string, unknown>).entityType)
+          : undefined,
       }));
     },
     unreadCount(): Promise<number> {

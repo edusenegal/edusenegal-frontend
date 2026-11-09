@@ -196,7 +196,7 @@ export function createSignaturesApi(): Pick<
           const { cible, cibleKind } = await resolveTargetLabel(r.documentRef, studentNameById, staffNameById);
           return {
             serie: r.serialNumber ?? r.signatureHash.slice(0, 12),
-            type: DOC_TYPE_LABEL[r.documentType] ?? r.documentType,
+            type: DOC_TYPE_LABEL[r.documentType] ?? r.documentType ?? '',
             cible,
             cibleKind,
             date: new Date(r.signedAt).toLocaleDateString('fr-FR'),

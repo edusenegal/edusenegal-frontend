@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -11,7 +11,7 @@ import { buildDownloadFilename } from '@/utils/format';
 /** Nom de fichier lisible à partir du nom affiché ("Prénom Nom") -- voir `SignaturesPort.downloadDocument`. */
 function buildSignedFilename(d: SignedDocument): string {
   const [first, ...rest] = d.cible.trim().split(/\s+/);
-  return buildDownloadFilename(d.type.toLowerCase(), first ?? '', rest.join(' '));
+  return buildDownloadFilename((d.type ?? 'document').toLowerCase(), first ?? '', rest.join(' '));
 }
 
 const MENTION_LABELS: Record<Mention, string> = {
@@ -135,6 +135,21 @@ export default function AcademicResultsPage() {
     enabled: Boolean(classId) && scope === 'annuel',
   });
 
+  // État de verrouillage PERSISTANT (relu du backend) + verrouillages faits
+  // dans cette session — une matière verrouillée n'est plus saisissable ni
+  // modifiable par l'enseignant (vérifié côté backend sur chaque note).
+  const lockedSubjectsQuery = useQuery({
+    queryKey: ['locked-subjects', classId, semesterNumber],
+    queryFn: () => academicResults.getLockedSubjects(classId, semesterNumber),
+    enabled: Boolean(classId) && scope === 'semestre',
+  });
+  const lockedKeys = useMemo(() => {
+    const set = new Set<string>(lockedThisSession);
+    for (const sid of lockedSubjectsQuery.data ?? []) set.add(`${sid}|${semesterNumber}`);
+    return set;
+  }, [lockedSubjectsQuery.data, lockedThisSession, semesterNumber]);
+  const isSubjectLocked = (sid: string) => lockedKeys.has(`${sid}|${semesterNumber}`);
+
   function invalidateResults() {
     queryClient.invalidateQueries({ queryKey: ['semester-results', classId, semesterNumber] });
     queryClient.invalidateQueries({ queryKey: ['year-results', classId] });
@@ -203,7 +218,7 @@ export default function AcademicResultsPage() {
     enabled: scope === 'semestre',
   });
   const bulletinsForPeriod = (signedBulletinsQuery.data ?? []).filter(
-    (d) => d.cibleKind === 'eleve' && d.type.startsWith('Bulletin') && d.semesterNumber === semesterNumber && d.documentRef,
+    (d) => d.cibleKind === 'eleve' && (d.type ?? '').startsWith('Bulletin') && d.semesterNumber === semesterNumber && Boolean(d.documentRef),
   );
   // CACHET et SIGNATURE sont deux actions indépendantes (voir SignatureAction
   // côté backend) : un même bulletin peut avoir l'une, l'autre, les deux, ou
@@ -400,34 +415,46 @@ export default function AcademicResultsPage() {
           <Card padded style={{ marginBottom: 20 }}>
             <CardHeader title="Verrouillage des notes" />
             <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '4px 0 12px' }}>
-              Verrouille les notes d'une matière pour ce semestre — préalable au calcul des moyennes. Action écrite
-              seule côté backend réel : rien n'indique ici quelles matières ont déjà été verrouillées lors d'une
-              session précédente.
+              Verrouille les notes d'une matière pour ce semestre — préalable au calcul des moyennes. Une fois
+              verrouillée, l'enseignant ne peut plus saisir ni modifier aucune note de cette matière pour ce semestre.
+              Les matières déjà verrouillées sont indiquées ci-dessous.
             </p>
             <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
               <Field label="Matière">
                 <Select value={subjectToLock} onChange={(e) => setSubjectToLock(e.target.value)} style={{ minWidth: 220 }}>
                   {classSubjects.map((s) => (
-                    <option key={s.id} value={s.id}>{s.nom}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.nom}
+                      {isSubjectLocked(s.id) ? ' — verrouillée' : ''}
+                    </option>
                   ))}
                 </Select>
               </Field>
               <Button
                 variant="secondary"
-                disabled={!subjectToLock}
+                disabled={!subjectToLock || isSubjectLocked(subjectToLock)}
                 loading={lockMutation.isPending}
                 onClick={() =>
-                  runMutation(() => lockMutation.mutateAsync(subjectToLock), () =>
-                    setLockedThisSession((prev) => new Set(prev).add(`${subjectToLock}|${semesterNumber}`)),
-                  )
+                  runMutation(() => lockMutation.mutateAsync(subjectToLock), () => {
+                    setLockedThisSession((prev) => new Set(prev).add(`${subjectToLock}|${semesterNumber}`));
+                    queryClient.invalidateQueries({ queryKey: ['locked-subjects', classId, semesterNumber] });
+                  })
                 }
               >
                 Verrouiller
               </Button>
-              {lockedThisSession.has(`${subjectToLock}|${semesterNumber}`) ? (
-                <Badge tone="success">Verrouillée dans cette session</Badge>
-              ) : null}
+              {isSubjectLocked(subjectToLock) ? <Badge tone="success">🔒 Déjà verrouillée</Badge> : null}
             </div>
+            {classSubjects.some((sub) => isSubjectLocked(sub.id)) ? (
+              <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Matières verrouillées :</span>
+                {classSubjects
+                  .filter((sub) => isSubjectLocked(sub.id))
+                  .map((sub) => (
+                    <Badge key={sub.id} tone="neutral">🔒 {sub.nom}</Badge>
+                  ))}
+              </div>
+            ) : null}
           </Card>
         ) : null}
 

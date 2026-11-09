@@ -54,6 +54,8 @@ export type EventType = 'Devoir' | 'Examen' | 'Composition' | 'Conseil de classe
 export interface ClassEvent {
   id: string;
   classeId: string;
+  /** Nom de la classe résolu côté backend (`ExamCalendarResponse.className`) — vue enseignant multi-classes. */
+  classe?: string | null;
   type: EventType;
   titre: string;
   /** Id de la matière (liste déroulante des matières ENSEIGNÉES DANS CETTE CLASSE) — `null` pour un conseil de classe. */

@@ -17,6 +17,8 @@ interface RequestExtras {
   anonymous?: boolean;
   /** Posé par l'intercepteur de réponse après le premier nouvel essai — jamais un deuxième. */
   _retried?: boolean;
+  /** Nombre de reprises déjà tentées sur un 429 (rate-limit), pour un backoff borné. */
+  _rlRetries?: number;
   /** Numéro de séquence — pour retrouver la réponse d'un appel dans une console qui en mêle plusieurs. */
   _seq?: number;
   /** Horodatage de départ (`performance.now()`) — pour la durée affichée dans `[API←]`/`[API✗]`. */
@@ -141,9 +143,15 @@ function toAxiosAppError(error: AxiosError): AppError {
     detail = data.message ?? data.error ?? null;
     code = data.code ?? null;
   }
-  // Le message affiché reste le nôtre : celui du backend part dans `detail`,
-  // pour les journaux, sans exposer de trace technique à la direction.
-  return new AppError(kind, messageFor(kind), response.status, detail, code);
+  // Une erreur MÉTIER structurée (ErrorResponse backend : `code` + `message`
+  // rédigé pour l'utilisateur, ex. « Aucun tampon enregistré pour ce
+  // signataire ») est affichée telle quelle : sans elle, toute 400/422
+  // tombait sur un générique « informations incorrectes » qui masquait la
+  // vraie cause (tampon/signature manquant, résultats non calculés…). Les
+  // erreurs non structurées (validation Spring brute, sans `code`) gardent le
+  // message générique pour ne pas exposer de trace technique.
+  const businessMessage = code && detail ? detail : null;
+  return new AppError(kind, businessMessage ?? messageFor(kind), response.status, detail, code);
 }
 
 /**
@@ -200,6 +208,23 @@ axiosInstance.interceptors.request.use((cfg) => {
   return rc;
 });
 
+// Un endpoint `responseType: 'blob'` reçoit AUSSI le corps d'ERREUR en Blob :
+// `toAxiosAppError` n'y trouve alors ni `code` ni `message` et retombe sur le
+// générique « informations incorrectes », qui masquait la vraie cause (bulletin
+// pas encore disponible, tampon manquant…). On relit donc le Blob en texte et,
+// si c'est le JSON d'erreur du backend, on le repose en objet sur la réponse.
+async function coerceBlobErrorBody(error: AxiosError): Promise<void> {
+  const data = error.response?.data as unknown;
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    try {
+      const text = await data.text();
+      if (error.response) error.response.data = text ? JSON.parse(text) : undefined;
+    } catch {
+      if (error.response) error.response.data = undefined;
+    }
+  }
+}
+
 axiosInstance.interceptors.response.use(
   (response) => {
     const rc = response.config as RequestConfig;
@@ -210,11 +235,28 @@ axiosInstance.interceptors.response.use(
   },
   async (error: unknown) => {
     const axiosError = error as AxiosError;
+    await coerceBlobErrorBody(axiosError);
     const original = axiosError.config as RequestConfig | undefined;
     const { method, url } = describeRequest(original);
     const durationMs = performance.now() - (original?._startedAt ?? performance.now());
     const appError = toAxiosAppError(axiosError);
     logError(original?._seq, original?._retried, durationMs, method, url, appError);
+
+    // 429 (rate-limit) : reprise transparente avec un petit backoff borné
+    // plutôt que d'exposer une erreur à l'utilisateur en pleine navigation.
+    // Respecte l'en-tête Retry-After s'il est fourni, sinon 400 ms × tentative.
+    if (axiosError.response?.status === 429 && original) {
+      original._rlRetries = (original._rlRetries ?? 0) + 1;
+      if (original._rlRetries <= 3) {
+        const header = axiosError.response.headers?.['retry-after'];
+        const retryAfterSec = Number(Array.isArray(header) ? header[0] : header);
+        const delayMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+          ? Math.min(retryAfterSec * 1000, 3000)
+          : 400 * original._rlRetries;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return axiosInstance.request(original);
+      }
+    }
 
     if (!original || appError.kind !== 'unauthorized' || original.anonymous || original._retried) {
       throw appError;
@@ -222,8 +264,14 @@ axiosInstance.interceptors.response.use(
 
     try {
       await refreshSession();
-    } catch {
-      useAuthStore.getState().clear();
+    } catch (refreshErr) {
+      // Déconnexion UNIQUEMENT si le refresh échoue pour cause
+      // d'authentification (refresh token invalide/expiré). Une panne
+      // transitoire (réseau, 429, 5xx) ne déconnecte pas l'utilisateur en
+      // pleine manipulation — l'appel échoue mais la session reste ouverte.
+      if (refreshErr instanceof AppError && refreshErr.kind === 'unauthorized') {
+        useAuthStore.getState().clear();
+      }
       throw appError;
     }
 

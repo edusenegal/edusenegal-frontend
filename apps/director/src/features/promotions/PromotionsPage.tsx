@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button, Card, CardHeader, Field, Select, StateView } from '@/components/ui';
@@ -17,14 +17,34 @@ export default function PromotionsPage() {
   const [classError, setClassError] = useState<string | null>(null);
   const [classSuccess, setClassSuccess] = useState<string | null>(null);
 
-  const [studentId, setStudentId] = useState('');
-  const [targetClassId, setTargetClassId] = useState('');
-  const [studentSuccess, setStudentSuccess] = useState<string | null>(null);
+  // Promotion individuelle : classe de départ → sélection d'un ou plusieurs
+  // élèves de cette classe → classe de destination.
+  const [indivFromClassId, setIndivFromClassId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [indivTargetClassId, setIndivTargetClassId] = useState('');
+  const [indivError, setIndivError] = useState<string | null>(null);
+  const [indivSuccess, setIndivSuccess] = useState<string | null>(null);
 
   const sortedClasses = [...(classList.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
-  const sortedStudents = [...(studentList.data ?? [])].sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`));
 
   const effectiveFromClassId = fromClassId || sortedClasses[0]?.id || '';
+
+  const studentsOfIndivClass = useMemo(
+    () =>
+      [...(studentList.data ?? [])]
+        .filter((s) => s.classeId === indivFromClassId)
+        .sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, 'fr')),
+    [studentList.data, indivFromClassId],
+  );
+
+  function toggleStudent(id: string) {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const promoteClassMutation = useMutation({
     mutationFn: () => promotions.promoteClass(effectiveFromClassId, toClassId),
@@ -35,13 +55,26 @@ export default function PromotionsPage() {
     },
   });
 
-  const promoteStudentMutation = useMutation({
-    mutationFn: () => promotions.promoteStudent(studentId, targetClassId),
-    onSuccess: () => {
+  const promoteSelectedMutation = useMutation({
+    mutationFn: async () => {
+      const ids = Array.from(selectedStudentIds);
+      // Déplacement séquentiel : chaque élève est désinscrit de sa classe puis
+      // inscrit dans la destination (promoteStudent). On compte les succès pour
+      // un retour fiable même si un élève échoue (ex. destination pleine).
+      let moved = 0;
+      for (const id of ids) {
+        await promotions.promoteStudent(id, indivTargetClassId);
+        moved += 1;
+      }
+      return moved;
+    },
+    onSuccess: (moved) => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
-      setStudentSuccess('Élève promu avec succès.');
+      setSelectedStudentIds(new Set());
+      setIndivSuccess(`${moved} élève(s) déplacé(s) avec succès.`);
     },
+    onError: (err) => setIndivError(err instanceof Error ? err.message : 'Le déplacement a échoué.'),
   });
 
   function onPromoteClass() {
@@ -56,6 +89,28 @@ export default function PromotionsPage() {
       return;
     }
     promoteClassMutation.mutate();
+  }
+
+  function onPromoteSelected() {
+    setIndivError(null);
+    setIndivSuccess(null);
+    if (!indivFromClassId) {
+      setIndivError('Choisissez la classe de départ.');
+      return;
+    }
+    if (selectedStudentIds.size === 0) {
+      setIndivError('Sélectionnez au moins un élève.');
+      return;
+    }
+    if (!indivTargetClassId) {
+      setIndivError('Choisissez la classe de destination.');
+      return;
+    }
+    if (indivTargetClassId === indivFromClassId) {
+      setIndivError('La classe de destination doit être différente de la classe de départ.');
+      return;
+    }
+    promoteSelectedMutation.mutate();
   }
 
   return (
@@ -95,23 +150,78 @@ export default function PromotionsPage() {
 
         <Card padded>
           <CardHeader title="Promotion individuelle" />
-          <p className={styles.hint}>Fait passer un seul élève vers la classe de votre choix.</p>
-          <StateView loading={studentList.isLoading} error={studentList.error}>
-            <Field label="Élève">
-              <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-                <option value="">— Choisir un élève —</option>
-                {sortedStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.prenom} {s.nom} — {s.classe}
+          <p className={styles.hint}>
+            Choisissez la classe de départ, cochez un ou plusieurs élèves, puis la classe de destination.
+          </p>
+          <StateView loading={classList.isLoading || studentList.isLoading} error={classList.error ?? studentList.error}>
+            <Field label="Classe de départ" required>
+              <Select
+                value={indivFromClassId}
+                onChange={(e) => {
+                  setIndivFromClassId(e.target.value);
+                  setSelectedStudentIds(new Set());
+                  setIndivError(null);
+                  setIndivSuccess(null);
+                }}
+              >
+                <option value="">— Choisir une classe —</option>
+                {sortedClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.effectif} élèves)
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Nouvelle classe" required>
-              <Select value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)}>
+
+            {indivFromClassId ? (
+              <Field label={`Élèves à déplacer (${selectedStudentIds.size} sélectionné${selectedStudentIds.size > 1 ? 's' : ''})`} required>
+                <div
+                  style={{
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 8,
+                    padding: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  {studentsOfIndivClass.length === 0 ? (
+                    <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Aucun élève dans cette classe.</span>
+                  ) : (
+                    <>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, paddingBottom: 4, borderBottom: '1px solid var(--color-border)' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentIds.size === studentsOfIndivClass.length}
+                          onChange={(e) =>
+                            setSelectedStudentIds(
+                              e.target.checked ? new Set(studentsOfIndivClass.map((s) => s.id)) : new Set(),
+                            )
+                          }
+                        />
+                        Tout sélectionner
+                      </label>
+                      {studentsOfIndivClass.map((s) => (
+                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={selectedStudentIds.has(s.id)} onChange={() => toggleStudent(s.id)} />
+                          <span>
+                            {s.prenom} {s.nom}
+                          </span>
+                        </label>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </Field>
+            ) : null}
+
+            <Field label="Classe de destination" required>
+              <Select value={indivTargetClassId} onChange={(e) => setIndivTargetClassId(e.target.value)}>
                 <option value="">— Choisir une classe —</option>
                 {sortedClasses
-                  .filter((c) => c.id !== studentList.data?.find((s) => s.id === studentId)?.classeId)
+                  .filter((c) => c.id !== indivFromClassId)
                   .map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -119,14 +229,16 @@ export default function PromotionsPage() {
                   ))}
               </Select>
             </Field>
-            {studentSuccess ? <p className={styles.success}>{studentSuccess}</p> : null}
+
+            {indivError ? <p className={styles.error}>{indivError}</p> : null}
+            {indivSuccess ? <p className={styles.success}>{indivSuccess}</p> : null}
             <Button
               variant="primary"
-              disabled={!studentId || !targetClassId}
-              loading={promoteStudentMutation.isPending}
-              onClick={() => promoteStudentMutation.mutate()}
+              disabled={selectedStudentIds.size === 0 || !indivTargetClassId}
+              loading={promoteSelectedMutation.isPending}
+              onClick={onPromoteSelected}
             >
-              Promouvoir l’élève
+              Déplacer les élèves sélectionnés
             </Button>
           </StateView>
         </Card>

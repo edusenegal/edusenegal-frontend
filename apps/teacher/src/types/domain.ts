@@ -451,6 +451,8 @@ export interface AppNotification {
   corps: string;
   lue: boolean;
   recueLe: string; // dd/mm/yyyy hh:mm
+  /** `metadata.entityType` (backend) — ex. `service-note`. */
+  entityType?: string;
 }
 
 /** Traduit `ComplaintType`/`ComplaintStatus` (complaint-service). */

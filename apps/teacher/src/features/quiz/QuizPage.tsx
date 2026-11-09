@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, CardHeader, Field, Input, Select, StateView, Table, Textarea, type Column } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Field, Input, Select, StateView, Table, Textarea, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { Quiz } from '@/types/domain';
 
@@ -11,6 +11,7 @@ const STATUS_LABEL = { en_cours: 'Génération en cours', prete: 'Prêt', echoue
 export default function QuizPage() {
   const { myClasses, subjects, quiz } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
   const subjectsQuery = useQuery({ queryKey: ['subjects', 'mine'], queryFn: () => subjects.listMine() });
@@ -70,12 +71,12 @@ export default function QuizPage() {
                 Publier
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => removeMutation.mutate(q.id)}>
+            <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer le quiz', message: 'Supprimer définitivement ce quiz ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(q.id); }); }}>
               Supprimer
             </Button>
           </div>
         ) : (
-          <Button variant="ghost" size="sm" onClick={() => removeMutation.mutate(q.id)}>
+          <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer le quiz', message: 'Supprimer définitivement ce quiz ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(q.id); }); }}>
             Supprimer
           </Button>
         ),

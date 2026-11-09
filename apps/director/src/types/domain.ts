@@ -263,6 +263,7 @@ export interface AbsenceRequestSummary {
   hasJustification: boolean;
   status: AbsenceReviewStatus;
   reviewedBy: string | null;
+  reviewedByNom?: string | null;
   reviewedAt: string | null;
 }
 
@@ -890,4 +891,73 @@ export interface TeacherScheduleSlot {
   classe: string;
   salle: string | null;
   remplacant: string | null;
+}
+
+/** Granularité de l'agrégation pour l'évolution du taux de présence/absence (#426). */
+export type AttendanceTrendGranularity = 'DAY' | 'WEEK' | 'MONTH';
+
+/** Une séance (= un créneau précis d'une classe à une date), compteurs calculés — vue "par créneau". */
+export interface AttendanceSession {
+  id: string;
+  classId: string;
+  className: string;
+  subjectId: string | null;
+  matiere: string | null;
+  teacherId: string | null;
+  professeur: string | null;
+  date: string; // dd/mm/yyyy
+  dayOfWeek: string;
+  period: string; // ex. "08:00-10:00"
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+/** Un élève dans le détail d'une séance (#1) — `absence*` renseignés si marqué ABSENT avec demande. */
+export interface AttendanceSessionStudent {
+  studentId: string;
+  studentNom: string;
+  status: 'ABSENT' | 'LATE' | 'PRESENT' | 'JUSTIFIED';
+  note: string | null;
+  absenceRequestId: string | null;
+  absenceStatus: AbsenceReviewStatus | null;
+  absenceReason: string | null;
+  hasJustification: boolean;
+}
+
+/** Détail complet d'une séance — clic sur un créneau : liste nommée des élèves + état des demandes. */
+export interface AttendanceSessionDetail {
+  id: string;
+  classId: string;
+  className: string;
+  subjectId: string | null;
+  matiere: string | null;
+  teacherId: string | null;
+  professeur: string | null;
+  date: string; // dd/mm/yyyy
+  dayOfWeek: string;
+  period: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+  /** Appel verrouillé par la direction : plus modifiable, élève ne peut plus justifier. */
+  locked: boolean;
+  lockedByNom: string | null;
+  lockedAt: string | null;
+  students: AttendanceSessionStudent[];
+}
+
+/** Un point de la courbe d'évolution du taux de présence/absence (#426). */
+export interface AttendanceTrendPoint {
+  periodStart: string; // ISO yyyy-MM-dd
+  periodLabel: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
 }

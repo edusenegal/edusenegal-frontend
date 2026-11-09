@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Field, Input, Select, StateView, Textarea } from '@/components/ui';
+import { Badge, Button, Field, Input, Select, StateView, Textarea, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { fmtBytes } from '@/utils/format';
 import type { PersonalDocumentOwnerType, PersonalDocumentType } from '@/types/domain';
@@ -44,6 +44,7 @@ interface PersonalDocumentsSectionProps {
 export function PersonalDocumentsSection({ ownerId, ownerType }: PersonalDocumentsSectionProps) {
   const { personalDocuments } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = useQuery({
@@ -150,7 +151,7 @@ export function PersonalDocumentsSection({ ownerId, ownerType }: PersonalDocumen
                   <a href={doc.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, marginRight: 10 }}>
                     Télécharger
                   </a>
-                  <Button variant="ghost" size="sm" onClick={() => removeMutation.mutate(doc.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => { void confirm({ title: 'Supprimer le document', message: 'Supprimer définitivement ce document ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(doc.id); }); }}>
                     Supprimer
                   </Button>
                 </td>

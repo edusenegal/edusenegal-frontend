@@ -1170,3 +1170,65 @@ export interface ReviewLeaveRequestDto {
   note?: string;
   replacementTeacherId?: string;
 }
+
+export interface AttendanceSessionResponseDto {
+  id: string;
+  schoolId: string;
+  classId: string;
+  subjectId: string | null;
+  teacherId: string | null;
+  date: string;
+  dayOfWeek: string;
+  period: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}
+
+export interface StudentAttendanceDetailDto {
+  studentId: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'JUSTIFIED';
+  note: string | null;
+  absenceRequestId: string | null;
+  absenceStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'LOCKED' | null;
+  absenceReason: string | null;
+  hasJustification: boolean;
+}
+
+export interface AttendanceSessionDetailResponseDto {
+  id: string;
+  schoolId: string;
+  classId: string;
+  academicYearId: string;
+  subjectId: string | null;
+  teacherId: string | null;
+  date: string;
+  dayOfWeek: string;
+  period: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+  locked: boolean;
+  lockedBy: string | null;
+  lockedAt: string | null;
+  students: StudentAttendanceDetailDto[];
+}
+
+export interface UpdateStudentAttendanceRequestDto {
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'JUSTIFIED';
+  note?: string | null;
+}
+
+export interface AttendanceTrendPointResponseDto {
+  periodStart: string;
+  periodLabel: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+}

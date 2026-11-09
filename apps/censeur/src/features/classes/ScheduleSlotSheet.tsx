@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, Input, Select, Sheet } from '@/components/ui';
+import { Button, Field, Input, Select, Sheet, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { ScheduleSlot, Subject, Teacher } from '@/types/domain';
 
@@ -25,6 +25,7 @@ interface ScheduleSlotSheetProps {
 export function ScheduleSlotSheet({ classId, classSubjects, classTeachers, open, onClose, editing }: ScheduleSlotSheetProps) {
   const { classes, rooms } = useServices();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const [jour, setJour] = useState<ScheduleSlot['jour']>('Lundi');
   const [heureDebut, setHeureDebut] = useState('08:00');
@@ -120,7 +121,7 @@ export function ScheduleSlotSheet({ classId, classSubjects, classTeachers, open,
               variant="ghost"
               loading={removeMutation.isPending}
               onClick={() => {
-                if (confirm('Retirer ce créneau de l’emploi du temps ?')) removeMutation.mutate();
+                void confirm({ title: 'Retirer le créneau', message: 'Retirer ce créneau de l’emploi du temps ?', danger: true }).then((ok) => { if (ok) removeMutation.mutate(); });
               }}
               style={{ marginRight: 'auto', color: 'var(--color-danger)' }}
             >
