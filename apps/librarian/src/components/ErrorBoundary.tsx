@@ -21,13 +21,13 @@ interface State {
  * récupérer la version fraîche ; sinon un écran de secours propose de réessayer.
  */
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  override state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
   }
 
-  componentDidCatch(error: Error): void {
+  override componentDidCatch(error: Error): void {
     if (isChunkLoadError(error)) {
       try {
         const key = 'edusenegal-chunk-reload';
@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private reset = () => this.setState({ error: null });
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (!this.state.error) return this.props.children;
     return (
       <div style={{ padding: 32, maxWidth: 520, margin: '40px auto', textAlign: 'center' }}>
