@@ -1,4 +1,6 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, MutationCache } from '@tanstack/react-query';
+import { toAppError } from '@/services/errors';
+import { toast } from '@/services/toast';
 
 /**
  * Fabrique plutôt qu'un singleton exporté : les tests passent leur propre
@@ -13,6 +15,9 @@ import { QueryClient } from '@tanstack/react-query';
  */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
+    mutationCache: new MutationCache({
+      onError: (error) => toast.error(toAppError(error).message),
+    }),
     defaultOptions: {
       queries: {
         staleTime: 30_000,

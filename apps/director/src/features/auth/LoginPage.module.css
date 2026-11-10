@@ -41,7 +41,7 @@
 .quote { font-size: 14px; font-style: italic; opacity: .82; margin: 0; max-width: 370px; line-height: 1.5; }
 
 /* ---------------- Formulaire (droite) ---------------- */
-.formSide { display: flex; align-items: center; justify-content: center; padding: 40px 22px; background: var(--color-bg, #f6f7f9); }
+.formSide { display: flex; align-items: flex-start; justify-content: center; padding: clamp(28px, 7vh, 64px) 22px 40px; background: var(--color-bg, #f6f7f9); }
 .formInner { width: 100%; max-width: 408px; }
 .formTop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
 .logoSmall { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 16px; color: var(--color-text, #1c2434); }

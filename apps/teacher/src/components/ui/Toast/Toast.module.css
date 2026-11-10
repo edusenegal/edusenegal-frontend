@@ -1,0 +1,11 @@
+.wrap { position: fixed; z-index: 9999; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 10px; max-width: min(92vw, 380px); }
+.toast { display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 12px; background: #fff; border: 1px solid #e5e7eb; box-shadow: 0 10px 28px rgba(0,0,0,.16); color: #1c2434; }
+.error { border-left: 4px solid #dc2626; }
+.success { border-left: 4px solid #16a34a; }
+.info { border-left: 4px solid #2563eb; }
+.body { flex: 1; min-width: 0; }
+.title { margin: 0 0 2px; font-weight: 700; font-size: 13.5px; }
+.msg { margin: 0; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.close { flex: none; border: none; background: none; cursor: pointer; font-size: 20px; line-height: 1; color: #9ca3af; padding: 0 4px; }
+.close:hover { color: #111827; }
+@media (max-width: 480px) { .wrap { left: 12px; right: 12px; bottom: 12px; max-width: none; } }
