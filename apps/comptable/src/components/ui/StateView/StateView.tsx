@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AppError } from '@/services/errors';
 import { Button } from '@/components/ui/Button/Button';
 import styles from './StateView.module.css';
+import { Loader } from '@/components/Loader';
 
 interface StateViewProps {
   loading?: boolean;
@@ -22,7 +23,7 @@ export function StateView({ loading, error, empty, emptyLabel = 'Rien à affiche
   if (loading) {
     return (
       <div className={styles.state} role="status">
-        <span className={styles.spinner} aria-hidden="true" />
+        <Loader role="accountant" />
         <p>Chargement…</p>
       </div>
     );
