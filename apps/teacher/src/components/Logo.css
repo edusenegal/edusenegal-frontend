@@ -1,0 +1,13 @@
+/* Wordmark SénÉtude. Charge "Space Grotesk" (Google Fonts) dans index.html
+   pour le rendu exact, sinon repli géométrique système.
+   La taille du symbole est posée en ligne (px ou clamp) ; le mot la suit. */
+.edu-logo{ display:inline-flex; align-items:center; gap:.42em; line-height:1; vertical-align:middle }
+.edu-logo--stacked{ flex-direction:column; gap:.3em; text-align:center }
+.edu-logo--icon{ display:inline-grid; place-items:center; flex:none }
+.edu-logo__mark{ display:block; flex:none }
+.edu-logo__word{
+  font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;
+  font-weight:700; letter-spacing:-.02em; color:inherit; white-space:nowrap;
+  font-size:calc(var(--edu-logo-size, 32px) * 0.92);
+}
+.edu-logo__word i{ font-style:normal }
