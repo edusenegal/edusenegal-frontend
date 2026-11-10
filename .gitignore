@@ -57,3 +57,4 @@ pnpm-debug.log*
 *.log
 *.tmp
 *.bakapps/mobile/
+apps/mobile/
