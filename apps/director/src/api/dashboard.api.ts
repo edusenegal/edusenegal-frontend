@@ -79,7 +79,7 @@ export function createDashboardApi(): DashboardPort {
         presenceDuJour,
         presenceDuJourVariation: Math.round((presenceDuJour - presenceHier) * 10) / 10,
         soldeCaisse: ledger.balanceFcfa,
-        demandesEnAttente: pendingLeaves.length + salaryPage.totalElements,
+        demandesEnAttente: (pendingLeaves?.length ?? 0) + (salaryPage?.totalElements ?? 0),
         classesCount: classesDtos.length,
         enseignantsCount: teacherDtos.length + instituteurDtos.length,
       };
