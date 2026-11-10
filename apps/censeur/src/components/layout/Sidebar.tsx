@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
 import { NAV_GROUPS } from '@/app/navigation';
@@ -32,11 +33,19 @@ export function Sidebar({ school, mobileOpen, onNavigate }: SidebarProps) {
     }
   }
 
+  const [logoFailed, setLogoFailed] = useState(false);
+
   return (
     <aside className={[styles.sidebar, mobileOpen ? styles.open : ''].join(' ')}>
       <div className={styles.brand}>
-        {school?.logoUrl ? (
-          <img src={school.logoUrl} alt="" className={styles.logoImg} aria-hidden="true" />
+        {school?.logoUrl && !logoFailed ? (
+          <img
+            src={school.logoUrl}
+            alt=""
+            className={styles.logoImg}
+            aria-hidden="true"
+            onError={() => setLogoFailed(true)}
+          />
         ) : (
           <span className={styles.logo} aria-hidden="true">
             ◆

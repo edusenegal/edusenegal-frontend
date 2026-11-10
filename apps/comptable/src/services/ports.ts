@@ -38,6 +38,7 @@ export interface AuthPort {
   login(identifier: string, password: string, loginByPhone: boolean): Promise<AccountantProfile>;
   logout(): Promise<void>;
   currentAccountant(): Promise<AccountantProfile>;
+  updateMyPhoto(file: File): Promise<AccountantProfile>;
 }
 
 /** Lecture seule — le comptable ne modifie ni le branding ni l'année scolaire. */

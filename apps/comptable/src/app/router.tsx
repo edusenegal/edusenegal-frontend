@@ -15,6 +15,7 @@ const WalletPage = lazy(() => import('@/features/wallets/WalletPage'));
 const PaymentsPage = lazy(() => import('@/features/payments/PaymentsPage'));
 const RecouvrementPage = lazy(() => import('@/features/recouvrement/RecouvrementPage'));
 const ScholarshipsPage = lazy(() => import('@/features/scholarships/ScholarshipsPage'));
+const ProfilePage = lazy(() => import('@/features/profile/ProfilePage'));
 const NotFoundPage = lazy(() => import('@/features/errors/NotFoundPage'));
 
 export function AppRoutes() {
@@ -35,6 +36,7 @@ export function AppRoutes() {
             <Route path="paiements" element={<PaymentsPage />} />
             <Route path="recouvrement" element={<RecouvrementPage />} />
             <Route path="bourses" element={<ScholarshipsPage />} />
+            <Route path="profil" element={<ProfilePage />} />
           </Route>
         </Route>
 

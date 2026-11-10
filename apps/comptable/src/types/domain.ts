@@ -554,6 +554,7 @@ export interface AccountantProfile {
   nom: string;
   role: 'ACCOUNTANT';
   email: string;
+  photoUrl: string | null;
 }
 
 /** Traduit `ExpenseCategory` (payment-service). */

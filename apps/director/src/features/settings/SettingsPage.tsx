@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Avatar } from '@/components/ui/Avatar/Avatar';
 import { Button, Card, CardHeader, Field, Input } from '@/components/ui';
+import { CameraCapture } from '@/components/ui/CameraCapture/CameraCapture';
 import { useServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/auth.store';
 import { applyBranding } from '@/utils/branding';
@@ -37,6 +38,7 @@ export default function SettingsPage() {
   const assetsQuery = useQuery({ queryKey: ['signer-assets'], queryFn: () => signatures.getMyAssets() });
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const photoPreviewUrl = useFilePreview(photoFile);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const photoMutation = useMutation({
@@ -154,7 +156,19 @@ export default function SettingsPage() {
                   onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
                   style={{ fontSize: 13 }}
                 />
+                <Button variant="ghost" size="sm" onClick={() => setCameraOpen(true)}>
+                  Prendre une photo
+                </Button>
               </div>
+              {cameraOpen ? (
+                <CameraCapture
+                  onCapture={(f) => {
+                    setPhotoFile(f);
+                    setCameraOpen(false);
+                  }}
+                  onClose={() => setCameraOpen(false)}
+                />
+              ) : null}
               {photoPreviewUrl ? (
                 <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
                   Aperçu du fichier sélectionné — pas encore enregistré.

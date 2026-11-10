@@ -16,6 +16,7 @@ export interface AuthPort {
   login(identifier: string, password: string, loginByPhone: boolean): Promise<TeacherProfile>;
   logout(): Promise<void>;
   changePassword(newPassword: string): Promise<void>;
+  updateMyPhoto(file: File): Promise<TeacherProfile>;
 }
 
 /** Lecture seule — pour le branding de l'établissement. */

@@ -13,6 +13,7 @@ function toAccountantProfile(dto: UserResponseDto): AccountantProfile {
     nom: dto.lastName,
     role: 'ACCOUNTANT',
     email: dto.email ?? '',
+    photoUrl: dto.photoUrl ?? null,
   };
 }
 
@@ -83,6 +84,17 @@ export function createAuthApi(): AuthPort {
     async currentAccountant(): Promise<AccountantProfile> {
       const userId = useAuthStore.getState().session?.userId ?? '';
       return fetchAccountantProfile(userId);
+    },
+
+    async updateMyPhoto(file: File): Promise<AccountantProfile> {
+      const userId = useAuthStore.getState().session?.userId ?? '';
+      const formData = new FormData();
+      formData.append('file', file);
+      const dto = await request<UserResponseDto>(
+        `/api/v1/users/${encodeURIComponent(userId)}/photo`,
+        { method: 'POST', formData },
+      );
+      return toAccountantProfile(dto);
     },
   };
 }

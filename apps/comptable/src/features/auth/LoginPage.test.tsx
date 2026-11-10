@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import type { AccountantProfile } from '@/types/domain';
 import LoginPage from './LoginPage';
 
-const ACCOUNTANT: AccountantProfile = { id: 'cpt-1', prenom: 'Aminata', nom: 'Diagne', role: 'ACCOUNTANT', email: 'a@x.sn' };
+const ACCOUNTANT: AccountantProfile = { id: 'cpt-1', prenom: 'Aminata', nom: 'Diagne', role: 'ACCOUNTANT', email: 'a@x.sn', photoUrl: null };
 
 describe('LoginPage', () => {
   // Le magasin d'authentification est un singleton Zustand partagé par tout
@@ -19,7 +19,7 @@ describe('LoginPage', () => {
 
   it('affiche le message d’erreur du service en cas d’échec', async () => {
     const login = vi.fn().mockRejectedValue(new AppError('validation', 'Identifiant ou mot de passe incorrect.', 400));
-    renderWithProviders(<LoginPage />, { services: { auth: { login, logout: vi.fn(), currentAccountant: vi.fn() } } });
+    renderWithProviders(<LoginPage />, { services: { auth: { login, logout: vi.fn(), currentAccountant: vi.fn(), updateMyPhoto: vi.fn() } } });
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/identifiant/i), '77 520 00 01');
@@ -31,7 +31,7 @@ describe('LoginPage', () => {
 
   it('connecte avec succès et transmet les identifiants saisis', async () => {
     const login = vi.fn().mockResolvedValue(ACCOUNTANT);
-    renderWithProviders(<LoginPage />, { services: { auth: { login, logout: vi.fn(), currentAccountant: vi.fn() } } });
+    renderWithProviders(<LoginPage />, { services: { auth: { login, logout: vi.fn(), currentAccountant: vi.fn(), updateMyPhoto: vi.fn() } } });
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/identifiant/i), '77 520 00 01');

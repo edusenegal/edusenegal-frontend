@@ -58,6 +58,17 @@ export function createAuthApi(): AuthPort {
       await request<void>('/api/v1/auth/logout', { method: 'POST' }).catch(() => undefined);
     },
 
+    async updateMyPhoto(file: File): Promise<TeacherProfile> {
+      const userId = useAuthStore.getState().session?.userId ?? '';
+      const formData = new FormData();
+      formData.append('file', file);
+      const dto = await request<UserResponseDto>(
+        `/api/v1/users/${encodeURIComponent(userId)}/photo`,
+        { method: 'POST', formData },
+      );
+      return toProfile(dto);
+    },
+
     async changePassword(newPassword: string): Promise<void> {
       const userId = useAuthStore.getState().session?.userId ?? '';
       await request<void>(`/api/v1/users/${encodeURIComponent(userId)}/change-password`, {

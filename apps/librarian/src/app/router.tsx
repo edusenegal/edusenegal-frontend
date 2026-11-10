@@ -12,6 +12,7 @@ const RetardsPage = lazy(() => import('@/features/retards/RetardsPage'));
 const ReservationsPage = lazy(() => import('@/features/reservations/ReservationsPage'));
 const AdherentsPage = lazy(() => import('@/features/adherents/AdherentsPage'));
 const PolitiquePage = lazy(() => import('@/features/politique/PolitiquePage'));
+const ProfilePage = lazy(() => import('@/features/profile/ProfilePage'));
 const NotFoundPage = lazy(() => import('@/features/errors/NotFoundPage'));
 
 export function AppRoutes() {
@@ -29,6 +30,7 @@ export function AppRoutes() {
             <Route path="reservations" element={<ReservationsPage />} />
             <Route path="adherents" element={<AdherentsPage />} />
             <Route path="politique" element={<PolitiquePage />} />
+            <Route path="profil" element={<ProfilePage />} />
           </Route>
         </Route>
 

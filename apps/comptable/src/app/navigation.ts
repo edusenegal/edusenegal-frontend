@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/paiements', label: 'Paiements', icon: '🧾' },
       { to: '/recouvrement', label: 'Recouvrement', icon: '📊' },
       { to: '/bourses', label: 'Bourses', icon: '🎓' },
+      { to: '/profil', label: 'Mon profil', icon: '👤' },
     ],
   },
 ];

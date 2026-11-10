@@ -310,6 +310,9 @@ export function createMockServices(): Services {
       async logout(): Promise<void> {
         await respond(undefined, 80);
       },
+      async updateMyPhoto(_file: File): Promise<TeacherProfile> {
+        return respond(PROFILE, 200);
+      },
       async changePassword(newPassword: string): Promise<void> {
         if (newPassword.length < 4) {
           throw new AppError('validation', 'Le mot de passe doit contenir au moins 4 caractères.', 400);

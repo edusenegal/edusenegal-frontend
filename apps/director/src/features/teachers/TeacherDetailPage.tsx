@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea, useConfirm } from '@/components/ui';
+import { Avatar, Badge, Button, Card, DateInput, Field, Input, Segmented, Select, Sheet, StateView, Textarea, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { buildDownloadFilename, downloadBlob, fmtXOF, isoToFR, todayISO, exportCsv } from '@/utils/format';
@@ -99,6 +99,10 @@ export default function TeacherDetailPage() {
           <div className={styles.body}>
             {tab === 'profil' && t ? (
               <div className={styles.rows}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 4 }}>
+                  <Avatar name={t.nom} size="md" photoUrl={t.photoUrl} />
+                  <div style={{ fontWeight: 600, fontSize: 16 }}>{t.nom}</div>
+                </div>
                 <Row k="Nom complet" v={t.nom} />
                 <Row k="Matières" v={subjectNames(t.subjectIds, subjectList.data) || '—'} />
                 <Row k="Téléphone" v={t.tel} />

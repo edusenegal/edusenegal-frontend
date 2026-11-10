@@ -28,7 +28,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'Administration',
-    items: [{ to: '/politique', label: 'Politique de prêt', icon: '⚙️' }],
+    items: [
+      { to: '/politique', label: 'Politique de prêt', icon: '⚙️' },
+      { to: '/profil', label: 'Mon profil', icon: '👤' },
+    ],
   },
 ];
 

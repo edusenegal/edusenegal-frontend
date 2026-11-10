@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Avatar, Button, Card, CardHeader, Field, Input, StateView } from '@/components/ui';
+import { CameraCapture } from '@/components/ui/CameraCapture/CameraCapture';
 import { useServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/auth.store';
 import type { School } from '@/types/domain';
@@ -59,6 +60,7 @@ export default function SettingsPage() {
   });
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const photoPreviewUrl = useFilePreview(photoFile);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const photoMutation = useMutation({
@@ -130,6 +132,18 @@ export default function SettingsPage() {
             onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
             style={{ fontSize: 13 }}
           />
+          <Button variant="ghost" size="sm" onClick={() => setCameraOpen(true)} style={{ marginTop: 8 }}>
+            Prendre une photo
+          </Button>
+          {cameraOpen ? (
+            <CameraCapture
+              onCapture={(f) => {
+                setPhotoFile(f);
+                setCameraOpen(false);
+              }}
+              onClose={() => setCameraOpen(false)}
+            />
+          ) : null}
           {photoPreviewUrl ? (
             <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
               Aperçu du fichier sélectionné — pas encore enregistré.

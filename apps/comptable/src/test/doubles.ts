@@ -20,6 +20,7 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       login: notStubbed('auth.login'),
       logout: notStubbed('auth.logout'),
       currentAccountant: notStubbed('auth.currentAccountant'),
+      updateMyPhoto: notStubbed('auth.updateMyPhoto'),
     },
     school: {
       getSchool: notStubbed('school.getSchool'),
