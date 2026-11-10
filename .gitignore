@@ -56,4 +56,4 @@ pnpm-debug.log*
 # Logs and temporary files
 *.log
 *.tmp
-*.bak
+*.bakapps/mobile/
