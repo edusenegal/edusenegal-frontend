@@ -5,6 +5,7 @@ import { Sheet } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/auth.store';
 import { AppError } from '@/services/errors';
+import { AlertDialog } from '@/components/ui/AlertDialog/AlertDialog';
 import styles from './LoginPage.module.css';
 import { AuthIcon, type IconName } from './authIcons';
 
@@ -161,7 +162,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {error ? <p className={styles.error}>{error}</p> : null}
+            {error ? <AlertDialog message={error} onClose={() => setError(null)} /> : null}
 
             <button type="submit" className={styles.submit} disabled={mutation.isPending}>
               {mutation.isPending ? 'Connexion…' : '→ Se connecter'}

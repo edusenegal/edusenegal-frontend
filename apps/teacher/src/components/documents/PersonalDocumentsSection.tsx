@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Field, Input, Select, StateView, Textarea, useConfirm } from '@/components/ui';
+import { Badge, Button, Field, Input, Select, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { fmtBytes } from '@/utils/format';
 import type { PersonalDocumentOwnerType, PersonalDocumentType } from '@/types/domain';
@@ -99,9 +99,20 @@ export function PersonalDocumentsSection({ ownerId, ownerType }: PersonalDocumen
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 10 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+          gap: 12,
+          alignItems: 'end',
+          padding: 16,
+          border: '1px solid var(--color-border)',
+          borderRadius: 12,
+          background: 'var(--color-surface-muted, transparent)',
+        }}
+      >
         <Field label="Type">
-          <Select value={type} onChange={(e) => setType(e.target.value as PersonalDocumentType)} style={{ width: 170 }}>
+          <Select value={type} onChange={(e) => setType(e.target.value as PersonalDocumentType)} style={{ width: '100%' }}>
             {availableTypes.map((t) => (
               <option key={t} value={t}>
                 {TYPE_LABEL[t]}
@@ -110,15 +121,15 @@ export function PersonalDocumentsSection({ ownerId, ownerType }: PersonalDocumen
           </Select>
         </Field>
         <Field label="Titre" required>
-          <Input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. CNI recto-verso" style={{ width: 200 }} />
+          <Input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. CNI recto-verso" style={{ width: '100%' }} />
         </Field>
         <Field label="Description">
-          <Textarea rows={1} value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: 220 }} />
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Facultatif" style={{ width: '100%' }} />
         </Field>
         <Field label="Fichier" required>
-          <input ref={fileInputRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12.5 }} />
+          <input ref={fileInputRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ width: '100%', fontSize: 12.5 }} />
         </Field>
-        <Button variant="primary" size="sm" loading={uploadMutation.isPending} onClick={onSubmit}>
+        <Button variant="primary" loading={uploadMutation.isPending} onClick={onSubmit} style={{ width: '100%' }}>
           Déposer
         </Button>
       </div>

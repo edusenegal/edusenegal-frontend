@@ -1,0 +1,61 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+  animation: adFade 0.15s ease;
+}
+
+.panel {
+  width: 100%;
+  max-width: 360px;
+  background: var(--color-surface, #fff);
+  border-radius: 16px;
+  padding: 24px 22px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: adPop 0.18s ease;
+}
+
+.badge {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(226, 87, 76, 0.14);
+  color: var(--color-danger, #e2574c);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text, #1e293b);
+}
+
+.message {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted, #64748b);
+}
+
+@keyframes adFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes adPop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
