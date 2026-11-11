@@ -54,27 +54,6 @@ export class ErrorBoundary extends Component<Props, State> {
         <p style={{ color: 'var(--color-text-muted, #666)', margin: '0 0 14px', fontSize: 14, lineHeight: 1.5 }}>
           Une erreur est survenue. Réessayez, ou rechargez la page si le problème persiste.
         </p>
-        {this.state.error?.message ? (
-          <details style={{ textAlign: 'left', margin: '0 0 18px', fontSize: 12 }}>
-            <summary style={{ cursor: 'pointer', color: 'var(--color-text-muted, #888)' }}>Détail technique</summary>
-            <pre
-              style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                background: 'var(--color-surface-muted, #f6f6f8)',
-                border: '1px solid var(--color-border, #e3e3e3)',
-                borderRadius: 8,
-                padding: 10,
-                marginTop: 8,
-                maxHeight: 180,
-                overflow: 'auto',
-                color: 'var(--color-text, #333)',
-              }}
-            >
-              {this.state.error.message}
-            </pre>
-          </details>
-        ) : null}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
           <button
             type="button"
