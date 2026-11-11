@@ -529,6 +529,7 @@ export default function AcademicResultsPage() {
                       <tr style={{ textAlign: 'left', color: 'var(--color-text-muted)', fontSize: 12 }}>
                         <th style={{ padding: '6px 8px 6px 0' }}>Rang</th>
                         <th style={{ padding: '6px 8px' }}>Élève</th>
+                        <th style={{ padding: '6px 8px' }} />
                         <th style={{ padding: '6px 8px' }}>Moyenne</th>
                         <th style={{ padding: '6px 8px' }}>Mention</th>
                         <th style={{ padding: '6px 8px' }}>Bulletin</th>
@@ -543,6 +544,11 @@ export default function AcademicResultsPage() {
                         <tr key={row.id} style={{ borderTop: '1px solid var(--color-border)' }}>
                           <td style={{ padding: '8px 8px 8px 0', fontWeight: 600 }}>{row.rangClasse}</td>
                           <td style={{ padding: 8 }}>{row.studentNom}</td>
+                          <td style={{ padding: 8 }}>
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/resultats/eleve/${row.studentId}`)}>
+                              Détails
+                            </Button>
+                          </td>
                           <td style={{ padding: 8, fontWeight: 600 }}>{row.moyenneGenerale.toFixed(2)}/20</td>
                           <td style={{ padding: 8 }}>
                             <Badge tone={MENTION_TONES[row.mention]}>{MENTION_LABELS[row.mention]}</Badge>

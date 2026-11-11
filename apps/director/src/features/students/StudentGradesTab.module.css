@@ -3,6 +3,109 @@
   flex-direction: column;
 }
 
+/* ---- bandeau identité + KPIs ---- */
+.hero {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 18px;
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+.avatar,
+.avatarImg {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  flex: none;
+}
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--text-lg);
+  letter-spacing: 0.5px;
+  color: var(--brand-on-primary);
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-strong));
+  box-shadow: 0 6px 16px rgb(29 158 117 / 30%);
+}
+.avatarImg {
+  object-fit: cover;
+}
+.idblock {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+.name {
+  margin: 0;
+  font-size: var(--text-xl);
+  letter-spacing: -0.2px;
+  color: var(--color-text);
+}
+.idmeta {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 5px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.kpis {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.kpi {
+  min-width: 90px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  text-align: center;
+}
+.kpiLead {
+  background: var(--brand-primary-soft);
+  border-color: transparent;
+}
+.kpiV {
+  font-weight: 700;
+  font-size: var(--text-xl);
+  line-height: 1;
+  color: var(--color-text);
+}
+.kpiLead .kpiV {
+  color: var(--brand-primary-strong);
+}
+.kpiMention {
+  font-size: var(--text-md);
+}
+.kpiSub {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+.kpiL {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-faint);
+  margin-top: 6px;
+}
+
 /* ---- contrôles ---- */
 .controls {
   display: flex;
@@ -73,50 +176,6 @@
   top: 50%;
   transform: translateY(-50%);
   color: var(--color-text-faint);
-}
-
-/* ---- KPIs ---- */
-.kpis {
-  display: flex;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-md);
-}
-.kpi {
-  min-width: 96px;
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
-}
-.kpiLead {
-  background: var(--brand-primary-soft);
-  border-color: transparent;
-}
-.kpiV {
-  font-weight: 700;
-  font-size: var(--text-xl);
-  line-height: 1;
-  color: var(--color-text);
-}
-.kpiLead .kpiV {
-  color: var(--brand-primary-strong);
-}
-.kpiMention {
-  font-size: var(--text-md);
-}
-.kpiSub {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text-faint);
-}
-.kpiL {
-  font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--color-text-faint);
-  margin-top: 6px;
 }
 
 /* ---- légende ---- */
@@ -290,6 +349,35 @@
   border-radius: var(--radius-pill);
 }
 
+/* moyenne de bas de liste */
+.footline {
+  margin-top: 7px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.footlbl {
+  font-weight: 600;
+  font-size: var(--text-base);
+}
+.footbig {
+  font-weight: 700;
+  font-size: var(--text-xl);
+  color: var(--brand-primary-strong);
+  margin-left: auto;
+}
+.footbig small {
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+
 /* ---- vue par type ---- */
 .typegroup {
   margin-bottom: var(--space-md);
@@ -319,6 +407,14 @@
 }
 
 @media (max-width: 560px) {
+  .kpis {
+    width: 100%;
+    margin-left: 0;
+  }
+  .kpi {
+    flex: 1 1 72px;
+    min-width: 0;
+  }
   .srow {
     grid-template-columns: 1fr;
   }

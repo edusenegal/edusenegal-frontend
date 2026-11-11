@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { initials } from '@/utils/format';
 import { useServices } from '@/hooks/useServices';
 import { StateView } from '@/components/ui';
-import type { Mention, SubjectAverage } from '@/types/domain';
+import type { Mention, StudentStatus, SubjectAverage } from '@/types/domain';
 import styles from './StudentGradesTab.module.css';
 
 const MENTION_LABEL: Record<Mention, string> = {
@@ -12,6 +13,11 @@ const MENTION_LABEL: Record<Mention, string> = {
   assez_bien: 'Assez bien',
   passable: 'Passable',
   insuffisant: 'Insuffisant',
+};
+const STATUS_LABEL: Record<StudentStatus, string> = {
+  actif: 'Actif',
+  suspendu: 'Suspendu',
+  transfere: 'Transféré',
 };
 
 /** Palier couleur d'une note /20 — classe CSS du chip. */
@@ -48,11 +54,14 @@ function fmt(v: number | null | undefined): string {
 
 interface Props {
   studentId: string;
-  classeId: string | null;
 }
 
-export function StudentGradesTab({ studentId, classeId }: Props) {
-  const { academicResults } = useServices();
+export function StudentGradesTab({ studentId }: Props) {
+  const { academicResults, students } = useServices();
+
+  const studentQuery = useQuery({ queryKey: ['student', studentId], queryFn: () => students.get(studentId) });
+  const student = studentQuery.data;
+  const classeId = student?.classeId ?? null;
 
   const configQuery = useQuery({
     queryKey: ['academic-config', classeId ?? ''],
@@ -66,6 +75,7 @@ export function StudentGradesTab({ studentId, classeId }: Props) {
   const [view, setView] = useState<'subject' | 'type'>('subject');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const resultQuery = useQuery({
     queryKey: ['student-semester-result', studentId, sem],
@@ -89,20 +99,55 @@ export function StudentGradesTab({ studentId, classeId }: Props) {
   }
 
   const semesters = Array.from({ length: semCount }, (_, i) => i + 1);
+  const fullName = student ? `${student.prenom} ${student.nom}` : '…';
 
   return (
     <div className={styles.wrap}>
+      {/* Bandeau d'identité + KPIs */}
+      <div className={styles.hero}>
+        {student?.photoUrl && !photoFailed ? (
+          <img src={student.photoUrl} alt={fullName} className={styles.avatarImg} onError={() => setPhotoFailed(true)} />
+        ) : (
+          <div className={styles.avatar} aria-hidden="true">
+            {student ? initials(fullName) : '…'}
+          </div>
+        )}
+        <div className={styles.idblock}>
+          <h2 className={styles.name}>{fullName}</h2>
+          {student ? (
+            <div className={styles.idmeta}>
+              <span>{student.classe}</span>
+              <span className={styles.dot} />
+              <span>Né(e) le {student.dateNaissance}</span>
+              <span className={styles.dot} />
+              <span>{STATUS_LABEL[student.statut]}</span>
+            </div>
+          ) : null}
+        </div>
+        <div className={styles.kpis}>
+          <div className={`${styles.kpi} ${styles.kpiLead}`}>
+            <div className={styles.kpiV}>{result ? `${fmt(result.moyenneGenerale)}/20` : '—'}</div>
+            <div className={styles.kpiL}>Moyenne</div>
+          </div>
+          <div className={styles.kpi}>
+            <div className={styles.kpiV}>
+              {result ? result.rangClasse : '—'}
+              {result ? <span className={styles.kpiSub}> / {result.totalEleves}</span> : null}
+            </div>
+            <div className={styles.kpiL}>Rang</div>
+          </div>
+          <div className={styles.kpi}>
+            <div className={`${styles.kpiV} ${styles.kpiMention}`}>{result ? MENTION_LABEL[result.mention] : '—'}</div>
+            <div className={styles.kpiL}>Mention</div>
+          </div>
+        </div>
+      </div>
+
       {/* Contrôles */}
       <div className={styles.controls}>
         <div className={styles.seg} role="tablist" aria-label={periodLabel}>
           {semesters.map((n) => (
-            <button
-              key={n}
-              role="tab"
-              aria-selected={sem === n}
-              className={sem === n ? styles.segOn : ''}
-              onClick={() => setSem(n)}
-            >
+            <button key={n} role="tab" aria-selected={sem === n} className={sem === n ? styles.segOn : ''} onClick={() => setSem(n)}>
               {periodLabel} {n}
             </button>
           ))}
@@ -123,27 +168,6 @@ export function StudentGradesTab({ studentId, classeId }: Props) {
           <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder="Filtrer une matière…" autoComplete="off" />
         </label>
       </div>
-
-      {/* KPIs du semestre */}
-      {result ? (
-        <div className={styles.kpis}>
-          <div className={`${styles.kpi} ${styles.kpiLead}`}>
-            <div className={styles.kpiV}>{fmt(result.moyenneGenerale)}/20</div>
-            <div className={styles.kpiL}>Moyenne générale</div>
-          </div>
-          <div className={styles.kpi}>
-            <div className={styles.kpiV}>
-              {result.rangClasse}
-              <span className={styles.kpiSub}> / {result.totalEleves}</span>
-            </div>
-            <div className={styles.kpiL}>Rang</div>
-          </div>
-          <div className={styles.kpi}>
-            <div className={`${styles.kpiV} ${styles.kpiMention}`}>{MENTION_LABEL[result.mention]}</div>
-            <div className={styles.kpiL}>Mention</div>
-          </div>
-        </div>
-      ) : null}
 
       {/* Légende */}
       <div className={styles.legend}>
@@ -168,6 +192,13 @@ export function StudentGradesTab({ studentId, classeId }: Props) {
               {matieres.map((m) => (
                 <SubjectRow key={m.subjectId} m={m} open={open.has(m.subjectId)} onToggle={() => toggle(m.subjectId)} />
               ))}
+              <div className={styles.footline}>
+                <span className={styles.footlbl}>Moyenne générale du {periodLabel.toLowerCase()}</span>
+                <span className={styles.footbig}>
+                  {fmt(result.moyenneGenerale)}
+                  <small> / 20</small>
+                </span>
+              </div>
             </div>
           ) : (
             <div key={`t-${sem}`}>
@@ -195,7 +226,13 @@ function Chip({ label, v }: { label: string; v: number | null }) {
 function SubjectRow({ m, open, onToggle }: { m: SubjectAverage; open: boolean; onToggle: () => void }) {
   return (
     <div className={`${styles.subj} ${open ? styles.subjOpen : ''}`}>
-      <div className={styles.srow} onClick={onToggle} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onToggle())}>
+      <div
+        className={styles.srow}
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onToggle())}
+      >
         <div className={styles.sname}>
           <div className={styles.sn}>
             {m.subjectNom} <span className={styles.coef}>coef {m.coefficient}</span>

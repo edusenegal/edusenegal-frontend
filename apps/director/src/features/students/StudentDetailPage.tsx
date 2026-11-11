@@ -205,7 +205,7 @@ export default function StudentDetailPage() {
             </div>
 
             {tab === 'notes' ? (
-              <StudentGradesTab studentId={s.id} classeId={s.classeId ?? null} />
+              <StudentGradesTab studentId={s.id} />
             ) : (
               <>
                 <Card>
