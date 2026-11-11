@@ -266,6 +266,23 @@ export function createAcademicResultsApi(): AcademicResultsPort {
       return Math.round(avg * 10) / 10;
     },
 
+    async getStudentSemesterResult(studentId, semesterNumber): Promise<SemesterResult | null> {
+      const yearId = await resolveYearId();
+      try {
+        const dto = await request<SemesterResultResponseDto>(
+          `/api/v1/academic/results/student/${encodeURIComponent(studentId)}/semester/${semesterNumber}`,
+          { query: { yearId } },
+        );
+        if (!dto) return null;
+        // La fiche appelante connaît déjà l'élève — pas de résolution de nom.
+        return fromApiSemesterResult(dto, new Map());
+      } catch (err) {
+        // 404 (RESULT_NOT_AVAILABLE) = semestre pas encore calculé : état normal.
+        if (err instanceof AppError && err.kind === 'notFound') return null;
+        throw err;
+      }
+    },
+
     async publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]> {
       const yearId = await resolveYearId();
       await request<SemesterResultResponseDto>(
