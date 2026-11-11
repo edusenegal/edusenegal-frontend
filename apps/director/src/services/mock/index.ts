@@ -1691,6 +1691,46 @@ export function createMockServices(): Services {
         return respond(found.moyenne > 0 ? found.moyenne : null);
       },
 
+      async getStudentSemesterResult(studentId, semesterNumber): Promise<SemesterResult | null> {
+        const student = state.students.find((s) => s.id === studentId);
+        if (!student || !student.classeId) return respond(null);
+        const classeId = student.classeId;
+        const config = state.academicConfigs.find((c) => c.classId === classeId);
+        const weights = config
+          ? { d1Weight: config.d1Weight, d2Weight: config.d2Weight, compositionWeight: config.compositionWeight }
+          : { d1Weight: 1, d2Weight: 1, compositionWeight: 2 };
+        const matieres = fixtures.buildSubjectAveragesForStudent(student, classeId, semesterNumber, weights);
+        if (matieres.length === 0) return respond(null);
+        const totalPoints = matieres.reduce((sum, m) => sum + m.pointsPonderes, 0);
+        const totalCoef = matieres.reduce((sum, m) => sum + m.coefficient, 0) || 1;
+        const moyenneGenerale = Math.round((totalPoints / totalCoef) * 100) / 100;
+        // Rang approximatif : on classe tous les élèves de la classe par moyenne.
+        const classStudents = state.students.filter((s) => s.classeId === classeId);
+        const ranked = classStudents
+          .map((st) => {
+            const ms = fixtures.buildSubjectAveragesForStudent(st, classeId, semesterNumber, weights);
+            const tp = ms.reduce((a, m) => a + m.pointsPonderes, 0);
+            const tc = ms.reduce((a, m) => a + m.coefficient, 0) || 1;
+            return { id: st.id, moy: tp / tc };
+          })
+          .sort((a, b) => b.moy - a.moy);
+        const rangClasse = Math.max(1, ranked.findIndex((r) => r.id === student.id) + 1);
+        return respond({
+          id: `semres-${classeId}-${semesterNumber}-${student.id}`,
+          studentId: student.id,
+          studentNom: `${student.prenom} ${student.nom}`,
+          classId: classeId,
+          semesterNumber,
+          moyenneGenerale,
+          rangClasse,
+          totalEleves: classStudents.length,
+          mention: fixtures.mentionFromAverage(moyenneGenerale),
+          matieres,
+          bulletinGenere: false,
+          publie: false,
+        });
+      },
+
       async publishResults(classId, semesterNumber): Promise<SemesterResult[]> {
         const key = `${classId}|${semesterNumber}`;
         const results = state.semesterResults[key];

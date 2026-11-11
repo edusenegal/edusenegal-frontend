@@ -8,6 +8,7 @@ import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { StudentEditSheet } from './StudentEditSheet';
+import { StudentGradesTab } from './StudentGradesTab';
 import styles from './StudentDetailPage.module.css';
 
 const STATUS_TONE = { actif: 'success', suspendu: 'danger', transfere: 'neutral' } as const;
@@ -20,6 +21,7 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
+  const [tab, setTab] = useState<'infos' | 'notes'>('infos');
   // Assignation de classe (nouvelle demande direction) — un élève créé sans
   // classe depuis la liste « Élèves » (voir `StudentFormSheet`) se la voit
   // assigner ici, sans passer par l'assistant de transfert interne (prévu
@@ -182,34 +184,59 @@ export default function StudentDetailPage() {
 
       <StateView loading={studentQuery.isLoading} error={studentQuery.error}>
         {s ? (
-          <Card>
-            <div className={styles.body}>
-              <div className={styles.rows}>
-                <Row k="Prénom" v={s.prenom} />
-                <Row k="Nom" v={s.nom} />
-                <Row k="Classe" v={s.classe} />
-                <Row k="Sexe" v={s.sexe === 'F' ? 'Féminin' : 'Masculin'} />
-                <Row k="Date de naissance" v={s.dateNaissance} />
-                <Row k="Parent / tuteur" v={s.parent} />
-                <Row k="Téléphone" v={s.tel} />
-                <Row k="Statut" v={<Badge tone={STATUS_TONE[s.statut]}>{STATUS_LABEL[s.statut]}</Badge>} />
-                <Row k="Moyenne" v={moyenneLabel} />
-                <Row k="Absences" v={absencesLabel} />
-                <Row k="Retards" v={retardsLabel} />
-                <Row k="Taux de paiement" v={tauxLabel} />
-              </div>
+          <>
+            <div className={styles.tabs} role="tablist" aria-label="Sections de la fiche">
+              <button
+                role="tab"
+                aria-selected={tab === 'infos'}
+                className={tab === 'infos' ? styles.tabOn : styles.tab}
+                onClick={() => setTab('infos')}
+              >
+                Informations
+              </button>
+              <button
+                role="tab"
+                aria-selected={tab === 'notes'}
+                className={tab === 'notes' ? styles.tabOn : styles.tab}
+                onClick={() => setTab('notes')}
+              >
+                Notes
+              </button>
             </div>
-          </Card>
-        ) : null}
 
-        {s ? (
-          <Card style={{ marginTop: 'var(--space-md)' }}>
-            <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Pièces personnelles</h3>
-            <p className={styles.muted} style={{ fontSize: 12.5, margin: '0 0 10px' }}>
-              CNI de l’élève, acte de naissance, CNI des parents.
-            </p>
-            <PersonalDocumentsSection ownerId={s.id} ownerType="eleve" />
-          </Card>
+            {tab === 'notes' ? (
+              <StudentGradesTab studentId={s.id} classeId={s.classeId ?? null} />
+            ) : (
+              <>
+                <Card>
+                  <div className={styles.body}>
+                    <div className={styles.rows}>
+                      <Row k="Prénom" v={s.prenom} />
+                      <Row k="Nom" v={s.nom} />
+                      <Row k="Classe" v={s.classe} />
+                      <Row k="Sexe" v={s.sexe === 'F' ? 'Féminin' : 'Masculin'} />
+                      <Row k="Date de naissance" v={s.dateNaissance} />
+                      <Row k="Parent / tuteur" v={s.parent} />
+                      <Row k="Téléphone" v={s.tel} />
+                      <Row k="Statut" v={<Badge tone={STATUS_TONE[s.statut]}>{STATUS_LABEL[s.statut]}</Badge>} />
+                      <Row k="Moyenne" v={moyenneLabel} />
+                      <Row k="Absences" v={absencesLabel} />
+                      <Row k="Retards" v={retardsLabel} />
+                      <Row k="Taux de paiement" v={tauxLabel} />
+                    </div>
+                  </div>
+                </Card>
+
+                <Card style={{ marginTop: 'var(--space-md)' }}>
+                  <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Pièces personnelles</h3>
+                  <p className={styles.muted} style={{ fontSize: 12.5, margin: '0 0 10px' }}>
+                    CNI de l’élève, acte de naissance, CNI des parents.
+                  </p>
+                  <PersonalDocumentsSection ownerId={s.id} ownerType="eleve" />
+                </Card>
+              </>
+            )}
+          </>
         ) : null}
       </StateView>
 

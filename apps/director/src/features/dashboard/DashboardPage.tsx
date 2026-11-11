@@ -64,8 +64,8 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Demandes récentes" />
           <StateView
-            loading={leaveList.isLoading || salaryList.isLoading}
-            error={leaveList.error ?? salaryList.error}
+            loading={leaveList.isLoading && salaryList.isLoading}
+            error={leaveList.error && salaryList.error ? leaveList.error : null}
             empty={(leaveList.data?.length ?? 0) === 0 && (salaryList.data?.length ?? 0) === 0}
           >
             <div className={styles.requestRows}>

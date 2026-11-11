@@ -793,6 +793,13 @@ export interface AcademicResultsPort {
    * disponible (début d'année). Backend : `GET /academic/results/student/{id}/semester/{n}`.
    */
   getStudentAverage(studentId: string, classId: string): Promise<number | null>;
+  /**
+   * Relevé semestriel détaillé d'un élève : notes par matière (D1/D2/compo),
+   * moyenne, coefficient et mention, plus moyenne générale/rang/mention du
+   * semestre. `null` tant qu'aucun résultat n'est calculé pour ce semestre.
+   * Backend : `GET /academic/results/student/{id}/semester/{n}`.
+   */
+  getStudentSemesterResult(studentId: string, semesterNumber: number): Promise<SemesterResult | null>;
   /** Backend : `PUT /academic/results/class/{classId}/semester/{semester}/publish`. Notifie élèves/parents (Kafka côté réel). */
   publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
   /** Backend : `POST /academic/bulletins/student/{studentId}/semester/{semester}`. */

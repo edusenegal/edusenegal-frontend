@@ -27,8 +27,12 @@ export default function DashboardPage() {
     enabled: classIds.length > 0,
   });
 
-  const loading = classesQuery.isLoading || disputesQuery.isLoading || unreadQuery.isLoading;
-  const error = classesQuery.error ?? disputesQuery.error ?? unreadQuery.error;
+  // Seules les classes sont critiques pour ce bandeau (nb de classes + élèves).
+  // Les autres tuiles (examens, litiges, notifs) ont déjà un repli (« — » / 0),
+  // donc l'échec transitoire d'un de ces services ne doit PAS masquer tout le
+  // tableau de bord — on ne lie l'état d'écran qu'à la requête des classes.
+  const loading = classesQuery.isLoading;
+  const error = classesQuery.error;
   const classes = classesQuery.data ?? [];
   const elevesCount = classes.reduce((sum, c) => sum + c.effectif, 0);
 

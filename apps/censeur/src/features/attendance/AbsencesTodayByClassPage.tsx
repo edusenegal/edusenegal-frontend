@@ -223,8 +223,8 @@ export default function AbsencesTodayByClassPage() {
           {actionError ? <p className={styles.error}>{actionError}</p> : null}
 
           <StateView
-            loading={absentToday.isLoading || schoolAbsences.isLoading}
-            error={absentToday.error ?? schoolAbsences.error}
+            loading={absentToday.isLoading}
+            error={absentToday.error}
             onRetry={() => {
               absentToday.refetch();
               schoolAbsences.refetch();
