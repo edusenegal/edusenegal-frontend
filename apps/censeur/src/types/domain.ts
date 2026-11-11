@@ -816,6 +816,20 @@ export interface AnnualFigure {
   variationPct: number | null;
 }
 
+/** Réussite agrégée pour un niveau (ex. « 2nde »), année en cours. */
+export interface NiveauReussite {
+  niveau: string;
+  taux: number; // % d'admis
+  effectif: number; // nb d'élèves évalués
+}
+
+/** Compteurs de pointage de l'année en cours (assiduité). */
+export interface PresenceBreakdown {
+  present: number;
+  absent: number;
+  retard: number;
+}
+
 /** Tâche #237 — bilan de l'année en cours comparé à l'année précédente (si elle existe). */
 export interface BilanAnnuel {
   anneeActuelle: string;
@@ -828,6 +842,16 @@ export interface BilanAnnuel {
   tauxReussite: AnnualFigure;
   /** % moyen sur toute l'année scolaire (bornée à aujourd'hui si l'année est en cours). */
   tauxPresence: AnnualFigure;
+  /** Moyenne générale /20 — moyenne des moyennes annuelles des résultats calculés. */
+  moyenneGenerale: AnnualFigure;
+  /** Nombre de mentions obtenues (hors « Insuffisant ») — année en cours. */
+  mentions: number;
+  /** % de retards sur l'ensemble des pointages — année en cours. */
+  tauxRetard: number;
+  /** Réussite par niveau — année en cours. */
+  reussiteParNiveau: NiveauReussite[];
+  /** Compteurs présents/absents/retards — année en cours. */
+  presence: PresenceBreakdown;
 }
 
 export interface DashboardSnapshot {

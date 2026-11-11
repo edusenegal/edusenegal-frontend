@@ -396,6 +396,15 @@ export function createMockServices(): Services {
           solde: figure(18_450_000, avec(13_800_000)),
           tauxReussite: figure(78.5, avec(74.2)),
           tauxPresence: figure(93.1, avec(91.6)),
+          moyenneGenerale: figure(12.4, avec(11.8)),
+          mentions: 34,
+          tauxRetard: 4.1,
+          reussiteParNiveau: [
+            { niveau: '2nde', taux: 82, effectif: 150 },
+            { niveau: '1ère', taux: 85, effectif: 140 },
+            { niveau: 'Tle', taux: 71, effectif: 130 },
+          ],
+          presence: { present: 18420, absent: 1760, retard: 860 },
         });
       },
     },

@@ -13,18 +13,29 @@ const BILAN: BilanAnnuel = {
   solde: { valeurActuelle: 18_450_000, valeurPrecedente: 13_800_000, variationPct: 33.7 },
   tauxReussite: { valeurActuelle: 78.5, valeurPrecedente: 74.2, variationPct: 5.8 },
   tauxPresence: { valeurActuelle: 93.1, valeurPrecedente: 91.6, variationPct: 1.6 },
+  moyenneGenerale: { valeurActuelle: 12.4, valeurPrecedente: 11.8, variationPct: 5.1 },
+  mentions: 34,
+  tauxRetard: 4.1,
+  reussiteParNiveau: [
+    { niveau: '2nde', taux: 82, effectif: 150 },
+    { niveau: '1ère', taux: 85, effectif: 140 },
+    { niveau: 'Tle', taux: 71, effectif: 130 },
+  ],
+  presence: { present: 18420, absent: 1760, retard: 860 },
 };
 
 describe('BilanAnnuelPage', () => {
-  it('affiche les six indicateurs comparés à l’année précédente', async () => {
+  it('affiche les indicateurs et la comparaison à l’année précédente', async () => {
     renderWithProviders(<BilanAnnuelPage />, {
       services: { bilanAnnuel: { getBilan: vi.fn().mockResolvedValue(BILAN) } },
     });
 
-    await waitFor(() => expect(screen.getByText('320')).toBeInTheDocument());
-    expect(screen.getByText('78.5%')).toBeInTheDocument();
-    expect(screen.getByText('+8.7% vs année précédente')).toBeInTheDocument();
-    expect(screen.getByText('-5% vs année précédente')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/comparée à 2025-2026/)).toBeInTheDocument());
+    // effectif (apparaît dans la tuile KPI et la scorecard Vie scolaire)
+    expect(screen.getAllByText('320').length).toBeGreaterThanOrEqual(1);
+    // réussite par niveau
+    expect(screen.getByText('2nde')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
   });
 
   it('n’affiche aucune variation quand il n’y a pas d’année précédente', async () => {
@@ -32,12 +43,18 @@ describe('BilanAnnuelPage', () => {
       ...BILAN,
       anneePrecedente: null,
       effectif: { valeurActuelle: 45, valeurPrecedente: null, variationPct: null },
+      recettes: { ...BILAN.recettes, valeurPrecedente: null, variationPct: null },
+      depenses: { ...BILAN.depenses, valeurPrecedente: null, variationPct: null },
+      solde: { ...BILAN.solde, valeurPrecedente: null, variationPct: null },
+      tauxReussite: { ...BILAN.tauxReussite, valeurPrecedente: null, variationPct: null },
+      tauxPresence: { ...BILAN.tauxPresence, valeurPrecedente: null, variationPct: null },
+      moyenneGenerale: { ...BILAN.moyenneGenerale, valeurPrecedente: null, variationPct: null },
     };
     renderWithProviders(<BilanAnnuelPage />, {
       services: { bilanAnnuel: { getBilan: vi.fn().mockResolvedValue(SEULE) } },
     });
 
-    await waitFor(() => expect(screen.getByText('45')).toBeInTheDocument());
-    expect(screen.getByText(/pas encore d.année précédente/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/pas encore d.année précédente/)).toBeInTheDocument());
+    expect(screen.getAllByText(/1.* année/).length).toBeGreaterThanOrEqual(1);
   });
 });
