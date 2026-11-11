@@ -161,7 +161,7 @@ function Content({ b }: { b: BilanAnnuel }) {
   // const marge = b.recettes.valeurActuelle > 0 ? Math.round((b.solde.valeurActuelle / b.recettes.valeurActuelle) * 100) : 0;
   const maxNiveau = Math.max(1, ...b.reussiteParNiveau.map((n) => n.taux));
 
-  // const facts = buildFacts(b);
+  // const facts = buildFacts(b);ll
 
   return (
     <div className={styles.page}>
