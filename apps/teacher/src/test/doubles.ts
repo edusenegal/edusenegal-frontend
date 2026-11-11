@@ -110,6 +110,8 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       unreadCount: notStubbed('notifications.unreadCount'),
       markRead: notStubbed('notifications.markRead'),
       markAllRead: notStubbed('notifications.markAllRead'),
+      remove: notStubbed('notifications.remove'),
+      clearAll: notStubbed('notifications.clearAll'),
     },
     complaints: {
       mine: notStubbed('complaints.mine'),

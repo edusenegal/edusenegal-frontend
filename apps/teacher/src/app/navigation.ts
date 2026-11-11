@@ -45,6 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/conges', label: 'Congés', icon: '🗒️' },
       { to: '/paie', label: 'Ma fiche de paie', icon: '💰' },
       { to: '/mes-documents', label: 'Mes documents', icon: '🪪' },
+      { to: '/documents-signes', label: 'Documents signés', icon: '🖊️' },
     ],
   },
   {

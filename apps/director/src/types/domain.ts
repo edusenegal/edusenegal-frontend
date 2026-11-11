@@ -380,9 +380,9 @@ export interface LeaveRequest {
    * pour les sources qui ne distinguent pas id et nom (mock).
    */
   remplacantId?: string | null;
-  pieceJointe: { nom: string } | null;
+  pieceJointe: { nom: string; url: string } | null;
   /** Toutes les pièces jointes (`pieceJointe` ci-dessus n'en affiche que la première) -- pour l'écran de détails. */
-  piecesJointes: { nom: string }[];
+  piecesJointes: { nom: string; url: string }[];
   /** Nom de qui a traité la demande -- `null` tant qu'elle est en attente. */
   traitePar: string | null;
   /** Date de traitement (approbation/rejet), formatée -- `null` tant qu'en attente. */

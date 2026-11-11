@@ -30,6 +30,7 @@ const MessagingPage = lazy(() => import('@/features/messaging/MessagingPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/NotificationsPage'));
 const ComplaintsPage = lazy(() => import('@/features/complaints/ComplaintsPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
+const SignedDocumentsPage = lazy(() => import('@/features/signed-documents/SignedDocumentsPage'));
 const NotFoundPage = lazy(() => import('@/features/errors/NotFoundPage'));
 
 export function AppRoutes() {
@@ -56,6 +57,7 @@ export function AppRoutes() {
             <Route path="conges" element={<LeavesPage />} />
             <Route path="paie" element={<PayslipsPage />} />
             <Route path="mes-documents" element={<PersonalDocumentsPage />} />
+            <Route path="documents-signes" element={<SignedDocumentsPage />} />
             <Route path="messagerie" element={<MessagingPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="reclamations" element={<ComplaintsPage />} />

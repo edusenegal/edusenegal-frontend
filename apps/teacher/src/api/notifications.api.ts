@@ -80,5 +80,11 @@ export function createNotificationsApi(): NotificationsPort {
     markAllRead(): Promise<void> {
       return markAllNotificationsRead();
     },
+    async remove(notificationId: string): Promise<void> {
+      await request(`/api/v1/notifications/${encodeURIComponent(notificationId)}`, { method: 'DELETE' });
+    },
+    async clearAll(): Promise<void> {
+      await request('/api/v1/notifications/my', { method: 'DELETE' });
+    },
   };
 }

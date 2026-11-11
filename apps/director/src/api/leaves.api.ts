@@ -19,18 +19,19 @@ const STATUS_FROM_API: Record<string, LeaveStatus> = {
  * comme le fait déjà l'écran.
  */
 function fileNameFromDocumentUrl(url: string): string {
-  const lastSegment = url.split('/').pop() ?? url;
+  const path = url.split('?')[0] ?? url; // retire la query string d'une URL presignee
+  const lastSegment = path.split('/').pop() ?? path;
   const separator = lastSegment.indexOf('_');
   return separator === -1 ? lastSegment : lastSegment.slice(separator + 1);
 }
 
-function firstDocumentPiece(documentUrls: string[]): { nom: string } | null {
+function firstDocumentPiece(documentUrls: string[]): { nom: string; url: string } | null {
   const firstUrl = documentUrls[0];
-  return firstUrl ? { nom: fileNameFromDocumentUrl(firstUrl) } : null;
+  return firstUrl ? { nom: fileNameFromDocumentUrl(firstUrl), url: firstUrl } : null;
 }
 
-function allDocumentPieces(documentUrls: string[]): { nom: string }[] {
-  return documentUrls.map((url) => ({ nom: fileNameFromDocumentUrl(url) }));
+function allDocumentPieces(documentUrls: string[]): { nom: string; url: string }[] {
+  return documentUrls.map((url) => ({ nom: fileNameFromDocumentUrl(url), url }));
 }
 
 /**

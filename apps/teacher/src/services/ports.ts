@@ -261,6 +261,8 @@ export interface NotificationsPort {
   unreadCount(): Promise<number>;
   markRead(notificationId: string): Promise<void>;
   markAllRead(): Promise<void>;
+  remove(notificationId: string): Promise<void>;
+  clearAll(): Promise<void>;
 }
 
 export interface ComplaintsPort {

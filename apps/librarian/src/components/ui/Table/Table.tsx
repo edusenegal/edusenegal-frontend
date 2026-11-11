@@ -37,7 +37,7 @@ export function Table<T>({ columns, rows, rowKey, onRowClick }: TableProps<T>) {
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((col) => (
-                <td key={col.key} className={col.align === 'right' ? styles.right : undefined}>
+                <td key={col.key} data-label={col.header} className={col.align === 'right' ? styles.right : undefined}>
                   {col.render(row)}
                 </td>
               ))}

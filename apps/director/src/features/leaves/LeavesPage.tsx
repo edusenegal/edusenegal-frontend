@@ -24,6 +24,7 @@ export default function LeavesPage() {
   // montrer (motif complet, toutes les pièces jointes, et qui a tranché
   // et quand pour les demandes déjà traitées).
   const [detailLeave, setDetailLeave] = useState<LeaveRequest | null>(null);
+  const [attachment, setAttachment] = useState<{ nom: string; url: string } | null>(null);
 
   const list = useQuery({ queryKey: ['leaves'], queryFn: () => leaves.list() });
   const teachersQuery = useQuery({ queryKey: ['teachers'], queryFn: () => teachers.list() });
@@ -52,9 +53,14 @@ export default function LeavesPage() {
       header: 'Pièce jointe',
       render: (l) =>
         l.pieceJointe ? (
-          <span title={l.pieceJointe.nom} style={{ fontSize: 12.5 }}>
+          <button
+            type="button"
+            onClick={() => setAttachment(l.pieceJointe!)}
+            title={l.pieceJointe.nom}
+            style={{ fontSize: 12.5, background: 'none', border: 'none', padding: 0, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
+          >
             📎 {l.pieceJointe.nom}
-          </span>
+          </button>
         ) : (
           <span style={{ color: 'var(--color-text-faint)' }}>Aucune</span>
         ),
@@ -153,9 +159,22 @@ export default function LeavesPage() {
             <DetailRow
               label="Pièces jointes"
               value={
-                detailLeave.piecesJointes.length > 0
-                  ? detailLeave.piecesJointes.map((p) => `📎 ${p.nom}`).join(', ')
-                  : 'Aucune'
+                detailLeave.piecesJointes.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                    {detailLeave.piecesJointes.map((p, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setAttachment(p)}
+                        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}
+                      >
+                        📎 {p.nom}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  'Aucune'
+                )
               }
             />
             {detailLeave.statut !== 'en_attente' ? (
@@ -168,6 +187,46 @@ export default function LeavesPage() {
           </div>
         ) : null}
       </Sheet>
+
+      {attachment ? (
+        <>
+          <div onClick={() => setAttachment(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 80 }} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 81,
+              width: 'min(92vw, 780px)',
+              maxHeight: '88vh',
+              background: 'var(--color-surface, #fff)',
+              borderRadius: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 60px rgba(0,0,0,.35)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
+              <strong style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.nom}</strong>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexShrink: 0 }}>
+                <a href={attachment.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--color-primary)', textDecoration: 'none' }}>Ouvrir ↗</a>
+                <a href={attachment.url} download={attachment.nom} style={{ fontSize: 13, color: 'var(--color-primary)', textDecoration: 'none' }}>Télécharger ↓</a>
+                <Button variant="ghost" size="sm" onClick={() => setAttachment(null)}>✕</Button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: 12, background: 'var(--color-surface-muted, #f8fafc)' }}>
+              {/\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(attachment.nom) ? (
+                <img src={attachment.url} alt={attachment.nom} style={{ maxWidth: '100%', display: 'block', margin: '0 auto' }} />
+              ) : (
+                <iframe title={attachment.nom} src={attachment.url} style={{ width: '100%', height: '70vh', border: 'none' }} />
+              )}
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

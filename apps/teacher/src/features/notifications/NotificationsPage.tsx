@@ -23,6 +23,14 @@ export default function NotificationsPage() {
     mutationFn: () => notifications.markAllRead(),
     onSuccess: invalidate,
   });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => notifications.remove(id),
+    onSuccess: invalidate,
+  });
+  const clearAllMutation = useMutation({
+    mutationFn: () => notifications.clearAll(),
+    onSuccess: invalidate,
+  });
 
   function openNote(n: AppNotification) {
     if (!n.lue) markReadMutation.mutate(n.id);
@@ -35,9 +43,14 @@ export default function NotificationsPage() {
         title="Notifications"
         subtitle="Annonces et alertes reçues."
         action={
-          <Button variant="secondary" size="sm" loading={markAllMutation.isPending} onClick={() => markAllMutation.mutate()}>
-            Tout marquer comme lu
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" size="sm" loading={markAllMutation.isPending} onClick={() => markAllMutation.mutate()}>
+              Tout marquer comme lu
+            </Button>
+            <Button variant="ghost" size="sm" loading={clearAllMutation.isPending} onClick={() => clearAllMutation.mutate()}>
+              Tout supprimer
+            </Button>
+          </div>
         }
       />
       <Card>
@@ -80,13 +93,24 @@ export default function NotificationsPage() {
                       <div style={{ fontSize: 11.5, color: 'var(--color-primary)', marginTop: 4 }}>Voir le détail →</div>
                     ) : null}
                   </div>
-                  {n.lue ? (
-                    <Badge tone="neutral">Lu</Badge>
-                  ) : (
-                    <Button variant="ghost" size="sm" onClick={() => markReadMutation.mutate(n.id)}>
-                      Marquer comme lu
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    {n.lue ? (
+                      <Badge tone="neutral">Lu</Badge>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => markReadMutation.mutate(n.id)}>
+                        Marquer comme lu
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Supprimer"
+                      title="Supprimer"
+                      onClick={() => deleteMutation.mutate(n.id)}
+                    >
+                      ✕
                     </Button>
-                  )}
+                  </div>
                 </div>
               );
             })}
