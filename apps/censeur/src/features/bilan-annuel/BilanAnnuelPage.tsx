@@ -158,10 +158,10 @@ export default function BilanAnnuelPage() {
 }
 
 function Content({ b }: { b: BilanAnnuel }) {
-  const marge = b.recettes.valeurActuelle > 0 ? Math.round((b.solde.valeurActuelle / b.recettes.valeurActuelle) * 100) : 0;
+  // const marge = b.recettes.valeurActuelle > 0 ? Math.round((b.solde.valeurActuelle / b.recettes.valeurActuelle) * 100) : 0;
   const maxNiveau = Math.max(1, ...b.reussiteParNiveau.map((n) => n.taux));
 
-  const facts = buildFacts(b);
+  // const facts = buildFacts(b);
 
   return (
     <div className={styles.page}>
@@ -201,7 +201,7 @@ function Content({ b }: { b: BilanAnnuel }) {
       </div>
 
       {/* Finances + Faits marquants */}
-      <div className={styles.row2}>
+      {/* <div className={styles.row2}>
         <div className={styles.card}>
           <div className={styles.ct}>Finances</div>
           <div className={styles.finrow}>
@@ -226,7 +226,7 @@ function Content({ b }: { b: BilanAnnuel }) {
             ))}
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Scorecards par domaine */}
       <div className={styles.ct} style={{ marginTop: 4 }}>Par domaine</div>
@@ -242,7 +242,7 @@ function Content({ b }: { b: BilanAnnuel }) {
             ['Mentions', String(b.mentions)],
           ]}
         />
-        <Scorecard
+        {/* <Scorecard
           title="Finances"
           pct={marge}
           color="var(--color-info)"
@@ -252,7 +252,7 @@ function Content({ b }: { b: BilanAnnuel }) {
             ['Dépenses', fmtXOF(b.depenses.valeurActuelle)],
             ['Taux de marge', `${marge}%`],
           ]}
-        />
+        /> */}
         <Scorecard
           title="Vie scolaire"
           pct={b.tauxPresence.valeurActuelle}
@@ -269,19 +269,19 @@ function Content({ b }: { b: BilanAnnuel }) {
   );
 }
 
-function FinBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  return (
-    <div className={styles.finbar}>
-      <div className={styles.finhead}>
-        <span>{label}</span>
-        <b>{fmtXOF(value)}</b>
-      </div>
-      <span className={styles.track}>
-        <span className={styles.fill} style={{ width: `${(value / max) * 100}%`, background: color }} />
-      </span>
-    </div>
-  );
-}
+// function FinBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+//   return (
+//     <div className={styles.finbar}>
+//       <div className={styles.finhead}>
+//         <span>{label}</span>
+//         <b>{fmtXOF(value)}</b>
+//       </div>
+//       <span className={styles.track}>
+//         <span className={styles.fill} style={{ width: `${(value / max) * 100}%`, background: color }} />
+//       </span>
+//     </div>
+//   );
+// }
 
 function Scorecard({ title, pct, color, syn, mini }: { title: string; pct: number; color: string; syn: string; mini: [string, string][] }) {
   return (
@@ -330,10 +330,10 @@ function pedaSyn(b: BilanAnnuel): string {
   if (d === null) return `${base}. Première année suivie.`;
   return d >= 0 ? `${base} — en hausse de ${d} pts.` : `${base} — en baisse de ${Math.abs(d)} pts, à surveiller.`;
 }
-function finSyn(b: BilanAnnuel, marge: number): string {
-  const sain = b.solde.valeurActuelle >= 0;
-  return sain ? `Excédent de ${fmtXOF(b.solde.valeurActuelle)} (marge ${marge}%). Marge pour investir.` : `Déficit de ${fmtXOF(Math.abs(b.solde.valeurActuelle))} — dépenses à maîtriser.`;
-}
+// function finSyn(b: BilanAnnuel, marge: number): string {
+//   const sain = b.solde.valeurActuelle >= 0;
+//   return sain ? `Excédent de ${fmtXOF(b.solde.valeurActuelle)} (marge ${marge}%). Marge pour investir.` : `Déficit de ${fmtXOF(Math.abs(b.solde.valeurActuelle))} — dépenses à maîtriser.`;
+// }
 function vieSyn(b: BilanAnnuel): string {
   return `Assiduité à ${fmtPct(b.tauxPresence.valeurActuelle)}%, ${b.tauxRetard}% de retards sur l’année.`;
 }
