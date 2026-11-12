@@ -54,12 +54,17 @@ export interface Subject {
 }
 
 /** Une des classes où ce professeur enseigne — résolu côté frontend depuis `ClassInfoDto.teacherIds`. */
+/** Cycle d'enseignement de l'école (détermine les types d'évaluation permis). */
+export type SchoolCycle = 'preschool' | 'primary' | 'college' | 'lycee' | 'university';
+
 export interface MyClass {
   id: string;
   nom: string; // "Terminale S2"
   level: string;
   series: string | null;
   effectif: number;
+  /** Cycle de l'école — projet/stage ne sont proposés qu'à l'université. */
+  schoolType?: SchoolCycle;
   /** `true` si ce professeur est le professeur principal de cette classe. */
   estPrincipal: boolean;
 }

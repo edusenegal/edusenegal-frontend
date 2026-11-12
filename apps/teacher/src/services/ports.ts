@@ -270,11 +270,24 @@ export interface ComplaintsPort {
   create(input: { type: ComplaintType; sujet: string; description: string; anonyme?: boolean }): Promise<Complaint>;
 }
 
+export interface AcademicConfigInfo {
+  /** Nombre de périodes (semestres/trimestres) configurées par l'école. */
+  periodCount: number;
+  /** Libellé de période à afficher (« Semestre » ou « Trimestre »). */
+  periodLabel: 'Semestre' | 'Trimestre';
+}
+
+export interface AcademicConfigPort {
+  /** Config effective (école → niveau → classe). `null` si rien n'est posé. */
+  getEffective(classId?: string): Promise<AcademicConfigInfo | null>;
+}
+
 export interface Services {
   auth: AuthPort;
   school: SchoolPort;
   subjects: SubjectsPort;
   myClasses: MyClassesPort;
+  academicConfig: AcademicConfigPort;
   timetable: TimetablePort;
   grades: GradesPort;
   gradeDisputes: GradeDisputesPort;

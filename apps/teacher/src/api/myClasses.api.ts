@@ -1,6 +1,7 @@
 import { request, sessionContext } from '@/api/client';
 import { fetchSchoolClasses } from '@/api/context';
 import type { ClassInfoDto, TimetableSlotResponseDto, UserResponseDto } from '@/types/api';
+import type { ApiSchoolType } from '@/types/api';
 import type { MyClassesPort } from '@/services/ports';
 import type { MyClass, StudentRosterEntry } from '@/types/domain';
 
@@ -28,6 +29,10 @@ function dedupeClassIds(classIds: Iterable<string>): string[] {
   return Array.from(new Set(classIds));
 }
 
+const CYCLE_OF: Record<ApiSchoolType, 'preschool' | 'primary' | 'college' | 'lycee' | 'university'> = {
+  PRESCHOOL: 'preschool', PRIMARY: 'primary', COLLEGE: 'college', LYCEE: 'lycee', UNIVERSITY: 'university',
+};
+
 export function createMyClassesApi(): MyClassesPort {
   return {
     async list(): Promise<MyClass[]> {
@@ -51,6 +56,7 @@ export function createMyClassesApi(): MyClassesPort {
           series: c.series,
           effectif: c.studentIds.length,
           estPrincipal: c.homeroomTeacherId === userId,
+          schoolType: c.schoolType ? CYCLE_OF[c.schoolType] : undefined,
         }));
     },
 

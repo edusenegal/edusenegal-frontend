@@ -7,6 +7,7 @@ import type { BadgeTone } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { BulletinPeriod, Mention, PromotionOverride, PromotionResult, SemesterResult, SignedDocument, YearResult } from '@/types/domain';
 import { buildDownloadFilename } from '@/utils/format';
+import { toast } from '@/services/toast';
 
 /** Nom de fichier lisible à partir du nom affiché ("Prénom Nom") -- voir `SignaturesPort.downloadDocument`. */
 function buildSignedFilename(d: SignedDocument): string {
@@ -59,6 +60,8 @@ export default function AcademicResultsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  // Étape du flux déjà franchie cette session (sert quand aucun résultat n'est encore calculé).
+  const [averagesDone, setAveragesDone] = useState(false);
 
   // CORRECTION (demande explicite) : Signer et Cacheter restent possibles
   // côté backend sans tampon/signature déposés (Signer réussirait même
@@ -324,6 +327,28 @@ export default function AcademicResultsPage() {
   const results = resultsQuery.data ?? [];
   const yearResults = yearResultsQuery.data ?? [];
 
+  // Flux « Calcul & publication » : Moyennes → Résultats → Publication →
+  // Bulletins → Signature. Le bouton de l'étape à faire est mis en exergue
+  // (primary) ; une étape franchie porte un ✓. Permet de voir d'un coup d'œil
+  // où on en est (demande directrice).
+  const resultsComputed = results.length > 0;
+  const anyPublished = resultsComputed && results.some((r) => r.publie);
+  const allBulletins = resultsComputed && results.every((r) => r.bulletinGenere);
+  const allSignedCacheted =
+    resultsComputed &&
+    results.every((r) => signedBulletinByStudent.has(r.studentId) && cachetedBulletinByStudent.has(r.studentId));
+  const workflowStep: 'averages' | 'results' | 'publish' | 'bulletins' | 'sign' | 'done' = !resultsComputed
+    ? averagesDone
+      ? 'results'
+      : 'averages'
+    : !anyPublished
+      ? 'publish'
+      : !allBulletins
+        ? 'bulletins'
+        : !allSignedCacheted
+          ? 'sign'
+          : 'done';
+
   return (
     <div>
       <PageHeader
@@ -466,37 +491,54 @@ export default function AcademicResultsPage() {
               <CardHeader title="Calcul & publication" />
               <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
                 <Button
-                  variant="secondary"
+                  variant={workflowStep === 'averages' ? 'primary' : 'secondary'}
                   loading={computeAveragesMutation.isPending}
-                  onClick={() => runMutation(() => computeAveragesMutation.mutateAsync())}
+                  onClick={() =>
+                    runMutation(() => computeAveragesMutation.mutateAsync(), () => {
+                      setAveragesDone(true);
+                      toast.success('Moyennes calculées — vous pouvez calculer les résultats.');
+                    })
+                  }
                 >
-                  1. Calculer les moyennes
+                  {resultsComputed || averagesDone ? '✓ ' : ''}1. Calculer les moyennes
                 </Button>
                 <Button
-                  variant="secondary"
+                  variant={workflowStep === 'results' ? 'primary' : 'secondary'}
                   loading={computeResultsMutation.isPending}
-                  onClick={() => runMutation(() => computeResultsMutation.mutateAsync())}
+                  onClick={() =>
+                    runMutation(() => computeResultsMutation.mutateAsync(), () =>
+                      toast.success('Résultats calculés (rangs et mentions) — vous pouvez publier.'),
+                    )
+                  }
                 >
-                  2. Calculer les résultats
+                  {resultsComputed ? '✓ ' : ''}2. Calculer les résultats
                 </Button>
                 <Button
-                  variant="primary"
+                  variant={workflowStep === 'publish' ? 'primary' : 'secondary'}
                   loading={publishMutation.isPending}
                   disabled={results.length === 0}
-                  onClick={() => runMutation(() => publishMutation.mutateAsync())}
+                  onClick={() =>
+                    runMutation(() => publishMutation.mutateAsync(), () =>
+                      toast.success('Résultats publiés — élèves et parents notifiés.'),
+                    )
+                  }
                 >
-                  3. Publier les résultats
+                  {anyPublished ? '✓ ' : ''}3. Publier les résultats
                 </Button>
                 <Button
-                  variant="secondary"
+                  variant={workflowStep === 'bulletins' ? 'primary' : 'secondary'}
                   loading={generateClassBulletinsMutation.isPending}
                   disabled={results.length === 0}
-                  onClick={() => runMutation(() => generateClassBulletinsMutation.mutateAsync())}
+                  onClick={() =>
+                    runMutation(() => generateClassBulletinsMutation.mutateAsync(), () =>
+                      toast.success('Génération des bulletins lancée pour toute la classe.'),
+                    )
+                  }
                 >
-                  Générer tous les bulletins de la classe
+                  {allBulletins ? '✓ ' : ''}Générer tous les bulletins de la classe
                 </Button>
                 <Button
-                  variant="secondary"
+                  variant={workflowStep === 'sign' ? 'primary' : 'secondary'}
                   loading={signAndCachetClassBulletinsMutation.isPending}
                   disabled={!results.some((r) => r.bulletinGenere)}
                   style={!hasSignature || !hasStamp ? { opacity: 0.5 } : undefined}
@@ -504,12 +546,14 @@ export default function AcademicResultsPage() {
                   onClick={() =>
                     requireAsset('signature', hasSignature, () =>
                       requireAsset('stamp', hasStamp, () =>
-                        runMutation(() => signAndCachetClassBulletinsMutation.mutateAsync()),
+                        runMutation(() => signAndCachetClassBulletinsMutation.mutateAsync(), () =>
+                          toast.success('Bulletins signés et cachetés.'),
+                        ),
                       ),
                     )
                   }
                 >
-                  Signer &amp; cacheter tous les bulletins de la classe
+                  {allSignedCacheted ? '✓ ' : ''}Signer &amp; cacheter tous les bulletins de la classe
                 </Button>
               </div>
             </Card>

@@ -26,7 +26,7 @@ const BAREME_STANDARD = 20;
 
 /** Saisie en masse — une note par élève de la classe, même type/coefficient/semestre. */
 export default function GradeEntryPage() {
-  const { myClasses, subjects, grades } = useServices();
+  const { myClasses, subjects, grades, academicConfig } = useServices();
 
   const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
   const subjectsQuery = useQuery({ queryKey: ['subjects', 'mine'], queryFn: () => subjects.listMine() });
@@ -35,6 +35,17 @@ export default function GradeEntryPage() {
   const [subjectId, setSubjectId] = useState('');
   const [semestre, setSemestre] = useState(1);
   const [type, setType] = useState<AssessmentType>('devoir1');
+
+  // Config de l'école : ne proposer que les périodes réellement configurées
+  // (2 semestres → pas de « Semestre 3/4 ») et le bon libellé.
+  const configQuery = useQuery({
+    queryKey: ['academic-config', classId],
+    queryFn: () => academicConfig.getEffective(classId || undefined),
+    enabled: classId !== '',
+  });
+  const periodCount = configQuery.data?.periodCount ?? 2;
+  const periodLabel = configQuery.data?.periodLabel ?? 'Semestre';
+  const periods = Array.from({ length: periodCount }, (_, i) => i + 1);
   const [values, setValues] = useState<Record<string, string>>({});
   const [absents, setAbsents] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +71,20 @@ export default function GradeEntryPage() {
     enabled: classId !== '' && subjectId !== '',
   });
   const usedTypes = new Set((existingGradesQuery.data ?? []).map((g) => g.type));
-  const availableTypes = TYPES.filter((t) => !usedTypes.has(t));
+  // Types d'évaluation selon le cycle : projet et stage n'existent qu'à
+  // l'université (ni au lycée, ni au collège, ni à l'élémentaire).
+  const selectedClass = (classesQuery.data ?? []).find((c) => c.id === classId);
+  const isUniversity = selectedClass?.schoolType === 'university';
+  const cycleTypes = isUniversity ? TYPES : TYPES.filter((t) => t !== 'projet' && t !== 'stage');
+  const availableTypes = cycleTypes.filter((t) => !usedTypes.has(t));
 
   // Si le type sélectionné vient d'être pris (changement de classe/matière/
   // semestre révélant qu'il est déjà saisi), on retombe sur le premier type
   // encore disponible plutôt que de laisser une sélection invalide.
+  useEffect(() => {
+    if (semestre > periodCount) setSemestre(1);
+  }, [periodCount, semestre]);
+
   useEffect(() => {
     if (availableTypes.length > 0 && !availableTypes.includes(type)) {
       setType(availableTypes[0]!);
@@ -139,11 +159,11 @@ export default function GradeEntryPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Semestre">
-            <Select value={String(semestre)} onChange={(e) => setSemestre(Number(e.target.value))} style={{ width: 120 }}>
-              {[1, 2, 3, 4].map((s) => (
+          <Field label={periodLabel}>
+            <Select value={String(semestre)} onChange={(e) => setSemestre(Number(e.target.value))} style={{ width: 140 }}>
+              {periods.map((s) => (
                 <option key={s} value={s}>
-                  Semestre {s}
+                  {periodLabel} {s}
                 </option>
               ))}
             </Select>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
@@ -45,7 +45,7 @@ function cellKey(studentId: string, type: string): string {
 }
 
 export default function ClassGradesPage() {
-  const { myClasses, subjects, grades } = useServices();
+  const { myClasses, subjects, grades, academicConfig } = useServices();
   const queryClient = useQueryClient();
 
   const classesQuery = useQuery({ queryKey: ['my-classes'], queryFn: () => myClasses.list() });
@@ -54,6 +54,19 @@ export default function ClassGradesPage() {
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [semestre, setSemestre] = useState(1);
+
+  // Périodes réellement configurées par l'école (comme la saisie de notes).
+  const configQuery = useQuery({
+    queryKey: ['academic-config', classId],
+    queryFn: () => academicConfig.getEffective(classId || undefined),
+    enabled: classId !== '',
+  });
+  const periodCount = configQuery.data?.periodCount ?? 2;
+  const periodLabel = configQuery.data?.periodLabel ?? 'Semestre';
+  const periods = Array.from({ length: periodCount }, (_, i) => i + 1);
+  useEffect(() => {
+    if (semestre > periodCount) setSemestre(1);
+  }, [periodCount, semestre]);
 
   const [editingCellKey, setEditingCellKey] = useState<string | null>(null);
   const [draftValeur, setDraftValeur] = useState('');
@@ -243,11 +256,11 @@ export default function ClassGradesPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Semestre">
-            <Select value={String(semestre)} onChange={(e) => setSemestre(Number(e.target.value))} style={{ width: 120 }}>
-              {[1, 2, 3, 4].map((s) => (
+          <Field label={periodLabel}>
+            <Select value={String(semestre)} onChange={(e) => setSemestre(Number(e.target.value))} style={{ width: 140 }}>
+              {periods.map((s) => (
                 <option key={s} value={s}>
-                  Semestre {s}
+                  {periodLabel} {s}
                 </option>
               ))}
             </Select>

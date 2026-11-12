@@ -7,6 +7,7 @@ import { createGradeDisputesApi } from '@/api/gradeDisputes.api';
 import { createGradesApi } from '@/api/grades.api';
 import { createLeavesApi } from '@/api/leaves.api';
 import { createMessagingApi } from '@/api/messaging.api';
+import { createAcademicConfigApi } from '@/api/academicConfig.api';
 import { createMyClassesApi } from '@/api/myClasses.api';
 import { createNotificationsApi } from '@/api/notifications.api';
 import { createPayslipsApi } from '@/api/payslips.api';
@@ -26,6 +27,7 @@ export function createApiServices(): Services {
     school: createSchoolApi(),
     subjects: createSubjectsApi(),
     myClasses: createMyClassesApi(),
+    academicConfig: createAcademicConfigApi(),
     timetable: createTimetableApi(),
     grades: createGradesApi(),
     gradeDisputes: createGradeDisputesApi(),

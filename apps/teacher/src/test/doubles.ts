@@ -36,6 +36,9 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       list: notStubbed('myClasses.list'),
       roster: notStubbed('myClasses.roster'),
     },
+    academicConfig: {
+      getEffective: notStubbed('academicConfig.getEffective'),
+    },
     timetable: {
       mine: notStubbed('timetable.mine'),
       updateDescription: notStubbed('timetable.updateDescription'),
