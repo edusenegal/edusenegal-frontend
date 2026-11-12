@@ -30,8 +30,12 @@
   border-bottom: none;
 }
 
-.right {
+/* L'en-tête suit l'alignement de sa colonne : `.table th` (plus spécifique)
+   forçait « left » et décalait les titres des colonnes numériques. */
+.table th.right,
+.table td.right {
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .clickable {
