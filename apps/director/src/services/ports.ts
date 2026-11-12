@@ -67,7 +67,8 @@ import type {
   AttendanceSessionDetail,
   AttendanceSessionStudent,
   AttendanceTrendGranularity,
-  AttendanceTrendPoint,} from '@/types/domain';
+  AttendanceTrendPoint,
+  BulletinJob,} from '@/types/domain';
 
 export interface AuthPort {
   /**
@@ -419,7 +420,12 @@ export interface StudentsPort {
     classeId?: string;
     dateNaissance: string;
     tel: string;
-    parent: string;
+    /**
+     * Tuteur optionnel. Si le téléphone existe déjà, le backend relie le
+     * compte PARENT existant ; sinon il le crée. Côté API : `parents[]` de
+     * `CreateUserRequest` (user-service).
+     */
+    parent?: { firstName: string; lastName: string; phone: string };
   }): Promise<Student>;
   update(studentId: string, patch: Partial<Student>): Promise<Student>;
   /** Backend : `DELETE /users/{id}`. */
@@ -804,8 +810,10 @@ export interface AcademicResultsPort {
   publishResults(classId: string, semesterNumber: number): Promise<SemesterResult[]>;
   /** Backend : `POST /academic/bulletins/student/{studentId}/semester/{semester}`. */
   generateStudentBulletin(studentId: string, semesterNumber: number): Promise<void>;
-  /** Backend : `POST /academic/bulletins/class/{classId}/semester/{semester}` — asynchrone côté réel. */
-  generateClassBulletins(classId: string, semesterNumber: number): Promise<void>;
+  /** Backend : `POST /academic/bulletins/class/{classId}/semester/{semester}` — asynchrone, renvoie un job à poller. */
+  generateClassBulletins(classId: string, semesterNumber: number): Promise<BulletinJob>;
+  /** Backend : `GET /academic/bulletins/jobs/{jobId}` — progression du job de génération. */
+  getBulletinJob(jobId: string): Promise<BulletinJob>;
   /** Backend : `GET /academic/bulletins/student/{studentId}/semester/{semester}/pdf`. */
   downloadBulletinPdf(studentId: string, semesterNumber: number): Promise<void>;
 

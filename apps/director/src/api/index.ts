@@ -49,8 +49,8 @@ export function createApiServices(): Services {
     personnel: createPersonnelApi(),
     // Portage complet — voir le commentaire de `createStaffAbsencesApi`.
     staffAbsences: createStaffAbsencesApi(),
-    // `get`/`save` (configuration tarifaire) restent sur le mock — voir le
-    // commentaire de `createPaymentsApi`.
+    // Portage complet — `get`/`save` (config tarifaire) tapent maintenant
+    // payment-service (`GET/POST /payments/config`), filtré par école.
     paymentConfig: { ...fallback.paymentConfig, ...createPaymentsApi() },
     // Portage complet (task #210) — voir le commentaire de `createAcademicResultsApi`.
     academicResults: createAcademicResultsApi(),

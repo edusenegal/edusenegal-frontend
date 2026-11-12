@@ -985,3 +985,13 @@ export interface AttendanceTrendPoint {
   late: number;
   attendanceRate: number;
 }
+
+/** Suivi d'un traitement de masse « générer tous les bulletins d'une classe » (polling). */
+export interface BulletinJob {
+  jobId: string;
+  status: 'RUNNING' | 'DONE' | 'FAILED';
+  total: number;
+  done: number;
+  failed: number;
+  error?: string;
+}

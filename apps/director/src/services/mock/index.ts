@@ -62,7 +62,8 @@ import type {
 
   AttendanceSession,
   AttendanceSessionDetail,
-  AttendanceTrendPoint,} from '@/types/domain';
+  AttendanceTrendPoint,
+  BulletinJob,} from '@/types/domain';
 import { frToISO } from '@/utils/format';
 import * as fixtures from './fixtures';
 
@@ -796,7 +797,7 @@ export function createMockServices(): Services {
           classe: classe?.name ?? '—',
           dateNaissance: input.dateNaissance,
           sexe: input.sexe,
-          parent: input.parent,
+          parent: input.parent ? [input.parent.firstName, input.parent.lastName].filter(Boolean).join(' ').trim() || '—' : '—',
           tel: input.tel,
           statut: 'actif',
           moyenne: 0,
@@ -1759,14 +1760,19 @@ export function createMockServices(): Services {
         return respond(undefined, 400);
       },
 
-      async generateClassBulletins(classId, semesterNumber): Promise<void> {
+      async generateClassBulletins(classId, semesterNumber): Promise<BulletinJob> {
         const key = `${classId}|${semesterNumber}`;
         const results = state.semesterResults[key];
         if (!results || results.length === 0) {
           throw new AppError('validation', "Calculez d'abord les résultats de cette classe pour ce semestre.", 400);
         }
         for (const row of results) row.bulletinGenere = true;
-        return respond(undefined, 600);
+        const total = results.length;
+        return respond({ jobId: `job-${Date.now()}`, status: 'DONE', total, done: total, failed: 0 }, 600);
+      },
+
+      async getBulletinJob(jobId): Promise<BulletinJob> {
+        return respond({ jobId, status: 'DONE', total: 0, done: 0, failed: 0 }, 150);
       },
 
       async downloadBulletinPdf(studentId, semesterNumber): Promise<void> {

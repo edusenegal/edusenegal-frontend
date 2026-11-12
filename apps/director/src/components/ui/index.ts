@@ -8,6 +8,7 @@ export { Field, Input, Select, Textarea, DateInput, MonthInput } from './Field/F
 export { Segmented } from './Segmented/Segmented';
 export type { SegmentedOption } from './Segmented/Segmented';
 export { Sheet } from './Sheet/Sheet';
+export { LoadingOverlay } from './LoadingOverlay/LoadingOverlay';
 export { StateView } from './StateView/StateView';
 export { Table } from './Table/Table';
 export type { Column } from './Table/Table';

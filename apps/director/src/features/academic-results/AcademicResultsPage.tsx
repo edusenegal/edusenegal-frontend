@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Card, CardHeader, Field, Input, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Field, Input, LoadingOverlay, Segmented, Select, Sheet, StateView, Textarea } from '@/components/ui';
 import type { BadgeTone } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import type { BulletinPeriod, Mention, PromotionOverride, PromotionResult, SemesterResult, SignedDocument, YearResult } from '@/types/domain';
@@ -196,6 +196,29 @@ export default function AcademicResultsPage() {
   const generateClassBulletinsMutation = useMutation({
     mutationFn: () => academicResults.generateClassBulletins(classId, semesterNumber),
   });
+  // Job asynchrone de génération de bulletins : on garde son id et on le
+  // poll toutes les 2s jusqu'au statut terminal, loader affiché pendant.
+  const [bulletinJobId, setBulletinJobId] = useState<string | null>(null);
+  const bulletinJobQuery = useQuery({
+    queryKey: ['bulletin-job', bulletinJobId],
+    queryFn: () => academicResults.getBulletinJob(bulletinJobId as string),
+    enabled: bulletinJobId !== null,
+    refetchInterval: (query) => (query.state.data?.status === 'RUNNING' ? 2000 : false),
+  });
+  useEffect(() => {
+    const job = bulletinJobQuery.data;
+    if (!job) return;
+    if (job.status === 'DONE') {
+      toast.success(
+        `Bulletins générés : ${job.done}/${job.total}${job.failed ? ` (${job.failed} en échec)` : ''}.`,
+      );
+      invalidateResults();
+      setBulletinJobId(null);
+    } else if (job.status === 'FAILED') {
+      toast.error(job.error || 'La génération des bulletins a échoué.');
+      setBulletinJobId(null);
+    }
+  }, [bulletinJobQuery.data]);
   const generateOneBulletinMutation = useMutation({
     mutationFn: (studentId: string) => academicResults.generateStudentBulletin(studentId, semesterNumber),
   });
@@ -349,8 +372,29 @@ export default function AcademicResultsPage() {
           ? 'sign'
           : 'done';
 
+  // Loader bloquant pour les traitements de masse SYNCHRONES de cette page.
+  const bulkOpMessage = computeAveragesMutation.isPending
+    ? 'Calcul des moyennes en cours, veuillez patienter…'
+    : computeResultsMutation.isPending
+      ? 'Calcul des résultats en cours, veuillez patienter…'
+      : publishMutation.isPending
+        ? 'Publication des résultats en cours, veuillez patienter…'
+        : signAndCachetClassBulletinsMutation.isPending
+          ? 'Signature & cachet des bulletins en cours, veuillez patienter…'
+          : null;
+
   return (
     <div>
+      <LoadingOverlay
+        open={bulletinJobId !== null}
+        message="Génération des bulletins en cours, veuillez patienter…"
+        progress={
+          bulletinJobQuery.data
+            ? { done: bulletinJobQuery.data.done, total: bulletinJobQuery.data.total }
+            : undefined
+        }
+      />
+      <LoadingOverlay open={bulkOpMessage !== null} message={bulkOpMessage ?? ''} />
       <PageHeader
         title="Résultats & bulletins"
         subtitle="Verrouillage des notes, calcul des moyennes et résultats, publication, génération des bulletins."
@@ -527,11 +571,11 @@ export default function AcademicResultsPage() {
                 </Button>
                 <Button
                   variant={workflowStep === 'bulletins' ? 'primary' : 'secondary'}
-                  loading={generateClassBulletinsMutation.isPending}
-                  disabled={results.length === 0}
+                  loading={generateClassBulletinsMutation.isPending || bulletinJobId !== null}
+                  disabled={results.length === 0 || bulletinJobId !== null}
                   onClick={() =>
-                    runMutation(() => generateClassBulletinsMutation.mutateAsync(), () =>
-                      toast.success('Génération des bulletins lancée pour toute la classe.'),
+                    runMutation(() => generateClassBulletinsMutation.mutateAsync(), (job) =>
+                      setBulletinJobId(job.jobId),
                     )
                   }
                 >

@@ -1,5 +1,6 @@
 import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
+import type { BulletinJob } from '@/types/domain';
 import { AppError } from '@/services/errors';
 import { buildDownloadFilename, downloadBlob, frToISO, isoToFR } from '@/utils/format';
 import type {
@@ -336,13 +337,17 @@ export function createAcademicResultsApi(): AcademicResultsPort {
       );
     },
 
-    async generateClassBulletins(classId: string, semesterNumber: number): Promise<void> {
+    async generateClassBulletins(classId: string, semesterNumber: number): Promise<BulletinJob> {
       const { schoolId } = sessionContext();
       const yearId = await resolveYearId();
-      await request<void>(
+      return request<BulletinJob>(
         `/api/v1/academic/bulletins/class/${encodeURIComponent(classId)}/semester/${semesterNumber}`,
         { method: 'POST', query: { schoolId, yearId } },
       );
+    },
+
+    async getBulletinJob(jobId: string): Promise<BulletinJob> {
+      return request<BulletinJob>(`/api/v1/academic/bulletins/jobs/${encodeURIComponent(jobId)}`);
     },
 
     async downloadBulletinPdf(studentId: string, semesterNumber: number): Promise<void> {

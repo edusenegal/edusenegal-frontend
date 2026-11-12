@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Card, CardHeader, Field, Select, StateView } from '@/components/ui';
+import { Button, Card, CardHeader, Field, LoadingOverlay, Select, StateView } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import styles from './PromotionsPage.module.css';
 
@@ -113,8 +113,15 @@ export default function PromotionsPage() {
     promoteSelectedMutation.mutate();
   }
 
+  const promoMessage = promoteClassMutation.isPending
+    ? 'Promotion de la classe en cours, veuillez patienter…'
+    : promoteSelectedMutation.isPending
+      ? 'Promotion des élèves sélectionnés en cours, veuillez patienter…'
+      : null;
+
   return (
     <div>
+      <LoadingOverlay open={promoMessage !== null} message={promoMessage ?? ''} />
       <PageHeader title="Promotions" subtitle="Faire passer un élève, ou toute une classe, au niveau supérieur." />
       <div className={styles.grid}>
         <Card padded>

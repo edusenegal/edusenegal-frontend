@@ -161,6 +161,16 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
         sexe: input.sexe === 'M' ? 'MASCULIN' : 'FEMININ',
         birthDate: frToISO(input.dateNaissance),
         status: 'ACTIVE',
+        parents:
+          input.parent && input.parent.phone.trim()
+            ? [
+                {
+                  firstName: input.parent.firstName.trim(),
+                  lastName: input.parent.lastName.trim(),
+                  phone: input.parent.phone.trim(),
+                },
+              ]
+            : undefined,
       };
       const dto = await request<UserResponseDto>('/api/v1/users', { method: 'POST', body });
 

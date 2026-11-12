@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, DateInput, Field, Input, Select, Sheet } from '@/components/ui';
+import { Button, DateInput, Field, Input, LoadingOverlay, Select, Sheet } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { isoToFR, todayISO } from '@/utils/format';
@@ -42,7 +42,9 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
   const [classeId, setClasseId] = useState('');
   const [dateNaissance, setDateNaissance] = useState('');
   const [tel, setTel] = useState('');
-  const [parent, setParent] = useState('');
+  const [parentPrenom, setParentPrenom] = useState('');
+  const [parentNom, setParentNom] = useState('');
+  const [parentTel, setParentTel] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,7 +58,9 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
     setClasseId(defaultClassId ?? '');
     setDateNaissance('');
     setTel('');
-    setParent('');
+    setParentPrenom('');
+    setParentNom('');
+    setParentTel('');
     setError(null);
   }
 
@@ -69,7 +73,9 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
         classeId: classeId || undefined,
         dateNaissance: dateNaissance ? isoToFR(dateNaissance) : isoToFR(todayISO()),
         tel: tel.trim() || '—',
-        parent: parent.trim() || '—',
+        parent: parentTel.trim()
+          ? { firstName: parentPrenom.trim(), lastName: parentNom.trim(), phone: parentTel.trim() }
+          : undefined,
       }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -162,10 +168,22 @@ export function StudentFormSheet({ open, onClose, defaultClassId }: StudentFormS
       <Field label="Téléphone (élève ou tuteur)">
         <Input value={tel} onChange={(e) => setTel(e.target.value)} />
       </Field>
-      <Field label="Parent / tuteur">
-        <Input value={parent} onChange={(e) => setParent(e.target.value)} placeholder="Ex. Mme Fatou Ndiaye" />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Field label="Prénom du parent / tuteur">
+          <Input value={parentPrenom} onChange={(e) => setParentPrenom(e.target.value)} placeholder="Ex. Fatou" />
+        </Field>
+        <Field label="Nom du parent / tuteur">
+          <Input value={parentNom} onChange={(e) => setParentNom(e.target.value)} placeholder="Ex. Ndiaye" />
+        </Field>
+      </div>
+      <Field label="Téléphone du parent / tuteur">
+        <Input value={parentTel} onChange={(e) => setParentTel(e.target.value)} placeholder="Ex. 77 123 45 67" />
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
+          Si ce numéro existe déjà, le parent est relié automatiquement ; sinon son compte est créé.
+        </p>
       </Field>
       {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</p> : null}
+      <LoadingOverlay open={mutation.isPending} message="Création de l'élève en cours, veuillez patienter…" />
     </Sheet>
   );
 }

@@ -155,6 +155,12 @@ export interface UserResponseDto {
 }
 
 /** POST /api/v1/users */
+export interface ParentContactDto {
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
 export interface CreateUserRequestDto {
   schoolId: string;
   role: UserRole;
@@ -170,6 +176,7 @@ export interface CreateUserRequestDto {
   address?: string;
   classId?: string;
   parentIds?: string[];
+  parents?: ParentContactDto[];
   status?: 'PENDING_ACTIVATION' | 'ACTIVE' | 'SUSPENDED' | 'TRANSFERRED';
 }
 
