@@ -21,44 +21,44 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Mon espace',
     items: [
-      { to: '/', label: 'Tableau de bord', icon: '📊' },
-      { to: '/emploi-du-temps', label: 'Emploi du temps', icon: '🗓️' },
-      { to: '/mes-classes', label: 'Mes classes', icon: '🏷️' },
+      { to: '/', label: 'Tableau de bord', icon: 'dashboard' },
+      { to: '/emploi-du-temps', label: 'Emploi du temps', icon: 'calendar' },
+      { to: '/mes-classes', label: 'Mes classes', icon: 'tag' },
     ],
   },
   {
     label: 'Pédagogie',
     items: [
-      { to: '/appel', label: 'Appel', icon: '✅' },
-      { to: '/notes/saisie', label: 'Saisie des notes', icon: '✏️' },
-      { to: '/notes/classe', label: 'Notes d’une classe', icon: '📋' },
-      { to: '/reclamations-notes', label: 'Réclamations de notes', icon: '📮' },
-      { to: '/resultats', label: 'Résultats & bulletins', icon: '🧮' },
-      { to: '/examens', label: 'Devoirs & examens', icon: '📝' },
-      { to: '/documents', label: 'Cours & ressources', icon: '📘' },
-      { to: '/quiz', label: 'Quiz IA', icon: '🤖' },
+      { to: '/appel', label: 'Appel', icon: 'check-circle' },
+      { to: '/notes/saisie', label: 'Saisie des notes', icon: 'edit' },
+      { to: '/notes/classe', label: 'Notes d’une classe', icon: 'list' },
+      { to: '/reclamations-notes', label: 'Réclamations de notes', icon: 'inbox' },
+      { to: '/resultats', label: 'Résultats & bulletins', icon: 'calculator' },
+      { to: '/examens', label: 'Devoirs & examens', icon: 'file-text' },
+      { to: '/documents', label: 'Cours & ressources', icon: 'book' },
+      { to: '/quiz', label: 'Quiz IA', icon: 'sparkles' },
     ],
   },
   {
     label: 'Vie professionnelle',
     items: [
-      { to: '/conges', label: 'Congés', icon: '🗒️' },
-      { to: '/paie', label: 'Ma fiche de paie', icon: '💰' },
-      { to: '/mes-documents', label: 'Mes documents', icon: '🪪' },
-      { to: '/documents-signes', label: 'Documents signés', icon: '🖊️' },
+      { to: '/conges', label: 'Congés', icon: 'clipboard' },
+      { to: '/paie', label: 'Ma fiche de paie', icon: 'banknote' },
+      { to: '/mes-documents', label: 'Mes documents', icon: 'id-card' },
+      { to: '/documents-signes', label: 'Documents signés', icon: 'pen' },
     ],
   },
   {
     label: 'Communication',
     items: [
-      { to: '/messagerie', label: 'Messagerie', icon: '💬' },
-      { to: '/notifications', label: 'Notifications', icon: '🔔' },
-      { to: '/reclamations', label: 'Réclamations & suggestions', icon: '📣' },
+      { to: '/messagerie', label: 'Messagerie', icon: 'message' },
+      { to: '/notifications', label: 'Notifications', icon: 'bell' },
+      { to: '/reclamations', label: 'Réclamations & suggestions', icon: 'megaphone' },
     ],
   },
   {
     label: 'Compte',
-    items: [{ to: '/parametres', label: 'Paramètres', icon: '⚙️' }],
+    items: [{ to: '/parametres', label: 'Paramètres', icon: 'settings' }],
   },
 ];
 

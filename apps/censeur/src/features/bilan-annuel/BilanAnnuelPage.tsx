@@ -161,7 +161,7 @@ function Content({ b }: { b: BilanAnnuel }) {
   // const marge = b.recettes.valeurActuelle > 0 ? Math.round((b.solde.valeurActuelle / b.recettes.valeurActuelle) * 100) : 0;
   const maxNiveau = Math.max(1, ...b.reussiteParNiveau.map((n) => n.taux));
 
-  // const facts = buildFacts(b);ll
+  // const facts = buildFacts(b);
 
   return (
     <div className={styles.page}>
@@ -307,23 +307,6 @@ function Scorecard({ title, pct, color, syn, mini }: { title: string; pct: numbe
 }
 
 /* ── synthèses & faits (dérivés des données) ──────────────────── */
-function buildFacts(b: BilanAnnuel): { up: boolean; title: string; sub: string }[] {
-  const out: { up: boolean; title: string; sub: string }[] = [];
-  if (b.effectif.variationPct !== null) {
-    const diff = b.effectif.valeurActuelle - (b.effectif.valeurPrecedente ?? 0);
-    out.push({ up: diff >= 0, title: `${signed(diff)} élèves`, sub: `vs ${b.anneePrecedente} (${b.effectif.valeurPrecedente} → ${b.effectif.valeurActuelle})` });
-  }
-  if (b.tauxReussite.variationPct !== null) out.push({ up: b.tauxReussite.variationPct >= 0, title: `Réussite ${signed(b.tauxReussite.variationPct)} pts`, sub: `${b.tauxReussite.valeurActuelle}% cette année` });
-  if (b.solde.variationPct !== null) out.push({ up: b.solde.variationPct >= 0, title: `Solde ${signed(b.solde.variationPct)}%`, sub: `${fmtXOF(b.solde.valeurActuelle)} de trésorerie` });
-  if (b.tauxPresence.variationPct !== null) out.push({ up: b.tauxPresence.variationPct >= 0, title: `Présence ${signed(b.tauxPresence.variationPct)} pts`, sub: `assiduité à ${fmtPct(b.tauxPresence.valeurActuelle)}%` });
-  if (out.length === 0) {
-    // première année : pas de comparaison → on met en avant les valeurs clés
-    out.push({ up: true, title: `Réussite ${b.tauxReussite.valeurActuelle}%`, sub: `moyenne générale ${b.moyenneGenerale.valeurActuelle.toFixed(1).replace('.', ',')}/20` });
-    out.push({ up: b.solde.valeurActuelle >= 0, title: `Solde ${fmtXOF(b.solde.valeurActuelle)}`, sub: 'première année suivie' });
-    out.push({ up: true, title: `${b.effectif.valeurActuelle} élèves`, sub: `présence ${fmtPct(b.tauxPresence.valeurActuelle)}%` });
-  }
-  return out.slice(0, 5);
-}
 function pedaSyn(b: BilanAnnuel): string {
   const d = b.tauxReussite.variationPct;
   const base = `Réussite ${b.tauxReussite.valeurActuelle}%, moyenne générale ${b.moyenneGenerale.valeurActuelle.toFixed(1).replace('.', ',')}/20`;

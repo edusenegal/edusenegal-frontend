@@ -18,19 +18,19 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Bibliothèque',
     items: [
-      { to: '/', label: 'Tableau de bord', icon: '📊' },
-      { to: '/catalogue', label: 'Catalogue', icon: '📚' },
-      { to: '/emprunts', label: 'Emprunts', icon: '🔄' },
-      { to: '/retards', label: 'Retards', icon: '⏰' },
-      { to: '/reservations', label: 'Réservations', icon: '🔖' },
-      { to: '/adherents', label: 'Adhérents', icon: '👥' },
+      { to: '/', label: 'Tableau de bord', icon: 'dashboard' },
+      { to: '/catalogue', label: 'Catalogue', icon: 'library' },
+      { to: '/emprunts', label: 'Emprunts', icon: 'transfer' },
+      { to: '/retards', label: 'Retards', icon: 'clock' },
+      { to: '/reservations', label: 'Réservations', icon: 'bookmark' },
+      { to: '/adherents', label: 'Adhérents', icon: 'users' },
     ],
   },
   {
     label: 'Administration',
     items: [
-      { to: '/politique', label: 'Politique de prêt', icon: '⚙️' },
-      { to: '/profil', label: 'Mon profil', icon: '👤' },
+      { to: '/politique', label: 'Politique de prêt', icon: 'settings' },
+      { to: '/profil', label: 'Mon profil', icon: 'user' },
     ],
   },
 ];

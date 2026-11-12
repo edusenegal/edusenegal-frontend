@@ -4,10 +4,13 @@ import { BrowserRouter } from 'react-router-dom';
 import { BrandingGate } from '@/app/BrandingGate';
 import { Toaster } from '@/components/ui/Toast/Toast';
 import { Providers } from '@/app/providers';
+import { initTheme } from '@/utils/theme';
 import '@/styles/global.css';
 import { startPushLifecycle } from '@/services/push/bootstrap';
 
 startPushLifecycle();
+
+initTheme();
 
 const container = document.getElementById('root');
 

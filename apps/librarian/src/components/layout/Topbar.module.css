@@ -13,16 +13,30 @@
 
 .menuBtn {
   display: none;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
-  font-size: 18px;
   cursor: pointer;
   color: var(--color-text);
+  padding: 6px;
+  border-radius: var(--radius-xs);
+}
+
+.menuBtn:hover {
+  background: var(--color-surface-muted);
 }
 
 .title {
   font-size: var(--text-lg);
   font-weight: 700;
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 @media (max-width: 1024px) {

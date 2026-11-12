@@ -9,6 +9,10 @@
  * `--brand-*` est écrasé à l'exécution par `applyBranding()`
  * (`src/utils/branding.ts`) avec la couleur de marque de l'établissement
  * (`Paramètres`) — aucun composant n'écrit une couleur en dur.
+ *
+ * Thème : le mode sombre est piloté par `data-theme` sur <html>
+ * (« dark » | « light ») — sans attribut, on suit le système
+ * (`prefers-color-scheme`). Voir `src/utils/theme.ts`.
  */
 
 :root {
@@ -94,6 +98,79 @@
   --z-nav: 20;
   --z-overlay: 30;
   --z-toast: 40;
+
+  color-scheme: light;
+}
+
+/* ── Thème sombre — suit le système quand aucun choix explicite n'est posé ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    /* Neutres */
+    --color-bg: #0d1517;
+    --color-surface: #151f22;
+    --color-surface-muted: #11191c;
+    --color-border: #243133;
+    --color-border-strong: #324144;
+    --color-text: #e7edf0;
+    --color-text-muted: #9bacb3;
+    --color-text-faint: #6b7d84;
+    --color-text-invert: #0d1517;
+
+    /* Couleurs de sens — mêmes teintes, lisibles sur fond sombre */
+    --color-success: #3ed598;
+    --color-success-bg: #10291f;
+    --color-success-border: #1f4a38;
+    --color-warning: #f0b453;
+    --color-warning-bg: #2b2110;
+    --color-warning-border: #4a3a1d;
+    --color-danger: #f3796f;
+    --color-danger-bg: #2d1614;
+    --color-danger-border: #4d2623;
+    --color-info: #6fb1e8;
+    --color-info-bg: #13222e;
+    --color-neutral: #aab8bd;
+    --color-neutral-bg: #1a2528;
+
+    /* Ombres plus profondes */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 35%);
+    --shadow-md: 0 8px 20px rgb(0 0 0 / 45%);
+    --shadow-lg: 0 16px 36px rgb(0 0 0 / 60%);
+
+    color-scheme: dark;
+  }
+}
+
+/* ── Thème sombre — choix explicite (prioritaire sur le système) ── */
+:root[data-theme='dark'] {
+  --color-bg: #0d1517;
+  --color-surface: #151f22;
+  --color-surface-muted: #11191c;
+  --color-border: #243133;
+  --color-border-strong: #324144;
+  --color-text: #e7edf0;
+  --color-text-muted: #9bacb3;
+  --color-text-faint: #6b7d84;
+  --color-text-invert: #0d1517;
+
+  --color-success: #3ed598;
+  --color-success-bg: #10291f;
+  --color-success-border: #1f4a38;
+  --color-warning: #f0b453;
+  --color-warning-bg: #2b2110;
+  --color-warning-border: #4a3a1d;
+  --color-danger: #f3796f;
+  --color-danger-bg: #2d1614;
+  --color-danger-border: #4d2623;
+  --color-info: #6fb1e8;
+  --color-info-bg: #13222e;
+  --color-neutral: #aab8bd;
+  --color-neutral-bg: #1a2528;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 35%);
+  --shadow-md: 0 8px 20px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 16px 36px rgb(0 0 0 / 60%);
+
+  color-scheme: dark;
 }
 
 /* Points de rupture documentés ici, appliqués dans les modules CSS.

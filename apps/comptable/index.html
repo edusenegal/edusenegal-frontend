@@ -10,6 +10,13 @@
       <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap" />
+    <script>
+      // Applique le thème choisi AVANT le premier rendu (évite le flash).
+      try {
+        var __t = localStorage.getItem('edusenegal-theme');
+        if (__t === 'dark' || __t === 'light') document.documentElement.setAttribute('data-theme', __t);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

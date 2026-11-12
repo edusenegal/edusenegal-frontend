@@ -68,9 +68,12 @@ export function NotificationsBell() {
         type="button"
         aria-label="Notifications"
         onClick={() => setOpen((v) => !v)}
-        style={{ position: 'relative', background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 4 }}
+        style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text)', lineHeight: 1, padding: 4 }}
       >
-        🔔
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M18.5 9a6.5 6.5 0 1 0-13 0c0 5.5-2.2 7-2.2 7h17.4s-2.2-1.5-2.2-7" />
+          <path d="M10.2 20a2.1 2.1 0 0 0 3.6 0" />
+        </svg>
         {count > 0 ? (
           <span
             style={{

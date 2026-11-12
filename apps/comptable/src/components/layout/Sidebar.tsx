@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
 import { NAV_GROUPS } from '@/app/navigation';
+import { NavIcon } from '@/components/icons/NavIcon';
 import { Avatar } from '@/components/ui/Avatar/Avatar';
 import { Button } from '@/components/ui/Button/Button';
 import { useServices } from '@/hooks/useServices';
@@ -56,7 +57,7 @@ export function Sidebar({ school, mobileOpen, onNavigate }: SidebarProps) {
                 onClick={onNavigate}
                 className={({ isActive }) => [styles.link, isActive ? styles.active : ''].join(' ')}
               >
-                <span aria-hidden="true">{item.icon}</span>
+                <NavIcon name={item.icon} />
                 {item.label}
               </NavLink>
             ))}
