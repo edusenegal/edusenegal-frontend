@@ -125,7 +125,7 @@ export default function SignaturesPage() {
     <div>
       <PageHeader title="Bulletins & signatures" subtitle="Signature électronique des bulletins et des documents administratifs." />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 24 }}>
         <Card padded>
           <CardHeader title="Signature groupée — bulletins d’une classe" />
           <div style={{ marginTop: 16 }}>

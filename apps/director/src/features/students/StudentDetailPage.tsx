@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { fmtPct } from '@/utils/format';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, Field, Select, Sheet, StateView, useConfirm } from '@/components/ui';
@@ -147,9 +147,14 @@ export default function StudentDetailPage() {
 
   return (
     <div>
-      <Link to="/eleves" className={styles.back}>
-        ← Élèves
-      </Link>
+      <button
+        type="button"
+        className={styles.back}
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+        onClick={() => navigate(-1)}
+      >
+        ← Retour
+      </button>
       <PageHeader
         title={s ? `${s.prenom} ${s.nom}` : '…'}
         subtitle={s ? `${s.classe} · ${STATUS_LABEL[s.statut]}` : undefined}

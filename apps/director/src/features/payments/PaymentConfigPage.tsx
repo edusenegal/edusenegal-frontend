@@ -153,7 +153,8 @@ export default function PaymentConfigPage() {
               Le total annuel se recalcule automatiquement : inscription + (frais de période × nombre de périodes du
               mode choisi).
             </p>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--color-text-muted)', fontSize: 12 }}>
                   <th style={{ padding: '6px 8px 6px 0' }}>Niveau</th>
@@ -206,12 +207,13 @@ export default function PaymentConfigPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <Button variant="secondary" size="sm" onClick={() => setLevelPricings((rows) => [...rows, emptyLevelPricingRow()])} style={{ marginTop: 12 }}>
               + Ajouter un niveau
             </Button>
           </Card>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
             <Card padded>
               <CardHeader title="Options avancées" />
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>

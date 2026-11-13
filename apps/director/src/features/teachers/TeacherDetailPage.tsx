@@ -245,7 +245,10 @@ function Row({ k, v }: { k: string; v: string }) {
  * déjà ici de soumettre les deux champs non pertinents.
  */
 function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: Teacher }) {
-  const { teachers, signatures } = useServices();
+  const { teachers, signatures, school } = useServices();
+  // École publique → enseignants payés par l'État (même règle que SalaryRequestsPage).
+  const schoolQuery = useQuery({ queryKey: ['school'], queryFn: () => school.getSchool() });
+  const isPublicSchool = schoolQuery.data?.type === 'public';
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -402,6 +405,14 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
       <div className={styles.calHead}>
         <h3 className={styles.sectionTitle}>Salaire dans l’établissement</h3>
       </div>
+      {isPublicSchool ? (
+        <Card padded style={{ marginBottom: 'var(--space-md)', borderColor: 'var(--color-info, var(--color-border))' }}>
+          <p style={{ margin: 0, fontSize: 13 }}>
+            Cet établissement est <strong>public</strong> : les enseignants sont payés par l’État. Le salaire renseigné
+            ici sert de référence, mais aucun versement n’est pris en charge par l’école.
+          </p>
+        </Card>
+      ) : null}
       {!teacher.salaryMode ? (
         <p className={styles.hint}>
           Aucun salaire configuré pour le moment — une demande de paiement ne pourra pas être créée pour cet enseignant
@@ -410,16 +421,16 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
       ) : null}
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
         <Field label="Mode de rémunération">
-          <Select value={mode} onChange={(e) => setMode(e.target.value as SalaryMode)}>
+          <Select value={mode} onChange={(e) => setMode(e.target.value as SalaryMode)} disabled={isPublicSchool}>
             <option value="fixe">{SALARY_MODE_LABEL.fixe}</option>
             <option value="par_jour">{SALARY_MODE_LABEL.par_jour}</option>
             <option value="par_heure">{SALARY_MODE_LABEL.par_heure}</option>
           </Select>
         </Field>
         <Field label={`${montantLabel} (FCFA)`}>
-          <Input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} />
+          <Input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} disabled={isPublicSchool} />
         </Field>
-        <Button variant="primary" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+        <Button variant="primary" loading={saveMutation.isPending} disabled={isPublicSchool} onClick={() => saveMutation.mutate()}>
           Enregistrer
         </Button>
       </div>

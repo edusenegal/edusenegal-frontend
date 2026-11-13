@@ -512,7 +512,7 @@ export default function SalaryPaymentsPage() {
             ) : null}
 
             {detail.statut === 'brouillon' ? (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Button variant="primary" size="sm" loading={submitMutation.isPending} onClick={() => submitMutation.mutate(detail.id)}>
                   Soumettre
                 </Button>
@@ -552,7 +552,7 @@ export default function SalaryPaymentsPage() {
                   <Textarea value={decisionComment} onChange={(e) => setDecisionComment(e.target.value)} rows={2} />
                 </Field>
                 {decisionError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{decisionError}</p> : null}
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                   <Button
                     variant="primary"
                     size="sm"

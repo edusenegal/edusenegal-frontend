@@ -32,6 +32,10 @@ import type {
   InternalTransferMapping,
   InternalTransferPreview,
   InternalTransferResult,
+  InterSchoolTransfer,
+  SchoolRef,
+  StudentLookup,
+  TransferDossierJob,
   LeaveRequest,
   GradeDispute,
   Notice,
@@ -589,6 +593,33 @@ export interface TransfersPort {
     toClassId: string,
     mappings: InternalTransferMapping[],
   ): Promise<InternalTransferResult>;
+
+  // ── Transfert inter-écoles (flux de consentement A + B) ──
+  /** Recherche d'un élève par matricule (vue école d'arrivée B). */
+  lookupStudent(matricule: string): Promise<StudentLookup>;
+  /** Résout une école de la plateforme par son indicatif (pour A→plateforme). */
+  resolveSchoolByIndicatif(indicatif: string): Promise<SchoolRef>;
+  /** A pousse un transfert (plateforme via toSchoolId, ou hors plateforme). */
+  createOutgoingTransfer(input: {
+    studentId?: string;
+    matricule?: string;
+    toSchoolId?: string;
+    offPlatform?: boolean;
+    offPlatformSchoolName?: string;
+    offPlatformRegion?: string;
+    reason?: string;
+  }): Promise<InterSchoolTransfer>;
+  /** B demande la libération d'un élève (matricule + école actuelle). */
+  createIncomingTransfer(input: { matricule: string; fromSchoolId: string; reason?: string }): Promise<InterSchoolTransfer>;
+  authorizeTransfer(id: string): Promise<InterSchoolTransfer>;
+  acceptTransfer(id: string, input: { targetClassId?: string; resumeMode?: boolean }): Promise<InterSchoolTransfer>;
+  refuseTransfer(id: string): Promise<InterSchoolTransfer>;
+  cancelTransfer(id: string): Promise<InterSchoolTransfer>;
+  getInterSchoolTransfer(id: string): Promise<InterSchoolTransfer>;
+  listOutgoingTransfers(): Promise<InterSchoolTransfer[]>;
+  listIncomingTransfers(): Promise<InterSchoolTransfer[]>;
+  startDossier(id: string): Promise<TransferDossierJob>;
+  getDossierJob(jobId: string): Promise<TransferDossierJob>;
 }
 
 export interface GradeDisputesPort {

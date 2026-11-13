@@ -125,7 +125,7 @@ export default function SignaturesPage() {
     <div>
       <PageHeader title="Bulletins & signatures" subtitle="Signature électronique des bulletins et des documents administratifs." />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 24 }}>
         <Card padded>
           <CardHeader title="Signature groupée — bulletins d’une classe" />
           <div style={{ marginTop: 16 }}>
@@ -174,7 +174,7 @@ export default function SignaturesPage() {
 
         <Card padded>
           <CardHeader title="Signature individuelle" />
-          <div style={{ display: 'flex', gap: 8, margin: '16px 0' }}>
+          <div style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap' }}>
             <Button id="b-dest-eleve" variant={mode === 'eleve' ? 'primary' : 'secondary'} size="sm" onClick={() => { setMode('eleve'); setIndivType(STUDENT_DOC_TYPES[0]!); }}>
               Élève
             </Button>
@@ -287,7 +287,7 @@ export default function SignaturesPage() {
           Aucune signature n'est enregistrée pour votre compte — vous ne pouvez pas signer de document tant
           qu'elle n'est pas déposée.
         </p>
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
           <Button
             variant="primary"
             onClick={() => {

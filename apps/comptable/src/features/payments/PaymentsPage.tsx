@@ -361,7 +361,7 @@ export default function PaymentsPage() {
         title="Encaissement"
         subtitle={student.classe}
         action={
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={backToSelection}>
               Changer d’élève
             </Button>
@@ -509,7 +509,7 @@ export default function PaymentsPage() {
           <Field label="Période" hint='Facultatif, ex. "Trimestre 1".'>
             <Input value={period} onChange={(e) => setPeriod(e.target.value)} />
           </Field>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Field label="Échéance n°">
               <Input type="number" min={1} value={installmentNumber} onChange={(e) => setInstallmentNumber(e.target.value)} />
             </Field>

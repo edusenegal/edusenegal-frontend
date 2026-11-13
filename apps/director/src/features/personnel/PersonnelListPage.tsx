@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { roleLabel } from '@/utils/roles';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Badge, Button, Field, Input, Select, Sheet, StateView, Table, type Column, useConfirm } from '@/components/ui';
+import { Avatar, Badge, Button, Field, Input, Select, Sheet, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import type { StaffMember, StaffStatus } from '@/types/domain';
@@ -50,6 +50,12 @@ export default function PersonnelListPage() {
   const [email, setEmail] = useState('');
   const [sexe, setSexe] = useState<'M' | 'F'>('M');
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Fiche détail (photo en exergue + statut modifiable). On garde l'id et on
+  // relit le membre dans la liste en cache, pour que le statut affiché suive
+  // les mutations block/unblock sans snapshot figé.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = detailId ? (listQuery.data?.find((m) => m.id === detailId) ?? null) : null;
 
   function openCreate() {
     setEditing(null);
@@ -131,7 +137,16 @@ export default function PersonnelListPage() {
   }
 
   const columns: Column<StaffMember>[] = [
-    { key: 'nom', header: 'Nom', render: (m) => `${m.prenom} ${m.nom}` },
+    {
+      key: 'nom',
+      header: 'Nom',
+      render: (m) => (
+        <button type="button" className="linklike" onClick={() => setDetailId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit', textAlign: 'left' }}>
+          <Avatar name={`${m.prenom} ${m.nom}`} size="sm" photoUrl={m.photoUrl} />
+          <span style={{ fontWeight: 500 }}>{m.prenom} {m.nom}</span>
+        </button>
+      ),
+    },
     { key: 'role', header: 'Rôle', render: (m) => roleLabel(m.role) },
     { key: 'tel', header: 'Téléphone', render: (m) => m.tel },
     { key: 'email', header: 'Email', render: (m) => m.email },
@@ -180,6 +195,82 @@ export default function PersonnelListPage() {
       >
         <Table columns={columns} rows={listQuery.data ?? []} rowKey={(m) => m.id} />
       </StateView>
+
+      {detail ? (
+        <Sheet
+          title="Fiche du membre"
+          open={detailId !== null}
+          onClose={() => setDetailId(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setDetailId(null)}>
+                Fermer
+              </Button>
+              <Button variant="primary" onClick={() => { openEdit(detail); setDetailId(null); }}>
+                ✎ Modifier
+              </Button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
+              <Avatar name={`${detail.prenom} ${detail.nom}`} size="md" photoUrl={detail.photoUrl} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 18 }}>{detail.prenom} {detail.nom}</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{roleLabel(detail.role)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14 }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Téléphone</span>
+                <span>{detail.tel}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14 }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Email</span>
+                <span style={{ overflowWrap: 'anywhere' }}>{detail.email}</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>Statut</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <Badge tone={STATUS_TONE[detail.statut]}>{STATUS_LABEL[detail.statut]}</Badge>
+                {detail.statut !== 'transfere' ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Button
+                      variant={detail.statut === 'actif' ? 'primary' : 'secondary'}
+                      size="sm"
+                      loading={blockMutation.isPending}
+                      disabled={detail.statut === 'actif'}
+                      onClick={() => blockMutation.mutate({ id: detail.id, blocked: false })}
+                    >
+                      {detail.statut === 'en_attente' ? 'Activer' : 'Actif'}
+                    </Button>
+                    <Button
+                      variant={detail.statut === 'suspendu' ? 'primary' : 'secondary'}
+                      size="sm"
+                      loading={blockMutation.isPending}
+                      disabled={detail.statut === 'suspendu'}
+                      onClick={() => blockMutation.mutate({ id: detail.id, blocked: true })}
+                    >
+                      Bloqué
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+              {detail.statut === 'en_attente' ? (
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+                  Compte jamais connecté. « Activer » autorise la connexion immédiatement, sans attendre la première connexion.
+                </p>
+              ) : null}
+              {detail.statut === 'transfere' ? (
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+                  Membre transféré — statut géré par le flux de transfert.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </Sheet>
+      ) : null}
 
       <Sheet
         title={editing ? 'Modifier le membre' : 'Ajouter un membre du personnel'}

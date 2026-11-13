@@ -193,6 +193,7 @@ export interface StaffMember {
   tel: string;
   email: string;
   statut: StaffStatus;
+  photoUrl: string | null;
 }
 
 export interface Student {
@@ -526,6 +527,66 @@ export interface TransferRequest {
   ecoleDestination: string | null;
   statut: 'en_attente' | 'acceptee' | 'refusee';
   date: string;
+}
+
+// ── Transfert inter-écoles (flux de consentement A + B, backend user-service) ──
+// Statuts et initiateur alignés sur les enums backend (pas de mapping).
+export type InterSchoolInitiator = 'FROM_SCHOOL' | 'TO_SCHOOL';
+export type InterSchoolStatus =
+  | 'DEMANDE'
+  | 'AUTORISE'
+  | 'ACCEPTE'
+  | 'REFUSE'
+  | 'ANNULE'
+  | 'EXPIRE';
+
+export interface InterSchoolTransfer {
+  id: string;
+  studentId: string;
+  studentMatricule: string | null;
+  studentName: string | null;
+  fromSchoolId: string;
+  fromSchoolName: string | null;
+  toSchoolId: string | null;
+  toSchoolName: string | null;
+  initiatedBy: InterSchoolInitiator;
+  status: InterSchoolStatus;
+  reason: string | null;
+  targetClassId: string | null;
+  resumeMode: boolean;
+  offPlatform: boolean;
+  offPlatformSchoolName: string | null;
+  offPlatformRegion: string | null;
+  dossierJobId: string | null;
+  createdAt: string | null;
+  authorizedAt: string | null;
+  acceptedAt: string | null;
+  decidedAt: string | null;
+  expiresAt: string | null;
+}
+
+export interface SchoolRef {
+  id: string;
+  name: string | null;
+  indicatif: string | null;
+}
+
+export interface StudentLookup {
+  studentId: string;
+  name: string | null;
+  matricule: string | null;
+  currentSchoolId: string | null;
+  currentSchoolName: string | null;
+}
+
+export interface TransferDossierJob {
+  jobId: string;
+  transferRequestId: string | null;
+  status: 'RUNNING' | 'DONE' | 'FAILED';
+  downloadUrl: string | null;
+  includedSections: string[] | null;
+  skippedSections: string[] | null;
+  error: string | null;
 }
 
 // ── Transfert interne (task #214/#215) — élève d'une classe à l'autre de la

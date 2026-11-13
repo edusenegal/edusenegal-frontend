@@ -63,7 +63,11 @@ import type {
   AttendanceSession,
   AttendanceSessionDetail,
   AttendanceTrendPoint,
-  BulletinJob,} from '@/types/domain';
+  BulletinJob,
+  InterSchoolTransfer,
+  SchoolRef,
+  StudentLookup,
+  TransferDossierJob,} from '@/types/domain';
 import { frToISO } from '@/utils/format';
 import * as fixtures from './fixtures';
 
@@ -137,9 +141,9 @@ function createInitialState() {
     classEvents: structuredClone(fixtures.CLASS_EVENTS) as ClassEvent[],
     teachers: structuredClone(fixtures.buildTeachers()) as Teacher[],
     staff: [
-      { id: 'stf-cens', prenom: 'Awa', nom: 'Ndiaye', role: 'CENSEUR', tel: '771000010', email: 'awa.ndiaye@ecole.sn', statut: 'actif' },
-      { id: 'stf-comp', prenom: 'Modou', nom: 'Sarr', role: 'ACCOUNTANT', tel: '771000011', email: 'modou.sarr@ecole.sn', statut: 'actif' },
-      { id: 'stf-bib', prenom: 'Fatou', nom: 'Ba', role: 'LIBRARIAN', tel: '771000012', email: 'fatou.ba@ecole.sn', statut: 'actif' },
+      { id: 'stf-cens', prenom: 'Awa', nom: 'Ndiaye', role: 'CENSEUR', tel: '771000010', email: 'awa.ndiaye@ecole.sn', statut: 'actif', photoUrl: null },
+      { id: 'stf-comp', prenom: 'Modou', nom: 'Sarr', role: 'ACCOUNTANT', tel: '771000011', email: 'modou.sarr@ecole.sn', statut: 'actif', photoUrl: null },
+      { id: 'stf-bib', prenom: 'Fatou', nom: 'Ba', role: 'LIBRARIAN', tel: '771000012', email: 'fatou.ba@ecole.sn', statut: 'actif', photoUrl: null },
     ] as StaffMember[],
     students,
     subjects: structuredClone(fixtures.buildSubjects()) as Subject[],
@@ -181,6 +185,8 @@ function createInitialState() {
     ] as ClassRoom[],
   };
 }
+
+const mockInterSchoolTransfers: InterSchoolTransfer[] = [];
 
 export function createMockServices(): Services {
   /** État muté en mémoire — propre à cette instance de services. */
@@ -726,6 +732,7 @@ export function createMockServices(): Services {
           tel: input.tel,
           email: input.email && input.email !== '—' ? input.email : '—',
           statut: 'actif',
+          photoUrl: null,
         };
         state.staff.unshift(m);
         return respond(m, 300);
@@ -1060,6 +1067,146 @@ export function createMockServices(): Services {
         };
         state.transferRequests.unshift(request);
         return respond(request, 400);
+      },
+
+      // ── Transfert inter-écoles (démo mémoire) ──
+      async resolveSchoolByIndicatif(indicatif): Promise<SchoolRef> {
+        return respond({ id: `school-${indicatif}`, name: 'École (démo) $indicatif'.replace('\$indicatif', indicatif), indicatif });
+      },
+      async lookupStudent(matricule): Promise<StudentLookup> {
+        const q = matricule.trim().toLowerCase();
+        const s = state.students.find(
+          (x) => x.id === matricule || `${x.prenom} ${x.nom}`.toLowerCase().includes(q),
+        );
+        if (!s) notFound('Élève');
+        return respond({
+          studentId: s.id,
+          name: `${s.prenom} ${s.nom}`,
+          matricule,
+          currentSchoolId: 'mock-school-a',
+          currentSchoolName: 'Lycée de démonstration',
+        });
+      },
+      async createOutgoingTransfer(input): Promise<InterSchoolTransfer> {
+        const tr: InterSchoolTransfer = {
+          id: `ist-${Date.now()}`,
+          studentId: input.studentId ?? 'mock-student',
+          studentMatricule: input.matricule ?? null,
+          studentName: 'Élève (démo)',
+          fromSchoolId: 'mock-school-a',
+          fromSchoolName: 'Lycée de démonstration',
+          toSchoolId: input.offPlatform ? null : input.toSchoolId ?? 'mock-school-b',
+          toSchoolName: input.offPlatform ? null : 'École de destination',
+          initiatedBy: 'FROM_SCHOOL',
+          status: input.offPlatform ? 'ACCEPTE' : 'AUTORISE',
+          reason: input.reason ?? null,
+          targetClassId: null,
+          resumeMode: false,
+          offPlatform: Boolean(input.offPlatform),
+          offPlatformSchoolName: input.offPlatformSchoolName ?? null,
+          offPlatformRegion: input.offPlatformRegion ?? null,
+          dossierJobId: null,
+          createdAt: new Date().toISOString(),
+          authorizedAt: input.offPlatform ? null : new Date().toISOString(),
+          acceptedAt: input.offPlatform ? new Date().toISOString() : null,
+          decidedAt: null,
+          expiresAt: null,
+        };
+        mockInterSchoolTransfers.unshift(tr);
+        return respond(tr, 300);
+      },
+      async createIncomingTransfer(input): Promise<InterSchoolTransfer> {
+        const tr: InterSchoolTransfer = {
+          id: `ist-${Date.now()}`,
+          studentId: 'mock-student',
+          studentMatricule: input.matricule,
+          studentName: 'Élève (démo)',
+          fromSchoolId: input.fromSchoolId,
+          fromSchoolName: 'École de départ',
+          toSchoolId: 'mock-school-b',
+          toSchoolName: 'Lycée de démonstration',
+          initiatedBy: 'TO_SCHOOL',
+          status: 'DEMANDE',
+          reason: input.reason ?? null,
+          targetClassId: null,
+          resumeMode: false,
+          offPlatform: false,
+          offPlatformSchoolName: null,
+          offPlatformRegion: null,
+          dossierJobId: null,
+          createdAt: new Date().toISOString(),
+          authorizedAt: null,
+          acceptedAt: null,
+          decidedAt: null,
+          expiresAt: null,
+        };
+        mockInterSchoolTransfers.unshift(tr);
+        return respond(tr, 300);
+      },
+      async authorizeTransfer(id): Promise<InterSchoolTransfer> {
+        const tr = mockInterSchoolTransfers.find((t) => t.id === id);
+        if (!tr) notFound('Transfert');
+        tr.status = 'AUTORISE';
+        tr.authorizedAt = new Date().toISOString();
+        return respond(tr, 200);
+      },
+      async acceptTransfer(id, input): Promise<InterSchoolTransfer> {
+        const tr = mockInterSchoolTransfers.find((t) => t.id === id);
+        if (!tr) notFound('Transfert');
+        tr.status = 'ACCEPTE';
+        tr.targetClassId = input.targetClassId ?? null;
+        tr.resumeMode = Boolean(input.resumeMode);
+        tr.acceptedAt = new Date().toISOString();
+        return respond(tr, 200);
+      },
+      async refuseTransfer(id): Promise<InterSchoolTransfer> {
+        const tr = mockInterSchoolTransfers.find((t) => t.id === id);
+        if (!tr) notFound('Transfert');
+        tr.status = 'REFUSE';
+        tr.decidedAt = new Date().toISOString();
+        return respond(tr, 200);
+      },
+      async cancelTransfer(id): Promise<InterSchoolTransfer> {
+        const tr = mockInterSchoolTransfers.find((t) => t.id === id);
+        if (!tr) notFound('Transfert');
+        tr.status = 'ANNULE';
+        tr.decidedAt = new Date().toISOString();
+        return respond(tr, 200);
+      },
+      async getInterSchoolTransfer(id): Promise<InterSchoolTransfer> {
+        const tr = mockInterSchoolTransfers.find((t) => t.id === id);
+        if (!tr) notFound('Transfert');
+        return respond(tr);
+      },
+      async listOutgoingTransfers(): Promise<InterSchoolTransfer[]> {
+        return respond(mockInterSchoolTransfers.filter((t) => t.initiatedBy === 'FROM_SCHOOL' || t.fromSchoolId === 'mock-school-a'));
+      },
+      async listIncomingTransfers(): Promise<InterSchoolTransfer[]> {
+        return respond(mockInterSchoolTransfers.filter((t) => t.initiatedBy === 'TO_SCHOOL' || t.toSchoolId === 'mock-school-b'));
+      },
+      async startDossier(id): Promise<TransferDossierJob> {
+        const tr = mockInterSchoolTransfers.find((t) => t.id === id);
+        if (tr) tr.dossierJobId = `job-${Date.now()}`;
+        return respond({
+          jobId: tr?.dossierJobId ?? `job-${Date.now()}`,
+          transferRequestId: id,
+          status: 'DONE',
+          downloadUrl: '#',
+          includedSections: ['identite', 'scolarite'],
+          skippedSections: ['notes', 'bulletins', 'documents', 'finances'],
+          error: null,
+        });
+      },
+      async getDossierJob(jobId): Promise<TransferDossierJob> {
+        return respond({
+          jobId,
+          transferRequestId: null,
+          status: 'DONE',
+          downloadUrl: '#',
+          includedSections: ['identite', 'scolarite'],
+          skippedSections: ['notes', 'bulletins', 'documents', 'finances'],
+          error: null,
+        });
       },
     },
 

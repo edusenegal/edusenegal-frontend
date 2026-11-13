@@ -1,10 +1,11 @@
-import { request } from '@/api/client';
+import { request, sessionContext } from '@/api/client';
 import type {
   ExecuteInternalTransferRequestDto,
   InternalTransferExecuteResponseDto,
   InternalTransferPreviewResponseDto,
 } from '@/types/api';
 import type { TransfersPort } from '@/services/ports';
+import type { InterSchoolTransfer, SchoolRef, StudentLookup, TransferDossierJob } from '@/types/domain';
 import type { InternalTransferMapping, InternalTransferPreview, InternalTransferResult } from '@/types/domain';
 
 function fromPreviewResponse(dto: InternalTransferPreviewResponseDto): InternalTransferPreview {
@@ -47,7 +48,28 @@ function fromExecuteResponse(dto: InternalTransferExecuteResponseDto): InternalT
  * une simple demande de démonstration (aucun backend de suivi inter-écoles
  * à ce jour) — voir le commentaire de `TransfersPort`.
  */
-export function createTransfersApi(): Pick<TransfersPort, 'previewInternal' | 'executeInternal'> {
+type PortedTransfers = Pick<
+  TransfersPort,
+  | 'previewInternal'
+  | 'executeInternal'
+  | 'lookupStudent'
+  | 'resolveSchoolByIndicatif'
+  | 'createOutgoingTransfer'
+  | 'createIncomingTransfer'
+  | 'authorizeTransfer'
+  | 'acceptTransfer'
+  | 'refuseTransfer'
+  | 'cancelTransfer'
+  | 'getInterSchoolTransfer'
+  | 'listOutgoingTransfers'
+  | 'listIncomingTransfers'
+  | 'startDossier'
+  | 'getDossierJob'
+>;
+
+const TBASE = '/api/v1/users/transfers';
+
+export function createTransfersApi(): PortedTransfers {
   return {
     async previewInternal(studentId: string, fromClassId: string, toClassId: string): Promise<InternalTransferPreview> {
       const dto = await request<InternalTransferPreviewResponseDto>('/api/v1/academic/transfers/internal/preview', {
@@ -78,6 +100,72 @@ export function createTransfersApi(): Pick<TransfersPort, 'previewInternal' | 'e
         body,
       });
       return fromExecuteResponse(dto);
+    },
+
+    // ── Transfert inter-écoles (flux de consentement A + B) ──
+    async lookupStudent(matricule: string): Promise<StudentLookup> {
+      return request<StudentLookup>(`${TBASE}/lookup`, { query: { matricule } });
+    },
+
+    async resolveSchoolByIndicatif(indicatif: string): Promise<SchoolRef> {
+      const dto = await request<{ id: string; name?: string; indicatif?: string }>(
+        `/api/v1/schools/by-indicatif/${encodeURIComponent(indicatif)}`,
+      );
+      return { id: dto.id, name: dto.name ?? null, indicatif: dto.indicatif ?? null };
+    },
+
+    async createOutgoingTransfer(input): Promise<InterSchoolTransfer> {
+      const { schoolId } = sessionContext();
+      return request<InterSchoolTransfer>(`${TBASE}/outgoing`, {
+        method: 'POST',
+        body: { ...input, fromSchoolId: schoolId },
+      });
+    },
+
+    async createIncomingTransfer(input): Promise<InterSchoolTransfer> {
+      const { schoolId } = sessionContext();
+      return request<InterSchoolTransfer>(`${TBASE}/incoming`, {
+        method: 'POST',
+        body: { ...input, toSchoolId: schoolId },
+      });
+    },
+
+    async authorizeTransfer(id: string): Promise<InterSchoolTransfer> {
+      return request<InterSchoolTransfer>(`${TBASE}/${encodeURIComponent(id)}/authorize`, { method: 'PATCH' });
+    },
+
+    async acceptTransfer(id, input): Promise<InterSchoolTransfer> {
+      return request<InterSchoolTransfer>(`${TBASE}/${encodeURIComponent(id)}/accept`, { method: 'PATCH', body: input });
+    },
+
+    async refuseTransfer(id: string): Promise<InterSchoolTransfer> {
+      return request<InterSchoolTransfer>(`${TBASE}/${encodeURIComponent(id)}/refuse`, { method: 'PATCH' });
+    },
+
+    async cancelTransfer(id: string): Promise<InterSchoolTransfer> {
+      return request<InterSchoolTransfer>(`${TBASE}/${encodeURIComponent(id)}/cancel`, { method: 'PATCH' });
+    },
+
+    async getInterSchoolTransfer(id: string): Promise<InterSchoolTransfer> {
+      return request<InterSchoolTransfer>(`${TBASE}/${encodeURIComponent(id)}`);
+    },
+
+    async listOutgoingTransfers(): Promise<InterSchoolTransfer[]> {
+      const { schoolId } = sessionContext();
+      return request<InterSchoolTransfer[]>(`${TBASE}/outgoing`, { query: { schoolId } });
+    },
+
+    async listIncomingTransfers(): Promise<InterSchoolTransfer[]> {
+      const { schoolId } = sessionContext();
+      return request<InterSchoolTransfer[]>(`${TBASE}/incoming`, { query: { schoolId } });
+    },
+
+    async startDossier(id: string): Promise<TransferDossierJob> {
+      return request<TransferDossierJob>(`${TBASE}/${encodeURIComponent(id)}/dossier`, { method: 'POST' });
+    },
+
+    async getDossierJob(jobId: string): Promise<TransferDossierJob> {
+      return request<TransferDossierJob>(`${TBASE}/dossier/jobs/${encodeURIComponent(jobId)}`);
     },
   };
 }

@@ -39,6 +39,7 @@ function fromUserResponse(dto: UserResponseDto): StaffMember {
     tel: dto.phone ?? '—',
     email: dto.email ?? '—',
     statut: fromAccountStatus(dto.accountStatus),
+    photoUrl: dto.photoUrl ?? null,
   };
 }
 
