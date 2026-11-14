@@ -405,8 +405,7 @@ export default function TransfersPage() {
             <Card padded>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Dossier scolaire</div>
               <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
-                Dossier complet de l’élève (identité, parcours ; bulletins signés, relevés et reçus de paiement référencés).
-                Disponible une fois le transfert autorisé.
+                Dossier complet en PDF (fiche d’identité, parcours scolaire et bulletins de l’élève). Reçus de paiement et documents administratifs référencés. Disponible une fois le transfert autorisé.
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Button
