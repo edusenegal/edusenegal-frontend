@@ -30,6 +30,7 @@ const RoomsPage = lazy(() => import('@/features/rooms/RoomsPage'));
 const SubjectDetailPage = lazy(() => import('@/features/subjects/SubjectDetailPage'));
 const AcademicResultsPage = lazy(() => import('@/features/academic-results/AcademicResultsPage'));
 const PaymentConfigPage = lazy(() => import('@/features/payments/PaymentConfigPage'));
+const TreasuryPage = lazy(() => import('@/features/payments/TreasuryPage'));
 const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage'));
 const RecouvrementPage = lazy(() => import('@/features/recouvrement/RecouvrementPage'));
 const PromotionsPage = lazy(() => import('@/features/promotions/PromotionsPage'));
@@ -73,6 +74,7 @@ export function AppRoutes() {
             <Route path="resultats" element={<AcademicResultsPage />} />
             <Route path="resultats/eleve/:studentId" element={<StudentRelevePage />} />
             <Route path="paiements" element={<PaymentConfigPage />} />
+            <Route path="tresorerie" element={<TreasuryPage />} />
             <Route path="depenses" element={<ExpensesPage />} />
             <Route path="recouvrement" element={<RecouvrementPage />} />
             <Route path="promotions" element={<PromotionsPage />} />

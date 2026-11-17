@@ -9,6 +9,8 @@ export { Segmented } from './Segmented/Segmented';
 export type { SegmentedOption } from './Segmented/Segmented';
 export { Sheet } from './Sheet/Sheet';
 export { StateView } from './StateView/StateView';
+export { LoadingOverlay } from './LoadingOverlay/LoadingOverlay';
+export { PaymentChannelIcon } from './PaymentChannelIcon/PaymentChannelIcon';
 export { Table } from './Table/Table';
 export type { Column } from './Table/Table';
 export { Meter } from './Meter/Meter';

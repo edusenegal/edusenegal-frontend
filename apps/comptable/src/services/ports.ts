@@ -27,6 +27,10 @@ import type {
   StudentWallet,
   WalletCreditType,
   WalletTransaction,
+  SchoolWallet,
+  CashoutValidators,
+  Cashout,
+  CashoutStatus,
 } from '@/types/domain';
 
 /**
@@ -44,6 +48,8 @@ export interface AuthPort {
 /** Lecture seule — le comptable ne modifie ni le branding ni l'année scolaire. */
 export interface SchoolPort {
   getSchool(): Promise<School>;
+  /** Libellé de l'année scolaire active (ex. « 2025-2026 ») — en-tête des reçus. */
+  getActiveYearLabel(): Promise<string>;
 }
 
 /**
@@ -85,7 +91,13 @@ export interface ExpensesPort {
    * un rejet (voir `ValidateExpenseRequest`).
    * Backend : `POST /api/v1/accounting/expenses/{id}/validate`.
    */
-  validate(expenseId: string, decision: ExpenseDecision, commentaire?: string): Promise<Expense>;
+  validate(
+    expenseId: string,
+    decision: ExpenseDecision,
+    commentaire?: string,
+    canal?: PaymentChannel,
+    destinataire?: string,
+  ): Promise<Expense>;
   /** Backend : `POST /api/v1/accounting/expenses/{id}/cancel`. Réservé à une dépense brouillon/en attente. */
   cancel(expenseId: string): Promise<Expense>;
   /** Backend : `POST /api/v1/accounting/expenses/{id}/attachments` (multipart). */
@@ -357,6 +369,34 @@ export interface ScholarshipsPort {
 }
 
 /** Point d'assemblage unique de l'espace comptabilité. */
+/**
+ * SenÉtude Pay — trésorerie de l'école : solde unique (SchoolLedger), historique
+ * unifié entrées/sorties avec canal, et sorties d'argent validées par OTP SMS.
+ * Backend : `GET /payments/school-wallet`, `/payments/cashouts/*`.
+ */
+export interface SchoolWalletPort {
+  getWallet(filters?: {
+    direction?: 'IN' | 'OUT';
+    channel?: PaymentChannel;
+    status?: string;
+    page?: number;
+    size?: number;
+  }): Promise<SchoolWallet>;
+  getValidators(): Promise<CashoutValidators>;
+  saveValidators(validatorIds: string[]): Promise<CashoutValidators>;
+  listCashouts(status?: CashoutStatus): Promise<Cashout[]>;
+  requestCashout(input: {
+    amountFcfa: number;
+    channel: PaymentChannel;
+    destinationPhone: string;
+    destinationName?: string;
+    reason: string;
+  }): Promise<Cashout>;
+  approveCashout(id: string, otp: string): Promise<Cashout>;
+  rejectCashout(id: string, reason: string): Promise<Cashout>;
+  resendOtp(id: string): Promise<Cashout>;
+}
+
 export interface Services {
   auth: AuthPort;
   school: SchoolPort;
@@ -367,6 +407,7 @@ export interface Services {
   students: StudentsPort;
   wallet: WalletPort;
   payments: PaymentsPort;
+  schoolWallet: SchoolWalletPort;
   restoTickets: RestoTicketsPort;
   scholarships: ScholarshipsPort;
 }

@@ -26,6 +26,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/encaissements', label: 'Encaissements', icon: 'credit-card' },
       { to: '/caisse', label: 'Caisse', icon: 'archive' },
       { to: '/grand-livre', label: 'Grand livre', icon: 'book' },
+      { to: '/tresorerie', label: 'Trésorerie', icon: 'coins' },
       { to: '/salaires', label: 'Salaires', icon: 'banknote' },
       { to: '/portefeuilles', label: 'Portefeuilles élèves', icon: 'wallet' },
       { to: '/paiements', label: 'Paiements', icon: 'coins' },

@@ -20,7 +20,7 @@ import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
 import { fmtXOF, todayISO } from '@/utils/format';
 import { exportRowsToXlsx } from '@/utils/xlsx';
-import type { Expense, ExpenseCategory, ExpenseDecision, ExpenseStatus } from '@/types/domain';
+import type { Expense, ExpenseCategory, ExpenseDecision, ExpenseStatus, PaymentChannel } from '@/types/domain';
 
 const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
   salaires: 'Salaires',
@@ -82,6 +82,8 @@ export default function ExpensesPage() {
   const [form, setForm] = useState<CreateForm>(emptyForm());
   const [detail, setDetail] = useState<Expense | null>(null);
   const [decisionComment, setDecisionComment] = useState('');
+  const [decisionChannel, setDecisionChannel] = useState<PaymentChannel>('especes');
+  const [decisionPhone, setDecisionPhone] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
@@ -168,11 +170,20 @@ export default function ExpensesPage() {
   });
   const validateMutation = useMutation({
     mutationFn: ({ id, decision }: { id: string; decision: ExpenseDecision }) =>
-      expenses.validate(id, decision, decisionComment || undefined),
+      expenses.validate(
+        id,
+        decision,
+        decisionComment || undefined,
+        decision === 'approuve' ? decisionChannel : undefined,
+        decision === 'approuve' && (decisionChannel === 'wave' || decisionChannel === 'orange_money')
+          ? decisionPhone.trim()
+          : undefined,
+      ),
     onSuccess: (updated) => {
       invalidate();
       setDetail(updated);
       setDecisionComment('');
+      setDecisionPhone('');
       setDecisionError(null);
     },
     // CORRECTION (bug signalé) : approuver une dépense alors que le solde de
@@ -440,11 +451,36 @@ export default function ExpensesPage() {
                 <Field label="Commentaire (obligatoire pour un rejet)">
                   <Textarea value={decisionComment} onChange={(e) => setDecisionComment(e.target.value)} rows={2} />
                 </Field>
+                <Field label="Régler par (à l'approbation)">
+                  <Select
+                    value={decisionChannel}
+                    onChange={(e) => setDecisionChannel(e.target.value as PaymentChannel)}
+                  >
+                    <option value="especes">Espèces</option>
+                    <option value="wave">Wave</option>
+                    <option value="orange_money">Orange Money</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="virement_bancaire">Virement bancaire</option>
+                  </Select>
+                </Field>
+                {decisionChannel === 'wave' || decisionChannel === 'orange_money' ? (
+                  <Field label="Numéro du fournisseur" hint="Format international, ex. +221771234567">
+                    <Input
+                      value={decisionPhone}
+                      onChange={(e) => setDecisionPhone(e.target.value)}
+                      placeholder="+221…"
+                    />
+                  </Field>
+                ) : null}
                 <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                   <Button
                     variant="primary"
                     size="sm"
                     loading={validateMutation.isPending}
+                    disabled={
+                      (decisionChannel === 'wave' || decisionChannel === 'orange_money') &&
+                      !decisionPhone.trim()
+                    }
                     onClick={() => validateMutation.mutate({ id: detail.id, decision: 'approuve' })}
                   >
                     Approuver

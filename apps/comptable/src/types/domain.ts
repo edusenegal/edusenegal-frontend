@@ -612,6 +612,11 @@ export interface Expense {
   /** Solde de l'école juste avant / juste après cette dépense (figé au moment de la validation) — null tant qu'elle n'est pas validée. */
   soldeAvantFcfa: number | null;
   soldeApresFcfa: number | null;
+  /** SenÉtude Pay : comment la dépense a été réglée (canal + état du versement). */
+  canalReglement: PaymentChannel | null;
+  destinataireVersement: string | null;
+  refVersement: string | null;
+  statutVersement: string | null;
   /** URLs pré-signées MinIO des justificatifs. */
   piecesJointes: string[];
   historiqueValidation: ExpenseValidationStep[];
@@ -916,4 +921,71 @@ export interface Scholarship {
   resteAPayerParPayeurFcfa: number;
   progressionPayeurPercent: number;
   dateCreation: string; // dd/mm/yyyy
+}
+
+// ── SenÉtude Pay : solde unique de l'école, historique unifié, cashouts validés par OTP ──
+export type CashoutStatus =
+  | 'PENDING_VALIDATION'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'REJECTED'
+  | 'FAILED'
+  | 'CANCELLED';
+
+export interface WalletEntry {
+  id: string;
+  direction: 'IN' | 'OUT';
+  kind: 'STUDENT_PAYMENT' | 'CASHOUT' | 'EXPENSE';
+  amountFcfa: number;
+  /** `null` pour une dépense hors canal. */
+  channel: PaymentChannel | null;
+  /** Statut natif de l'objet source (PENDING/COMPLETED…, PENDING_VALIDATION/EXECUTED…, VALIDATED…). */
+  status: string;
+  label: string;
+  /** Date FR (JJ/MM/AAAA) ou chaîne vide. */
+  date: string;
+  /** Référence transaction Wave/OM (externalRef) — paiement élève ; null sinon. */
+  reference: string | null;
+  balanceBeforeFcfa: number | null;
+  balanceAfterFcfa: number | null;
+}
+
+export interface SchoolWallet {
+  balanceFcfa: number;
+  totalIncomesFcfa: number;
+  totalExpensesFcfa: number;
+  /** Page courante de l'historique fusionné (entrées + sorties), trié par date desc. */
+  entries: WalletEntry[];
+  page: number;
+  size: number;
+  totalEntries: number;
+  totalPages: number;
+}
+
+export interface CashoutApprovalView {
+  validatorId: string;
+  decision: 'APPROVED' | 'REJECTED' | null;
+  decidedAt: string | null;
+}
+
+export interface Cashout {
+  id: string;
+  amountFcfa: number;
+  channel: PaymentChannel;
+  destinationPhone: string;
+  destinationName: string | null;
+  reason: string;
+  requestedBy: string;
+  status: CashoutStatus;
+  failureMessage: string | null;
+  externalRef: string | null;
+  balanceBeforeFcfa: number | null;
+  balanceAfterFcfa: number | null;
+  createdAt: string;
+  executedAt: string | null;
+  approvals: CashoutApprovalView[];
+}
+
+export interface CashoutValidators {
+  validatorIds: string[];
 }

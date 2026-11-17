@@ -24,6 +24,7 @@ import type {
   GradeDispute,
   GradeDisputeDecisionInput,
   GradeHistoryEntry,
+  GroupMember,
   GroupMessage,
   LeaveRequest,
   MessageKind,
@@ -254,6 +255,14 @@ export interface MessagingPort {
   messages(groupId: string, page?: number, size?: number): Promise<GroupMessage[]>;
   send(groupId: string, input: { contenu?: string; type: MessageKind; fichier?: File }): Promise<GroupMessage>;
   markRead(groupId: string): Promise<void>;
+  /** Membres du groupe avec leurs noms — panneau d'administration (admin du groupe). */
+  members(groupId: string): Promise<GroupMember[]>;
+  /** Met un membre en lecture seule. */
+  blockMember(groupId: string, userId: string): Promise<void>;
+  /** Rend la parole à un membre bloqué. */
+  unblockMember(groupId: string, userId: string): Promise<void>;
+  /** Retire un membre du groupe. */
+  removeMember(groupId: string, userId: string): Promise<void>;
 }
 
 export interface NotificationsPort {

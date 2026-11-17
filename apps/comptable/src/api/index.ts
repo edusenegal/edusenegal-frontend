@@ -9,6 +9,7 @@ import { createScholarshipsApi } from '@/api/scholarships.api';
 import { createSchoolApi } from '@/api/school.api';
 import { createStudentsApi } from '@/api/students.api';
 import { createWalletApi } from '@/api/wallet.api';
+import { createSchoolWalletApi } from '@/api/schoolWallet.api';
 import type { Services } from '@/services/ports';
 
 /** Assemblage des services HTTP — espace comptabilité. */
@@ -23,6 +24,7 @@ export function createApiServices(): Services {
     students: createStudentsApi(),
     wallet: createWalletApi(),
     payments: createPaymentsApi(),
+    schoolWallet: createSchoolWalletApi(),
     restoTickets: createRestoTicketsApi(),
     scholarships: createScholarshipsApi(),
   };

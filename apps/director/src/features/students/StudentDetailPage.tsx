@@ -54,6 +54,15 @@ export default function StudentDetailPage() {
     enabled: !!s,
   });
 
+  // Parents/tuteurs réels (noms + téléphones) — demande direction : la fiche
+  // n'affichait qu'un décompte « N parent(s) lié(s) ». On lit ici chaque
+  // compte PARENT rattaché (`parentIds`) pour montrer nom et téléphone.
+  const parentsQuery = useQuery({
+    queryKey: ['student-parents', studentId],
+    queryFn: () => students.getParents(studentId),
+    enabled: !!s,
+  });
+
   const moyenneLabel = averageQuery.isLoading
     ? '…'
     : typeof averageQuery.data === 'number'
@@ -63,6 +72,21 @@ export default function StudentDetailPage() {
   const retardsLabel = marksQuery.isLoading ? '…' : String(marksQuery.data?.late ?? 0);
   const rate = rateQuery.data?.[studentId];
   const tauxLabel = rateQuery.isLoading ? '…' : typeof rate === 'number' ? `${fmtPct(rate)}%` : '—';
+
+  const parents = parentsQuery.data ?? [];
+  const parentsLabel: ReactNode = parentsQuery.isLoading
+    ? '…'
+    : parents.length > 0
+      ? (
+          <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, textAlign: 'right' }}>
+            {parents.map((pt) => (
+              <span key={pt.id}>
+                {pt.prenom} {pt.nom} — {pt.tel}
+              </span>
+            ))}
+          </span>
+        )
+      : s?.parent ?? '—';
 
   const classList = useQuery({ queryKey: ['classes'], queryFn: () => classes.list(), enabled: assignOpen });
 
@@ -221,7 +245,7 @@ export default function StudentDetailPage() {
                       <Row k="Classe" v={s.classe} />
                       <Row k="Sexe" v={s.sexe === 'F' ? 'Féminin' : 'Masculin'} />
                       <Row k="Date de naissance" v={s.dateNaissance} />
-                      <Row k="Parent / tuteur" v={s.parent} />
+                      <Row k="Parent / tuteur" v={parentsLabel} />
                       <Row k="Téléphone" v={s.tel} />
                       <Row k="Statut" v={<Badge tone={STATUS_TONE[s.statut]}>{STATUS_LABEL[s.statut]}</Badge>} />
                       <Row k="Moyenne" v={moyenneLabel} />

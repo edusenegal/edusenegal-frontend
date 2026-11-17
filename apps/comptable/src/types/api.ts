@@ -626,6 +626,10 @@ export interface CreateExpenseRequestDto {
 export interface ValidateExpenseRequestDto {
   decision: ApiValidationDecision;
   comment?: string;
+  /** SenÉtude Pay : canal de règlement (CASH par défaut). Valeurs backend MAJUSCULE. */
+  paymentChannel?: string;
+  /** Numéro du fournisseur pour un règlement WAVE / ORANGE_MONEY. */
+  payoutDestination?: string;
 }
 
 /** Calqué sur `ExpenseResponse` (payment-service). */
@@ -646,6 +650,11 @@ export interface ExpenseResponseDto {
   /** Solde de l'école juste avant / après cette dépense — non nul une fois VALIDATED. */
   balanceBeforeFcfa: number | null;
   balanceAfterFcfa: number | null;
+  paymentChannel: string | null;
+  payoutDestination: string | null;
+  payoutRef: string | null;
+  payoutStatus: string | null;
+  payoutFailureReason: string | null;
   attachmentUrls: string[] | null;
   validationHistory: ApiValidationStep[] | null;
   createdAt: string;

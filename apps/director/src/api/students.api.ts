@@ -9,7 +9,7 @@ import type {
   UserResponseDto,
 } from '@/types/api';
 import type { StudentsPort } from '@/services/ports';
-import type { Student, StudentStatus } from '@/types/domain';
+import type { Student, StudentParent, StudentStatus } from '@/types/domain';
 import { frToISO, isoToFR } from '@/utils/format';
 
 interface ClassInfo {
@@ -63,6 +63,7 @@ function fromUserResponse(dto: UserResponseDto, classInfo: ClassInfo | undefined
     // décompte, en attendant un écran dédié de liaison par téléphone (même
     // principe que `TeachersPort.findByPhone`).
     parent: dto.parentIds && dto.parentIds.length > 0 ? `${dto.parentIds.length} parent(s) lié(s)` : '—',
+    parentIds: dto.parentIds ?? [],
     tel: dto.phone ?? '—',
     statut: fromAccountStatus(dto.accountStatus),
     moyenne: 0,
@@ -97,7 +98,7 @@ async function findClassInfoForStudent(schoolId: string, studentId: string): Pro
  * (payment-service, nouvel endpoint bulk), les deux agrégés au niveau
  * CLASSE plutôt que par élève.
  */
-export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'get' | 'create' | 'update' | 'remove' | 'getAbsenceCounts' | 'getAttendanceMarks' | 'block' | 'unblock'> {
+export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'get' | 'create' | 'update' | 'remove' | 'getAbsenceCounts' | 'getAttendanceMarks' | 'getParents' | 'block' | 'unblock'> {
   return {
     async list(classId?: string): Promise<Student[]> {
       const { schoolId } = sessionContext();
@@ -141,6 +142,20 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
         findClassInfoForStudent(schoolId, studentId),
       ]);
       return fromUserResponse(dto, classInfo);
+    },
+
+    async getParents(studentId: string): Promise<StudentParent[]> {
+      const student = await request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(studentId)}`);
+      const ids = student.parentIds ?? [];
+      if (ids.length === 0) return [];
+      const parents = await Promise.all(
+        ids.map((id) =>
+          request<UserResponseDto>(`/api/v1/users/${encodeURIComponent(id)}`).catch(() => null),
+        ),
+      );
+      return parents
+        .filter((p): p is UserResponseDto => p != null)
+        .map((p) => ({ id: p.id, prenom: p.firstName, nom: p.lastName, tel: p.phone ?? '—' }));
     },
 
     async create(input): Promise<Student> {

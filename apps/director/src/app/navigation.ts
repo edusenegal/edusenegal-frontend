@@ -53,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Finances',
     items: [
       { to: '/paiements', label: 'Paiements', icon: 'credit-card' },
+      { to: '/tresorerie', label: 'Trésorerie', icon: 'credit-card' },
       { to: '/recouvrement', label: 'Recouvrement', icon: 'target' },
       { to: '/depenses', label: 'Dépenses', icon: 'receipt' },
     ],

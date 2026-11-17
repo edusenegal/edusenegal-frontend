@@ -787,6 +787,9 @@ export function createMockServices(): Services {
         if (!found) notFound('Élève');
         return respond(found);
       },
+      async getParents(): Promise<import('@/types/domain').StudentParent[]> {
+        return respond([]);
+      },
       async create(input): Promise<Student> {
         // Classe optionnelle (nouvelle demande direction) — voir le
         // commentaire de `StudentsPort.create` : un élève peut être créé
@@ -904,6 +907,48 @@ export function createMockServices(): Services {
       },
     },
 
+    schoolWallet: {
+      async getWallet() {
+        return respond({ balanceFcfa: 1_250_000, totalIncomesFcfa: 1_850_000, totalExpensesFcfa: 600_000, entries: [], page: 0, size: 20, totalEntries: 0, totalPages: 0 });
+      },
+      async getValidators() {
+        return respond({ validatorIds: [] });
+      },
+      async saveValidators(validatorIds: string[]) {
+        return respond({ validatorIds });
+      },
+      async listCashouts() {
+        return respond([]);
+      },
+      async requestCashout(input) {
+        return respond({
+          id: `cashout-${Date.now()}`,
+          amountFcfa: input.amountFcfa,
+          channel: input.channel,
+          destinationPhone: input.destinationPhone,
+          destinationName: input.destinationName ?? null,
+          reason: input.reason,
+          requestedBy: 'mock',
+          status: 'PENDING_VALIDATION' as const,
+          failureMessage: null,
+          externalRef: null,
+          balanceBeforeFcfa: null,
+          balanceAfterFcfa: null,
+          createdAt: '',
+          executedAt: null,
+          approvals: [],
+        });
+      },
+      async approveCashout() {
+        throw new Error('Non disponible en mode démonstration');
+      },
+      async rejectCashout() {
+        throw new Error('Non disponible en mode démonstration');
+      },
+      async resendOtp() {
+        throw new Error('Non disponible en mode démonstration');
+      },
+    },
     paymentConfig: {
       async get(): Promise<PaymentConfig | null> {
         return respond(state.paymentConfig);
@@ -1071,7 +1116,7 @@ export function createMockServices(): Services {
 
       // ── Transfert inter-écoles (démo mémoire) ──
       async resolveSchoolByIndicatif(indicatif): Promise<SchoolRef> {
-        return respond({ id: `school-${indicatif}`, name: 'École (démo) $indicatif'.replace('\$indicatif', indicatif), indicatif });
+        return respond({ id: `school-${indicatif}`, name: 'École (démo) '.concat(indicatif), indicatif });
       },
       async lookupStudent(matricule): Promise<StudentLookup> {
         const q = matricule.trim().toLowerCase();

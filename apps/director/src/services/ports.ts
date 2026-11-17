@@ -72,7 +72,12 @@ import type {
   AttendanceSessionStudent,
   AttendanceTrendGranularity,
   AttendanceTrendPoint,
-  BulletinJob,} from '@/types/domain';
+  BulletinJob,
+  SchoolWallet,
+  CashoutValidators,
+  Cashout,
+  CashoutStatus,
+  StudentParent } from '@/types/domain';
 
 export interface AuthPort {
   /**
@@ -453,6 +458,11 @@ export interface StudentsPort {
    * `GET /attendances/analytics/student/{id}/marks?schoolId&yearId`.
    */
   getAttendanceMarks(studentId: string): Promise<{ present: number; absent: number; late: number }>;
+  /**
+   * Parents/tuteurs liés à l'élève (noms + téléphones), pour la fiche détail.
+   * Backend : lecture de l'élève (`parentIds`) puis `GET /users/{id}` par parent.
+   */
+  getParents(studentId: string): Promise<StudentParent[]>;
 }
 
 export interface SubjectsPort {
@@ -927,6 +937,34 @@ export interface PersonnelPort {
   unblock(id: string): Promise<void>;
 }
 
+/**
+ * SenÉtude Pay — trésorerie de l'école : solde unique (SchoolLedger), historique
+ * unifié entrées/sorties avec canal, et sorties d'argent validées par OTP SMS.
+ * Backend : `GET /payments/school-wallet`, `/payments/cashouts/*`.
+ */
+export interface SchoolWalletPort {
+  getWallet(filters?: {
+    direction?: 'IN' | 'OUT';
+    channel?: PaymentChannel;
+    status?: string;
+    page?: number;
+    size?: number;
+  }): Promise<SchoolWallet>;
+  getValidators(): Promise<CashoutValidators>;
+  saveValidators(validatorIds: string[]): Promise<CashoutValidators>;
+  listCashouts(status?: CashoutStatus): Promise<Cashout[]>;
+  requestCashout(input: {
+    amountFcfa: number;
+    channel: PaymentChannel;
+    destinationPhone: string;
+    destinationName?: string;
+    reason: string;
+  }): Promise<Cashout>;
+  approveCashout(id: string, otp: string): Promise<Cashout>;
+  rejectCashout(id: string, reason: string): Promise<Cashout>;
+  resendOtp(id: string): Promise<Cashout>;
+}
+
 export interface Services {
   auth: AuthPort;
   school: SchoolPort;
@@ -939,6 +977,7 @@ export interface Services {
   students: StudentsPort;
   subjects: SubjectsPort;
   paymentConfig: PaymentConfigPort;
+  schoolWallet: SchoolWalletPort;
   promotions: PromotionsPort;
   transfers: TransfersPort;
   leaves: LeavesPort;

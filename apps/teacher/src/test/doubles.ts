@@ -107,6 +107,10 @@ export function createServiceDoubles(overrides: Partial<Services> = {}): Service
       messages: notStubbed('messaging.messages'),
       send: notStubbed('messaging.send'),
       markRead: notStubbed('messaging.markRead'),
+      members: notStubbed('messaging.members'),
+      blockMember: notStubbed('messaging.blockMember'),
+      unblockMember: notStubbed('messaging.unblockMember'),
+      removeMember: notStubbed('messaging.removeMember'),
     },
     notifications: {
       mine: notStubbed('notifications.mine'),

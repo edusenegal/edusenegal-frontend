@@ -736,6 +736,15 @@ export interface DiscussionGroupResponseDto {
   unreadCount: number;
   memberCount: number;
   admin: boolean;
+  blocked: boolean;
+}
+
+export interface GroupMemberDto {
+  userId: string;
+  name: string;
+  photoUrl: string | null;
+  admin: boolean;
+  blocked: boolean;
 }
 
 export type ApiMessageType = 'TEXT' | 'FILE' | 'ANNOUNCEMENT';
@@ -746,6 +755,7 @@ export interface MessageResponseDto {
   groupId: string;
   senderId: string;
   senderName: string;
+  senderPhotoUrl: string | null;
   content: string;
   type: ApiMessageType;
   fileUrl: string | null;

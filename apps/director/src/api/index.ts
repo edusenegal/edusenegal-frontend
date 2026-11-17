@@ -22,6 +22,7 @@ import { createSubjectsApi } from '@/api/subjects.api';
 import { createTeachersApi } from '@/api/teachers.api';
 import { createTransfersApi } from '@/api/transfers.api';
 import { createMockServices } from '@/services/mock';
+import { createSchoolWalletApi } from '@/api/schoolWallet.api';
 import type { Services } from '@/services/ports';
 
 /**
@@ -52,6 +53,8 @@ export function createApiServices(): Services {
     // Portage complet — `get`/`save` (config tarifaire) tapent maintenant
     // payment-service (`GET/POST /payments/config`), filtré par école.
     paymentConfig: { ...fallback.paymentConfig, ...createPaymentsApi() },
+    // SenÉtude Pay : trésorerie entièrement réelle (payment-service).
+    schoolWallet: createSchoolWalletApi(),
     // Portage complet (task #210) — voir le commentaire de `createAcademicResultsApi`.
     academicResults: createAcademicResultsApi(),
     // Portage complet (task #218) — création/consultation seulement, voir

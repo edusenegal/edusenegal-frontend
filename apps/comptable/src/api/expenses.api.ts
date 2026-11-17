@@ -11,7 +11,7 @@ import type {
   ValidateExpenseRequestDto,
 } from '@/types/api';
 import type { ExpensesPort } from '@/services/ports';
-import type { Expense, ExpenseCategory, ExpenseDecision, ExpenseStatus, ExpenseValidationStep } from '@/types/domain';
+import type { Expense, ExpenseCategory, ExpenseDecision, ExpenseStatus, ExpenseValidationStep, PaymentChannel } from '@/types/domain';
 import { isoToFR, frToISO, downloadBlob } from '@/utils/format';
 
 const CATEGORY_TO_API: Record<ExpenseCategory, ApiExpenseCategory> = {
@@ -46,6 +46,17 @@ const STATUS_TO_API: Record<ExpenseStatus, ApiExpenseStatus> = {
   rejetee: 'REJECTED',
   annulee: 'CANCELLED',
 };
+
+const CHANNEL_TO_API: Record<PaymentChannel, string> = {
+  wave: 'WAVE',
+  orange_money: 'ORANGE_MONEY',
+  especes: 'CASH',
+  cheque: 'CHEQUE',
+  virement_bancaire: 'VIREMENT_BANCAIRE',
+};
+const CHANNEL_FROM_API: Record<string, PaymentChannel> = Object.fromEntries(
+  Object.entries(CHANNEL_TO_API).map(([k, v]) => [v, k as PaymentChannel]),
+) as Record<string, PaymentChannel>;
 
 const DECISION_TO_API: Record<ExpenseDecision, ApiValidationDecision> = {
   approuve: 'APPROVED',
@@ -91,6 +102,10 @@ function fromApiExpense(dto: ExpenseResponseDto): Expense {
     motifRejet: dto.rejectionReason ?? null,
     soldeAvantFcfa: dto.balanceBeforeFcfa ?? null,
     soldeApresFcfa: dto.balanceAfterFcfa ?? null,
+    canalReglement: dto.paymentChannel ? (CHANNEL_FROM_API[dto.paymentChannel] ?? null) : null,
+    destinataireVersement: dto.payoutDestination ?? null,
+    refVersement: dto.payoutRef ?? null,
+    statutVersement: dto.payoutStatus ?? null,
     piecesJointes: dto.attachmentUrls ?? [],
     historiqueValidation: (dto.validationHistory ?? []).map(fromApiValidationStep),
     creeLe: isoDateTimeToFR(dto.createdAt) ?? '—',
@@ -152,8 +167,13 @@ export function createExpensesApi(): ExpensesPort {
       return fromApiExpense(dto);
     },
 
-    async validate(expenseId, decision, commentaire): Promise<Expense> {
-      const body: ValidateExpenseRequestDto = { decision: DECISION_TO_API[decision], comment: commentaire };
+    async validate(expenseId, decision, commentaire, canal, destinataire): Promise<Expense> {
+      const body: ValidateExpenseRequestDto = {
+        decision: DECISION_TO_API[decision],
+        comment: commentaire,
+        paymentChannel: canal ? CHANNEL_TO_API[canal] : undefined,
+        payoutDestination: destinataire,
+      };
       const dto = await request<ExpenseResponseDto>(
         `/api/v1/accounting/expenses/${encodeURIComponent(expenseId)}/validate`,
         { method: 'POST', body },

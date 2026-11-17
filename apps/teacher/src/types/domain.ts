@@ -433,6 +433,16 @@ export interface DiscussionGroup {
   dernierMessageLe: string | null; // dd/mm/yyyy hh:mm
   jeSuisAdmin: boolean;
   archive: boolean;
+  /** L'utilisateur courant est-il en lecture seule (bloqué) ? */
+  bloque: boolean;
+}
+
+export interface GroupMember {
+  userId: string;
+  nom: string;
+  photoUrl: string | null;
+  admin: boolean;
+  bloque: boolean;
 }
 
 export type MessageKind = 'texte' | 'fichier' | 'annonce';
@@ -441,6 +451,7 @@ export interface GroupMessage {
   id: string;
   auteurId: string;
   auteurNom: string;
+  auteurPhotoUrl: string | null;
   contenu: string;
   type: MessageKind;
   fichierUrl: string | null;

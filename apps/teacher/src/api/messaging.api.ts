@@ -1,8 +1,8 @@
 import { request, sessionContext } from '@/api/client';
 import { fetchSchoolClasses } from '@/api/context';
-import type { ApiGroupType, ApiMessageType, DiscussionGroupResponseDto, MessageResponseDto } from '@/types/api';
+import type { ApiGroupType, ApiMessageType, DiscussionGroupResponseDto, GroupMemberDto, MessageResponseDto } from '@/types/api';
 import type { MessagingPort } from '@/services/ports';
-import type { DiscussionGroup, GroupKind, GroupMessage, MessageKind } from '@/types/domain';
+import type { DiscussionGroup, GroupKind, GroupMember, GroupMessage, MessageKind } from '@/types/domain';
 
 const GROUP_KIND_FROM_API: Record<ApiGroupType, GroupKind> = {
   CLASS_GROUP: 'classe',
@@ -26,15 +26,17 @@ function fromGroupResponse(dto: DiscussionGroupResponseDto): DiscussionGroup {
     dernierMessageLe: dto.lastMessageAt,
     jeSuisAdmin: dto.admin,
     archive: dto.archived,
+    bloque: dto.blocked ?? false,
   };
 }
 
-function fromMessageResponse(dto: MessageResponseDto): GroupMessage {
+export function fromMessageResponse(dto: MessageResponseDto): GroupMessage {
   const kindFromApi: Record<string, MessageKind> = { TEXT: 'texte', FILE: 'fichier', ANNOUNCEMENT: 'annonce' };
   return {
     id: dto.id,
     auteurId: dto.senderId,
     auteurNom: dto.senderName,
+    auteurPhotoUrl: dto.senderPhotoUrl ?? null,
     contenu: dto.content,
     type: kindFromApi[dto.type] ?? 'texte',
     fichierUrl: dto.fileUrl,
@@ -104,6 +106,38 @@ export function createMessagingApi(): MessagingPort {
 
     async markRead(groupId): Promise<void> {
       await request<void>(`/api/v1/groups/${encodeURIComponent(groupId)}/messages/read`, { method: 'PUT' });
+    },
+
+    async members(groupId): Promise<GroupMember[]> {
+      const dtos = await request<GroupMemberDto[]>(`/api/v1/groups/${encodeURIComponent(groupId)}/members`);
+      return dtos.map((m) => ({
+        userId: m.userId,
+        nom: m.name,
+        photoUrl: m.photoUrl ?? null,
+        admin: m.admin,
+        bloque: m.blocked,
+      }));
+    },
+
+    async blockMember(groupId, userId): Promise<void> {
+      await request<void>(
+        `/api/v1/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}/block`,
+        { method: 'POST' },
+      );
+    },
+
+    async unblockMember(groupId, userId): Promise<void> {
+      await request<void>(
+        `/api/v1/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}/block`,
+        { method: 'DELETE' },
+      );
+    },
+
+    async removeMember(groupId, userId): Promise<void> {
+      await request<void>(
+        `/api/v1/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`,
+        { method: 'DELETE' },
+      );
     },
   };
 }

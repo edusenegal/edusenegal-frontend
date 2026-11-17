@@ -1,5 +1,5 @@
 import { request, sessionContext } from '@/api/client';
-import type { SchoolResponseDto } from '@/types/api';
+import type { AcademicYearDto, SchoolResponseDto } from '@/types/api';
 import type { SchoolPort } from '@/services/ports';
 import type { School } from '@/types/domain';
 
@@ -35,6 +35,14 @@ export function createSchoolApi(): SchoolPort {
       const { schoolId } = sessionContext();
       const dto = await request<SchoolResponseDto>(`/api/v1/schools/${encodeURIComponent(schoolId)}`);
       return fromSchoolResponse(dto);
+    },
+
+    async getActiveYearLabel(): Promise<string> {
+      const { schoolId } = sessionContext();
+      const year = await request<AcademicYearDto>(
+        `/api/v1/schools/${encodeURIComponent(schoolId)}/academic-years/active`,
+      );
+      return year.label;
     },
   };
 }
