@@ -11,6 +11,7 @@ import LoginPage from '@/features/auth/LoginPage';
  * tant qu'elle ne l'a pas ouvert.
  */
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
+const MessagingPage = lazy(() => import('@/features/messaging/MessagingPage'));
 const BilanAnnuelPage = lazy(() => import('@/features/bilan-annuel/BilanAnnuelPage'));
 const ClassesListPage = lazy(() => import('@/features/classes/ClassesListPage'));
 const ClassDetailPage = lazy(() => import('@/features/classes/ClassDetailPage'));
@@ -48,6 +49,7 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
+            <Route path="messagerie" element={<MessagingPage />} />
             <Route index element={<DashboardPage />} />
             <Route path="bilan-annuel" element={<BilanAnnuelPage />} />
             <Route path="classes" element={<ClassesListPage />} />

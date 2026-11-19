@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import LoginPage from '@/features/auth/LoginPage';
 
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
+const MessagingPage = lazy(() => import('@/features/messaging/MessagingPage'));
 const CataloguePage = lazy(() => import('@/features/catalogue/CataloguePage'));
 const EmpruntsPage = lazy(() => import('@/features/emprunts/EmpruntsPage'));
 const RetardsPage = lazy(() => import('@/features/retards/RetardsPage'));
@@ -23,6 +24,7 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
+            <Route path="messagerie" element={<MessagingPage />} />
             <Route index element={<DashboardPage />} />
             <Route path="catalogue" element={<CataloguePage />} />
             <Route path="emprunts" element={<EmpruntsPage />} />

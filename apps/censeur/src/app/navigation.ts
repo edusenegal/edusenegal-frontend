@@ -63,6 +63,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Établissement',
     items: [{ to: '/parametres', label: 'Paramètres', icon: 'settings' }],
   },
+  {
+    label: 'Communication',
+    items: [{ to: '/messagerie', label: 'Messagerie', icon: 'message' }],
+  },
 ];
 
 export function labelForPath(pathname: string): string {

@@ -43,6 +43,7 @@ const SalaryRequestsPage = lazy(() => import('@/features/salary-requests/SalaryR
 const SignaturesPage = lazy(() => import('@/features/signatures/SignaturesPage'));
 const NoticesPage = lazy(() => import('@/features/notices/NoticesPage'));
 const GradeDisputesPage = lazy(() => import('@/features/grade-disputes/GradeDisputesPage'));
+const MessagingPage = lazy(() => import('@/features/messaging/MessagingPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const NotFoundPage = lazy(() => import('@/features/errors/NotFoundPage'));
 
@@ -86,6 +87,7 @@ export function AppRoutes() {
             <Route path="salaires" element={<SalaryRequestsPage />} />
             <Route path="signatures" element={<SignaturesPage />} />
             <Route path="notes-de-service" element={<NoticesPage />} />
+            <Route path="messagerie" element={<MessagingPage />} />
             <Route path="reclamations-notes" element={<GradeDisputesPage />} />
             <Route path="parametres" element={<SettingsPage />} />
           </Route>

@@ -35,6 +35,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/profil', label: 'Mon profil', icon: 'user' },
     ],
   },
+  {
+    label: 'Communication',
+    items: [{ to: '/messagerie', label: 'Messagerie', icon: 'message' }],
+  },
 ];
 
 export function labelForPath(pathname: string): string {

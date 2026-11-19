@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/signatures', label: 'Bulletins & signatures', icon: 'pen' },
       { to: '/notes-de-service', label: 'Notes de service', icon: 'megaphone' },
+      { to: '/messagerie', label: 'Messagerie', icon: 'message' },
     ],
   },
   {
