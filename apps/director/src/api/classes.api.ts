@@ -7,6 +7,9 @@ import type {
   ClassInfoDto,
   ClassResponseDto,
   CreateClassRequestDto,
+  InstantiateClassesRequestDto,
+  PromotionApplyRequestDto,
+  PromotionReportDto,
   CreateTimetableRequestDto,
   ExamCalendarResponseDto,
   ScheduleExamRequestDto,
@@ -14,7 +17,21 @@ import type {
   TimetableVersionResponseDto,
 } from '@/types/api';
 import type { ClassesPort } from '@/services/ports';
-import type { ClassEvent, ClassGroup, ClassLevel, EventType, ScheduleSlot } from '@/types/domain';
+import type { ClassEvent, ClassGroup, ClassLevel, EventType, PromotionReport, PromotionResult, ScheduleSlot } from '@/types/domain';
+
+/** Décision domaine → enum API (aligné sur academic.api). */
+const DECISION_TO_API: Record<PromotionResult, 'PROMOTED' | 'EXCEPTIONAL' | 'RETAINED' | 'EXCLUDED'> = {
+  admis: 'PROMOTED',
+  admis_exceptionnel: 'EXCEPTIONAL',
+  redouble: 'RETAINED',
+  exclu: 'EXCLUDED',
+};
+const API_TO_DECISION: Record<'PROMOTED' | 'EXCEPTIONAL' | 'RETAINED' | 'EXCLUDED', PromotionResult> = {
+  PROMOTED: 'admis',
+  EXCEPTIONAL: 'admis_exceptionnel',
+  RETAINED: 'redouble',
+  EXCLUDED: 'exclu',
+};
 
 /**
  * `GET /classes/{id}` et `GET /classes/school/.../year/...` renvoient
@@ -210,6 +227,71 @@ export function createClassesApi(): ClassesPort {
     async get(classId: string): Promise<ClassGroup> {
       const dto = await request<ClassInfoDto>(`/api/v1/classes/${encodeURIComponent(classId)}`);
       return fromClassInfo(dto);
+    },
+
+    async listByYear(yearId: string): Promise<ClassGroup[]> {
+      const { schoolId } = sessionContext();
+      const dtos = await request<ClassInfoDto[]>(
+        `/api/v1/classes/school/${encodeURIComponent(schoolId)}/year/${encodeURIComponent(yearId)}`,
+      );
+      return dtos.map(fromClassInfo);
+    },
+
+    async instantiateYear(toYearId, definitions): Promise<ClassGroup[]> {
+      const { schoolId } = sessionContext();
+      const body: InstantiateClassesRequestDto = {
+        schoolId,
+        toYearId,
+        // Cohérent avec `create()` : l'app director cible le lycée.
+        schoolType: 'LYCEE',
+        classes: definitions.map((d) => ({
+          level: d.level,
+          series: d.series,
+          tag: d.tag,
+          capacity: d.capacite,
+          ...(d.homeroomTeacherId ? { homeroomTeacherId: d.homeroomTeacherId } : {}),
+        })),
+      };
+      const dtos = await request<ClassResponseDto[]>(
+        `/api/v1/classes/school/${encodeURIComponent(schoolId)}/year/${encodeURIComponent(toYearId)}/instantiate`,
+        { method: 'POST', body },
+      );
+      return dtos.map(fromClassResponse);
+    },
+
+    async applyPromotion(input): Promise<PromotionReport> {
+      const { schoolId } = sessionContext();
+      const body: PromotionApplyRequestDto = {
+        schoolId,
+        fromYearId: input.fromYearId,
+        toYearId: input.toYearId,
+        results: input.results.map((r) => ({
+          studentId: r.studentId,
+          classId: r.classId,
+          annualAverage: r.annualAverage,
+          finalResult: DECISION_TO_API[r.promotionResult],
+        })),
+      };
+      const dto = await request<PromotionReportDto>(
+        `/api/v1/classes/school/${encodeURIComponent(schoolId)}/promote`,
+        { method: 'POST', body },
+      );
+      return {
+        promotedCount: dto.promotedCount,
+        retainedCount: dto.retainedCount,
+        unplacedCount: dto.unplacedCount,
+        unplaced: dto.unplaced.map((u) => ({
+          studentId: u.studentId,
+          fromClassId: u.fromClassId,
+          fromClassName: u.fromClassName,
+          fromLevel: u.fromLevel,
+          fromSeries: u.fromSeries,
+          fromTag: u.fromTag,
+          nextLevel: u.nextLevel,
+          reason: u.reason,
+          decision: API_TO_DECISION[u.decision],
+        })),
+      };
     },
 
     async create(input): Promise<ClassGroup> {

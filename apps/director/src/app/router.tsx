@@ -29,6 +29,7 @@ const SubjectsListPage = lazy(() => import('@/features/subjects/SubjectsListPage
 const RoomsPage = lazy(() => import('@/features/rooms/RoomsPage'));
 const SubjectDetailPage = lazy(() => import('@/features/subjects/SubjectDetailPage'));
 const AcademicResultsPage = lazy(() => import('@/features/academic-results/AcademicResultsPage'));
+const GraduatesExpelledPage = lazy(() => import('@/features/graduates/GraduatesExpelledPage'));
 const PaymentConfigPage = lazy(() => import('@/features/payments/PaymentConfigPage'));
 const TreasuryPage = lazy(() => import('@/features/payments/TreasuryPage'));
 const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage'));
@@ -37,6 +38,9 @@ const PromotionsPage = lazy(() => import('@/features/promotions/PromotionsPage')
 const TransfersPage = lazy(() => import('@/features/transfers/TransfersPage'));
 const TransferDetailPage = lazy(() => import('@/features/transfers/TransferDetailPage'));
 const AcademicYearPage = lazy(() => import('@/features/academic-year/AcademicYearPage'));
+const ClosureReadinessPage = lazy(() => import('@/features/closure/ClosureReadinessPage'));
+const BasculePage = lazy(() => import('@/features/bascule/BasculePage'));
+const BilanCloturePage = lazy(() => import('@/features/bilan-cloture/BilanCloturePage'));
 const OpenYearWizard = lazy(() => import('@/features/academic-year/wizard/OpenYearWizard'));
 const LeavesPage = lazy(() => import('@/features/leaves/LeavesPage'));
 const SalaryRequestsPage = lazy(() => import('@/features/salary-requests/SalaryRequestsPage'));
@@ -64,6 +68,7 @@ export function AppRoutes() {
             <Route path="personnel" element={<PersonnelListPage />} />
             <Route path="eleves" element={<StudentsListPage />} />
             <Route path="eleves/:studentId" element={<StudentDetailPage />} />
+            <Route path="diplomes-renvoyes" element={<GraduatesExpelledPage />} />
             <Route path="presence" element={<AttendanceOverviewPage />} />
             <Route path="presence/demandes" element={<AbsenceReviewPage />} />
             <Route path="presence/absences-du-jour" element={<AbsencesTodayByClassPage />} />
@@ -81,6 +86,9 @@ export function AppRoutes() {
             <Route path="promotions" element={<PromotionsPage />} />
             <Route path="transferts" element={<TransfersPage />} />
             <Route path="transferts/:transferId" element={<TransferDetailPage />} />
+            <Route path="cloture-annee" element={<ClosureReadinessPage />} />
+            <Route path="bascule" element={<BasculePage />} />
+            <Route path="bilan-cloture" element={<BilanCloturePage />} />
             <Route path="annee-scolaire" element={<AcademicYearPage />} />
             <Route path="annee-scolaire/ouvrir" element={<OpenYearWizard />} />
             <Route path="conges" element={<LeavesPage />} />

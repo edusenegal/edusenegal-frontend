@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { fmtPct } from '@/utils/format';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Button, Card, Field, Select, Sheet, StateView, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
+import type { Mention } from '@/types/domain';
 import { PersonalDocumentsSection } from '@/components/documents/PersonalDocumentsSection';
 import { StudentEditSheet } from './StudentEditSheet';
 import { StudentGradesTab } from './StudentGradesTab';
@@ -33,6 +34,26 @@ export default function StudentDetailPage() {
 
   const studentQuery = useQuery({ queryKey: ['student', studentId], queryFn: () => students.get(studentId) });
   const s = studentQuery.data;
+
+  // Fin de cycle (CM2/3ème/Terminale) : saisie Diplômé/mention, à tout moment.
+  const isTerminalClass = !!s && /terminale|\btle\b|cm2|3\s*[eè]me?|\b3e\b/i.test(s.classe ?? '');
+  const [diplome, setDiplome] = useState(false);
+  const [mention, setMention] = useState<Mention>('passable');
+  const yearResultQuery = useQuery({
+    queryKey: ['student-year-result', studentId],
+    queryFn: () => academicResults.getStudentYearResult(studentId),
+    enabled: !!s && isTerminalClass,
+  });
+  useEffect(() => {
+    const yr = yearResultQuery.data;
+    if (!yr) return;
+    setDiplome(yr.diplome ?? false);
+    if (yr.diplomaMention) setMention(yr.diplomaMention);
+  }, [yearResultQuery.data]);
+  const diplomaMutation = useMutation({
+    mutationFn: () => academicResults.setDiploma(studentId, s?.classeId ?? '', { diplome, diplomaMention: diplome ? mention : null }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student-year-result', studentId] }),
+  });
 
   // Données dynamiques de la fiche (demande explicite : plus de 0 figé).
   // Moyenne : academic-service (dernier semestre calculé — « — » si pas encore
@@ -153,6 +174,15 @@ export default function StudentDetailPage() {
     },
   });
 
+  const expelMutation = useMutation({
+    mutationFn: () => students.expel(studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['students-page'] });
+    },
+  });
+
   async function onToggleBlock() {
     if (!s) return;
     const willBlock = s.statut !== 'suspendu';
@@ -161,6 +191,14 @@ export default function StudentDetailPage() {
       : `Débloquer ${s.prenom} ${s.nom} ? L’accès à son compte sera rétabli.`;
     if (await confirm({ title: willBlock ? 'Bloquer l’élève' : 'Débloquer l’élève', message: msg, danger: willBlock })) {
       blockMutation.mutate(willBlock);
+    }
+  }
+
+  async function onExpel() {
+    if (!s) return;
+    const msg = `Renvoyer ${s.prenom} ${s.nom} ? L’élève sera exclu de l’établissement (renvoyé) et ne pourra plus se connecter. Il apparaîtra dans la liste des renvoyés de l’année.`;
+    if (await confirm({ title: 'Renvoyer l’élève', message: msg, danger: true })) {
+      expelMutation.mutate();
     }
   }
 
@@ -204,6 +242,14 @@ export default function StudentDetailPage() {
             >
               {s?.statut === 'suspendu' ? '✓ Débloquer' : '⊘ Bloquer'}
             </Button>
+            <Button
+              variant="secondary"
+              onClick={onExpel}
+              disabled={!s || s?.statut === 'transfere'}
+              loading={expelMutation.isPending}
+            >
+              ⚠ Renvoyer
+            </Button>
             <Button variant="ghost" onClick={onDelete} disabled={!s} loading={removeMutation.isPending}>
               ✕ Supprimer
             </Button>
@@ -237,6 +283,39 @@ export default function StudentDetailPage() {
               <StudentGradesTab studentId={s.id} />
             ) : (
               <>
+                {isTerminalClass ? (
+                  <Card>
+                    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ fontWeight: 600 }}>Diplôme de fin de cycle</div>
+                      <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>
+                        Classe d'examen ({s.classe}). Renseignez le résultat de l'examen national (CFEE / BFEM / BAC).
+                        Un élève non diplômé redouble, même avec une moyenne ≥ 10.
+                      </p>
+                      <Field label="Diplômé ?">
+                        <Select value={diplome ? 'oui' : 'non'} onChange={(e) => setDiplome(e.target.value === 'oui')}>
+                          <option value="non">Non</option>
+                          <option value="oui">Oui</option>
+                        </Select>
+                      </Field>
+                      {diplome ? (
+                        <Field label="Mention">
+                          <Select value={mention} onChange={(e) => setMention(e.target.value as Mention)}>
+                            <option value="passable">Passable</option>
+                            <option value="assez_bien">Assez bien</option>
+                            <option value="bien">Bien</option>
+                            <option value="tres_bien">Très bien</option>
+                            <option value="excellent">Excellent</option>
+                          </Select>
+                        </Field>
+                      ) : null}
+                      <div>
+                        <Button variant="primary" loading={diplomaMutation.isPending} onClick={() => diplomaMutation.mutate()}>
+                          Enregistrer le diplôme
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ) : null}
                 <Card>
                   <div className={styles.body}>
                     <div className={styles.rows}>

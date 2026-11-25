@@ -413,27 +413,31 @@ function RemunerationTab({ teacherId, teacher }: { teacherId: string; teacher: T
           </p>
         </Card>
       ) : null}
-      {!teacher.salaryMode ? (
-        <p className={styles.hint}>
-          Aucun salaire configuré pour le moment — une demande de paiement ne pourra pas être créée pour cet enseignant
-          avant d’en définir un ci-dessous.
-        </p>
+      {!isPublicSchool ? (
+        <>
+          {!teacher.salaryMode ? (
+            <p className={styles.hint}>
+              Aucun salaire configuré pour le moment — une demande de paiement ne pourra pas être créée pour cet enseignant
+              avant d’en définir un ci-dessous.
+            </p>
+          ) : null}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
+            <Field label="Mode de rémunération">
+              <Select value={mode} onChange={(e) => setMode(e.target.value as SalaryMode)}>
+                <option value="fixe">{SALARY_MODE_LABEL.fixe}</option>
+                <option value="par_jour">{SALARY_MODE_LABEL.par_jour}</option>
+                <option value="par_heure">{SALARY_MODE_LABEL.par_heure}</option>
+              </Select>
+            </Field>
+            <Field label={`${montantLabel} (FCFA)`}>
+              <Input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} />
+            </Field>
+            <Button variant="primary" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+              Enregistrer
+            </Button>
+          </div>
+        </>
       ) : null}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
-        <Field label="Mode de rémunération">
-          <Select value={mode} onChange={(e) => setMode(e.target.value as SalaryMode)} disabled={isPublicSchool}>
-            <option value="fixe">{SALARY_MODE_LABEL.fixe}</option>
-            <option value="par_jour">{SALARY_MODE_LABEL.par_jour}</option>
-            <option value="par_heure">{SALARY_MODE_LABEL.par_heure}</option>
-          </Select>
-        </Field>
-        <Field label={`${montantLabel} (FCFA)`}>
-          <Input type="number" min={0} value={montant} onChange={(e) => setMontant(e.target.value)} disabled={isPublicSchool} />
-        </Field>
-        <Button variant="primary" loading={saveMutation.isPending} disabled={isPublicSchool} onClick={() => saveMutation.mutate()}>
-          Enregistrer
-        </Button>
-      </div>
       {error ? <p style={{ color: 'var(--color-danger)', fontSize: 13, marginTop: -4 }}>{error}</p> : null}
 
       <h3 className={styles.sectionTitle} style={{ marginTop: 'var(--space-lg)' }}>

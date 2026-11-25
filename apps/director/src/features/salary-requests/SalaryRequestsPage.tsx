@@ -37,11 +37,11 @@ function monthBounds(monthValue: string): { dateDebut: string; dateFin: string }
 }
 
 export default function SalaryRequestsPage() {
-  const { salaryRequests, teachers, school } = useServices();
+  const { salaryRequests, personnel, school } = useServices();
   const queryClient = useQueryClient();
 
   const list = useQuery({ queryKey: ['salary-requests'], queryFn: () => salaryRequests.list() });
-  const teacherList = useQuery({ queryKey: ['teachers'], queryFn: () => teachers.list() });
+  const staffList = useQuery({ queryKey: ['personnel'], queryFn: () => personnel.list() });
   // CORRECTION — une école PUBLIQUE voit ses enseignants payés par l'État
   // (voir `SalaryLine`/`settleAndGeneratePayslip` côté backend, qui ne
   // débite le ledger école que pour PRIVATE) : la demande de paiement de
@@ -58,7 +58,7 @@ export default function SalaryRequestsPage() {
   const [paymentMethods, setPaymentMethods] = useState<Record<string, PaymentChannel>>({});
   const [destinations, setDestinations] = useState<Record<string, string>>({});
 
-  const activeTeachers = (teacherList.data ?? []).filter((t) => t.statut === 'actif');
+  const activeStaff = (staffList.data ?? []).filter((t) => t.statut === 'actif');
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['salary-requests'] });
@@ -68,7 +68,7 @@ export default function SalaryRequestsPage() {
     mutationFn: () => {
       const { dateDebut, dateFin } = monthBounds(mois);
       const lignes = [...checked].map((teacherId) => {
-        const teacher = activeTeachers.find((t) => t.id === teacherId)!;
+        const teacher = activeStaff.find((t) => t.id === teacherId)!;
         const worked = Number(workedInputs[teacherId] ?? 0);
         const modePaiement = paymentMethods[teacherId];
         return {
@@ -111,7 +111,7 @@ export default function SalaryRequestsPage() {
 
   const columns: Column<SalaryRequest>[] = [
     { key: 'periode', header: 'Période', render: (r) => r.periode },
-    { key: 'lignes', header: 'Enseignants', render: (r) => `${r.lignes.length} enseignant${r.lignes.length > 1 ? 's' : ''}` },
+    { key: 'lignes', header: 'Personnel', render: (r) => `${r.lignes.length} agent${r.lignes.length > 1 ? 's' : ''}` },
     { key: 'montant', header: 'Montant total', render: (r) => fmtXOF(r.montantTotal), align: 'right' },
     { key: 'date', header: 'Créée le', render: (r) => r.dateCreation },
     { key: 'statut', header: 'Statut', render: (r) => <Badge tone={STATUS_TONE[r.statut]}>{STATUS_LABEL[r.statut]}</Badge> },
@@ -194,7 +194,7 @@ export default function SalaryRequestsPage() {
           également le moyen de paiement de chaque ligne ; espèces par défaut.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
-          {activeTeachers.map((t) => {
+          {activeStaff.map((t) => {
             const unconfigured = !t.salaryMode;
             const isChecked = checked.has(t.id);
             const mode = paymentMethods[t.id] ?? 'especes';
@@ -221,11 +221,11 @@ export default function SalaryRequestsPage() {
                       checked={isChecked}
                       onChange={() => toggle(t.id)}
                     />
-                    {t.nom}
+                    {t.prenom} {t.nom}
                     <Badge tone="info">{unconfigured ? 'Non configuré' : SALARY_MODE_LABEL[t.salaryMode!]}</Badge>
                   </span>
                   {unconfigured ? (
-                    <span style={{ color: 'var(--color-text-muted)' }}>Configurer depuis la fiche enseignant</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Configurer depuis la fiche du membre</span>
                   ) : t.salaryMode === 'fixe' ? (
                     <span style={{ color: 'var(--color-text-muted)' }}>{fmtXOF(t.salaireFixe ?? 0)}</span>
                   ) : (

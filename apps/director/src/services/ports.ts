@@ -12,6 +12,10 @@ import type {
   AbsenceRequestSummary,
   AbsenceReviewStatus,
   AbsentStudentEntry,
+  ClassClosureSummary,
+  PromotionDecision,
+  PromotionReport,
+  SchoolRecoveryStats,
   AcademicPeriod,
   AcademicPeriodType,
   AcademicYear,
@@ -20,6 +24,7 @@ import type {
   ClassAttendanceRate,
   SchoolAttendanceOverview,
   StaffMember,
+  StaffSalaryProfile,
   BulletinPeriod,
   ClassEvent,
   ClassGroup,
@@ -48,6 +53,7 @@ import type {
   PersonalDocumentType,
   PromotionOverride,
   RoomAvailability,
+  Mention,
   SalaryMode,
   SalaryRequest,
   SalarySlip,
@@ -293,6 +299,21 @@ export interface ClassesPort {
    * jamais à l'inscription (aucune propagation de jeton entre services ici).
    */
   enroll(classId: string, studentId: string): Promise<void>;
+  /** Bascule §3.1 — classes d'UNE année précise (gabarit N, ou vérif N+1). Backend : `GET /classes/school/{schoolId}/year/{yearId}`. */
+  listByYear(yearId: string): Promise<ClassGroup[]>;
+  /**
+   * Bascule §3.1 — instancie les classes de la nouvelle année depuis un gabarit
+   * (coquilles vides). Idempotent. Backend : `POST /classes/school/{schoolId}/year/{toYearId}/instantiate`.
+   */
+  instantiateYear(
+    toYearId: string,
+    definitions: Array<{ level: string; series: string | null; tag: string | null; capacite: number; homeroomTeacherId?: string | null }>,
+  ): Promise<ClassGroup[]>;
+  /**
+   * Bascule §3.2/§3.3 — applique les décisions de passage dans {@code toYearId},
+   * renvoie la file « à orienter ». Backend : `POST /classes/school/{schoolId}/promote`.
+   */
+  applyPromotion(input: { fromYearId: string; toYearId: string; results: PromotionDecision[] }): Promise<PromotionReport>;
   /** Backend : `DELETE /api/v1/classes/{classId}/students/{studentId}` (class-service). */
   unenroll(classId: string, studentId: string): Promise<void>;
   /**
@@ -443,6 +464,10 @@ export interface StudentsPort {
   block(studentId: string): Promise<void>;
   /** Rétablit l'accès de l'élève (compte ACTIVE). Backend : `PATCH /users/{id}/unblock?schoolId`. */
   unblock(studentId: string): Promise<void>;
+  /** Renvoi disciplinaire (RENVOYÉ). Backend : `PATCH /users/{id}/schools/{schoolId}/expel`. */
+  expel(studentId: string, reason?: string): Promise<void>;
+  /** Élèves renvoyés (RENVOYÉS). Backend : GET /users/school/{schoolId}/expelled. */
+  getExpelled(): Promise<Student[]>;
   /**
    * Nombre d'absences DE CHAQUE élève sur l'année en cours (task #207 —
    * `GET /attendances/analytics/students/stats`, bulk). Non scindé par
@@ -518,6 +543,8 @@ export interface PaymentConfigPort {
   getPaymentRatesForStudents(studentIds: string[], classId?: string): Promise<Record<string, number>>;
   /** Synthèse de recouvrement (dû net de bourse, collecté, taux) d'un ensemble d'élèves / d'une classe. Backend : `GET /payments/stats/by-students`. */
   getClassStats(studentIds: string[], classId?: string): Promise<CollectionStats | null>;
+  /** Recouvrement GLOBAL de l'école (attendu/encaissé/reste, taux, par canal) — bilan comptable de clôture. Backend : `GET /payments/stats/{schoolId}?yearId=`. */
+  getSchoolRecovery(): Promise<SchoolRecoveryStats>;
 }
 
 /**
@@ -860,6 +887,20 @@ export interface AcademicResultsPort {
 
   /** Backend : `GET /academic/results/class/{classId}/annual`. */
   getClassYearResults(classId: string): Promise<YearResult[]>;
+  /** Résultat annuel d'UN élève (pré-remplissage diplôme). Null si pas encore calculé. */
+  getStudentYearResult(studentId: string): Promise<YearResult | null>;
+  /** Diplômés de fin de cycle de l'école (année active). Backend : GET /academic/results/school/{schoolId}/year/{yearId}/graduates. */
+  getGraduates(): Promise<YearResult[]>;
+  /** Saisie du diplôme de fin de cycle (à tout moment). Backend : PUT /academic/results/student/{id}/diploma. */
+  setDiploma(studentId: string, classId: string, input: { diplome: boolean; diplomaMention: Mention | null }): Promise<void>;
+  /**
+   * Tableau de bord de pré-clôture — par classe : décisions arrêtées + répartition
+   * promus/redoublants/diplômés/exclus. Backend :
+   * `GET /academic/results/school/{schoolId}/year/{yearId}/closure-readiness`.
+   */
+  getClosureReadiness(): Promise<ClassClosureSummary[]>;
+  /** Décisions de passage de toute l'année (bascule N → N+1). Backend : GET /academic/results/school/{schoolId}/year/{yearId}/decisions. */
+  getPromotionDecisions(yearId: string): Promise<PromotionDecision[]>;
   /**
    * Backend : `POST /academic/year/close`. Clôture les résultats de l'année — distincte de
    * `SchoolPort.closeAcademicYear` (year-opening-service) et de la clôture école
@@ -935,6 +976,13 @@ export interface PersonnelPort {
   block(id: string): Promise<void>;
   /** Rétablit l'accès (ACTIVE). Backend : `PATCH /users/{id}/unblock?schoolId`. */
   unblock(id: string): Promise<void>;
+  /** Profil de rémunération de l'agent. Backend : `GET /users/{id}/schools/{schoolId}/salary`. */
+  getSalaryProfile(userId: string): Promise<StaffSalaryProfile>;
+  /** Backend : `PUT /users/{id}/schools/{schoolId}/salary`. */
+  updateSalary(
+    userId: string,
+    input: { salaryMode: SalaryMode; salaireFixe: number | null; tauxJournalier: number | null; tauxHoraire: number | null },
+  ): Promise<void>;
 }
 
 /**

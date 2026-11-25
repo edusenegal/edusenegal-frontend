@@ -1,7 +1,14 @@
 import { request, sessionContext } from '@/api/client';
-import type { CreateUserRequestDto, UpdateUserRequestDto, UserResponseDto } from '@/types/api';
+import type {
+  ApiSalaryMode,
+  CreateUserRequestDto,
+  SchoolSalaryProfileResponseDto,
+  UpdateSalaryRequestDto,
+  UpdateUserRequestDto,
+  UserResponseDto,
+} from '@/types/api';
 import type { PersonnelPort } from '@/services/ports';
-import type { StaffMember, StaffStatus } from '@/types/domain';
+import type { SalaryMode, StaffMember, StaffStatus, StaffSalaryProfile } from '@/types/domain';
 
 /** Rôles exclus de l'écran « Personnel » : les enseignants ont leur propre
  *  écran (« Enseignants »), la direction ne se gère pas elle-même, et les
@@ -30,6 +37,30 @@ function fromAccountStatus(status: string | undefined): StaffStatus {
   }
 }
 
+function toSalaryModeDto(mode: SalaryMode): ApiSalaryMode {
+  switch (mode) {
+    case 'par_jour':
+      return 'PER_WORKED_DAY';
+    case 'par_heure':
+      return 'PER_HOUR';
+    default:
+      return 'FIXED';
+  }
+}
+
+function fromSalaryModeDto(mode: ApiSalaryMode | null | undefined): SalaryMode | null {
+  switch (mode) {
+    case 'PER_WORKED_DAY':
+      return 'par_jour';
+    case 'PER_HOUR':
+      return 'par_heure';
+    case 'FIXED':
+      return 'fixe';
+    default:
+      return null;
+  }
+}
+
 function fromUserResponse(dto: UserResponseDto): StaffMember {
   return {
     id: dto.id,
@@ -40,6 +71,10 @@ function fromUserResponse(dto: UserResponseDto): StaffMember {
     email: dto.email ?? '—',
     statut: fromAccountStatus(dto.accountStatus),
     photoUrl: dto.photoUrl ?? null,
+    salaryMode: fromSalaryModeDto(dto.salaryMode),
+    salaireFixe: dto.fixedAmountFcfa ?? null,
+    tauxJournalier: dto.dailyRateFcfa ?? null,
+    tauxHoraire: dto.hourlyRateFcfa ?? null,
   };
 }
 
@@ -110,6 +145,33 @@ export function createPersonnelApi(): PersonnelPort {
         method: 'PATCH',
         query: { schoolId },
       });
+    },
+
+    async getSalaryProfile(userId): Promise<StaffSalaryProfile> {
+      const { schoolId } = sessionContext();
+      const dto = await request<SchoolSalaryProfileResponseDto>(
+        `/api/v1/users/${encodeURIComponent(userId)}/schools/${encodeURIComponent(schoolId)}/salary`,
+      );
+      return {
+        salaryMode: fromSalaryModeDto(dto.salaryMode),
+        salaireFixe: dto.fixedAmountFcfa ?? null,
+        tauxJournalier: dto.dailyRateFcfa ?? null,
+        tauxHoraire: dto.hourlyRateFcfa ?? null,
+      };
+    },
+
+    async updateSalary(userId, input): Promise<void> {
+      const { schoolId } = sessionContext();
+      const body: UpdateSalaryRequestDto = {
+        salaryMode: toSalaryModeDto(input.salaryMode),
+        fixedAmountFcfa: input.salaireFixe ?? undefined,
+        dailyRateFcfa: input.tauxJournalier ?? undefined,
+        hourlyRateFcfa: input.tauxHoraire ?? undefined,
+      };
+      await request<SchoolSalaryProfileResponseDto>(
+        `/api/v1/users/${encodeURIComponent(userId)}/schools/${encodeURIComponent(schoolId)}/salary`,
+        { method: 'PUT', body },
+      );
     },
   };
 }

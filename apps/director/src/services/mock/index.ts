@@ -420,6 +420,15 @@ export function createMockServices(): Services {
       async list(): Promise<ClassGroup[]> {
         return respond(state.classes);
       },
+      async listByYear(): Promise<ClassGroup[]> {
+        return respond(state.classes);
+      },
+      async instantiateYear(): Promise<ClassGroup[]> {
+        return respond(state.classes);
+      },
+      async applyPromotion() {
+        return respond({ promotedCount: 0, retainedCount: 0, unplacedCount: 0, unplaced: [] });
+      },
       async get(classId: string): Promise<ClassGroup> {
         const found = state.classes.find((c) => c.id === classId);
         if (!found) notFound('Classe');
@@ -762,6 +771,25 @@ export function createMockServices(): Services {
         found.statut = 'actif';
         await respond(undefined, 250);
       },
+      async getSalaryProfile(id) {
+        const found = state.staff.find((m) => m.id === id);
+        if (!found) notFound('Personnel');
+        return respond({
+          salaryMode: found.salaryMode ?? null,
+          salaireFixe: found.salaireFixe ?? null,
+          tauxJournalier: found.tauxJournalier ?? null,
+          tauxHoraire: found.tauxHoraire ?? null,
+        });
+      },
+      async updateSalary(id, input) {
+        const found = state.staff.find((m) => m.id === id);
+        if (!found) notFound('Personnel');
+        found.salaryMode = input.salaryMode;
+        found.salaireFixe = input.salaireFixe;
+        found.tauxJournalier = input.tauxJournalier;
+        found.tauxHoraire = input.tauxHoraire;
+        await respond(undefined, 250);
+      },
     },
 
     students: {
@@ -848,6 +876,15 @@ export function createMockServices(): Services {
         if (!found) notFound('Élève');
         found.statut = 'actif';
         await respond(undefined, 250);
+      },
+      async expel(studentId): Promise<void> {
+        const found = state.students.find((s) => s.id === studentId);
+        if (!found) notFound('Élève');
+        found.statut = 'suspendu';
+        await respond(undefined, 250);
+      },
+      async getExpelled(): Promise<Student[]> {
+        return respond(state.students.filter((s) => s.statut === 'suspendu'));
       },
 
       async getAbsenceCounts(studentIds): Promise<Record<string, number>> {
@@ -978,6 +1015,20 @@ export function createMockServices(): Services {
         return respond(result);
       },
 
+      async getSchoolRecovery() {
+        return respond({
+          totalStudents: state.students.length,
+          paidStudents: 0,
+          overdueStudents: 0,
+          pendingStudents: state.students.length,
+          totalExpectedFcfa: 0,
+          totalCollectedFcfa: 0,
+          totalRemainingFcfa: 0,
+          collectionRate: 0,
+          byChannel: {},
+          byLevel: {},
+        });
+      },
       async getClassStats(studentIds) {
         if (studentIds.length === 0) return respond(null);
         const rows = state.students.filter((s) => studentIds.includes(s.id));
@@ -2020,6 +2071,21 @@ export function createMockServices(): Services {
         );
       },
 
+      async getStudentYearResult(): Promise<YearResult | null> {
+        return respond(null);
+      },
+      async setDiploma(): Promise<void> {
+        await respond(undefined, 200);
+      },
+      async getGraduates(): Promise<YearResult[]> {
+        return respond([]);
+      },
+      async getClosureReadiness() {
+        return respond([]);
+      },
+      async getPromotionDecisions() {
+        return respond([]);
+      },
       async closeResultsYear(): Promise<void> {
         state.resultsYearClosed = true;
         return respond(undefined, 400);

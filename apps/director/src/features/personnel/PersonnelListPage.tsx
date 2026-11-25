@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { roleLabel } from '@/utils/roles';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Avatar, Badge, Button, Field, Input, Select, Sheet, StateView, Table, type Column, useConfirm } from '@/components/ui';
 import { useServices } from '@/hooks/useServices';
 import { AppError } from '@/services/errors';
-import type { StaffMember, StaffStatus } from '@/types/domain';
+import type { SalaryMode, StaffMember, StaffStatus } from '@/types/domain';
 
 /** Libellés affichés pour chaque rôle technique (UserRole). */
 /** Rôles proposés à la création depuis l'espace direction. */
@@ -35,11 +35,13 @@ const STATUS_LABEL: Record<StaffStatus, string> = {
 
 
 export default function PersonnelListPage() {
-  const { personnel } = useServices();
+  const { personnel, school } = useServices();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
 
   const listQuery = useQuery({ queryKey: ['personnel'], queryFn: () => personnel.list() });
+  const schoolQuery = useQuery({ queryKey: ['school'], queryFn: () => school.getSchool() });
+  const isPublicSchool = schoolQuery.data?.type === 'public';
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<StaffMember | null>(null);
@@ -50,12 +52,28 @@ export default function PersonnelListPage() {
   const [email, setEmail] = useState('');
   const [sexe, setSexe] = useState<'M' | 'F'>('M');
   const [formError, setFormError] = useState<string | null>(null);
+  const [salaryMode, setSalaryMode] = useState<SalaryMode>('fixe');
+  const [montant, setMontant] = useState('');
 
   // Fiche détail (photo en exergue + statut modifiable). On garde l'id et on
   // relit le membre dans la liste en cache, pour que le statut affiché suive
   // les mutations block/unblock sans snapshot figé.
   const [detailId, setDetailId] = useState<string | null>(null);
   const detail = detailId ? (listQuery.data?.find((m) => m.id === detailId) ?? null) : null;
+
+  // Rémunération de l'agent en cours d'édition — chargée à l'ouverture du popup
+  // (sauf école publique). Affine le pré-remplissage fait dans openEdit.
+  const salaryQuery = useQuery({
+    queryKey: ['staff-salary', editing?.id],
+    enabled: formOpen && editing !== null && !isPublicSchool,
+    queryFn: () => personnel.getSalaryProfile(editing!.id),
+  });
+  useEffect(() => {
+    const p = salaryQuery.data;
+    if (!p) return;
+    setSalaryMode(p.salaryMode ?? 'fixe');
+    setMontant(String(p.salaireFixe ?? p.tauxJournalier ?? p.tauxHoraire ?? ''));
+  }, [salaryQuery.data]);
 
   function openCreate() {
     setEditing(null);
@@ -76,16 +94,28 @@ export default function PersonnelListPage() {
     setRole(m.role);
     setTel(m.tel === '—' ? '' : m.tel);
     setEmail(m.email === '—' ? '' : m.email);
+    setSalaryMode(m.salaryMode ?? 'fixe');
+    setMontant(String(m.salaireFixe ?? m.tauxJournalier ?? m.tauxHoraire ?? ''));
     setFormError(null);
     setFormOpen(true);
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (editing) {
-        return personnel.update(editing.id, { prenom, nom, tel, email: email || '—' });
+        await personnel.update(editing.id, { prenom, nom, tel, email: email || '—' });
+        if (!isPublicSchool) {
+          const value = montant.trim() === '' ? null : Number(montant);
+          await personnel.updateSalary(editing.id, {
+            salaryMode,
+            salaireFixe: salaryMode === 'fixe' ? value : null,
+            tauxJournalier: salaryMode === 'par_jour' ? value : null,
+            tauxHoraire: salaryMode === 'par_heure' ? value : null,
+          });
+        }
+        return;
       }
-      return personnel.create({ prenom, nom, role, tel, email: email || undefined, sexe });
+      await personnel.create({ prenom, nom, role, tel, email: email || undefined, sexe });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
@@ -99,7 +129,10 @@ export default function PersonnelListPage() {
   const blockMutation = useMutation({
     mutationFn: ({ id, blocked }: { id: string; blocked: boolean }) =>
       blocked ? personnel.block(id) : personnel.unblock(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['personnel'] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['personnel'] });
+      setEditing((prev) => (prev && prev.id === vars.id ? { ...prev, statut: vars.blocked ? 'suspendu' : 'actif' } : prev));
+    },
   });
 
   const removeMutation = useMutation({
@@ -317,6 +350,32 @@ export default function PersonnelListPage() {
           <Field label="Email">
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
+          {editing ? (
+            <Field label="Statut">
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <Button type="button" variant={editing.statut === 'actif' ? 'primary' : 'secondary'} size="sm" disabled={editing.statut === 'actif'} loading={blockMutation.isPending} onClick={() => blockMutation.mutate({ id: editing.id, blocked: false })}>
+                  {editing.statut === 'en_attente' ? 'Activer' : 'Actif'}
+                </Button>
+                <Button type="button" variant={editing.statut === 'suspendu' ? 'primary' : 'secondary'} size="sm" disabled={editing.statut === 'suspendu'} loading={blockMutation.isPending} onClick={() => blockMutation.mutate({ id: editing.id, blocked: true })}>
+                  Bloqué
+                </Button>
+              </div>
+            </Field>
+          ) : null}
+          {editing && !isPublicSchool ? (
+            <>
+              <Field label="Mode de rémunération">
+                <Select value={salaryMode} onChange={(e) => setSalaryMode(e.target.value as SalaryMode)}>
+                  <option value="fixe">Fixe (mensuel)</option>
+                  <option value="par_jour">Par jour travaillé</option>
+                  <option value="par_heure">Par heure</option>
+                </Select>
+              </Field>
+              <Field label={salaryMode === 'fixe' ? 'Salaire mensuel fixe (FCFA)' : salaryMode === 'par_jour' ? 'Taux journalier (FCFA)' : 'Taux horaire (FCFA)'}>
+                <Input type="number" min="0" value={montant} onChange={(e) => setMontant(e.target.value)} placeholder="0" />
+              </Field>
+            </>
+          ) : null}
           {formError ? <p style={{ color: 'var(--color-danger)', fontSize: 13 }}>{formError}</p> : null}
         </form>
       </Sheet>

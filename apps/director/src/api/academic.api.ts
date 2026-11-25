@@ -8,6 +8,8 @@ import type {
   ApiMention,
   ApiPeriodType,
   ApiPromotionResult,
+  ClassClosureSummaryResponseDto,
+  StudentPromotionDecisionResponseDto,
   CloseYearRequestDto,
   ConfigureAcademicYearRequestDto,
   SemesterPeriodDto,
@@ -18,6 +20,8 @@ import type {
 } from '@/types/api';
 import type { AcademicResultsPort } from '@/services/ports';
 import type {
+  ClassClosureSummary,
+  PromotionDecision,
   AcademicPeriod,
   AcademicPeriodType,
   AcademicYearConfig,
@@ -46,6 +50,15 @@ const MENTION_TO_DOMAIN: Record<ApiMention, Mention> = {
   ASSEZ_BIEN: 'assez_bien',
   PASSABLE: 'passable',
   INSUFFISANT: 'insuffisant',
+};
+
+const MENTION_TO_API: Record<Mention, ApiMention> = {
+  excellent: 'EXCELLENT',
+  tres_bien: 'TRES_BIEN',
+  bien: 'BIEN',
+  assez_bien: 'ASSEZ_BIEN',
+  passable: 'PASSABLE',
+  insuffisant: 'INSUFFISANT',
 };
 
 const PROMOTION_TO_DOMAIN: Record<ApiPromotionResult, PromotionResult> = {
@@ -163,6 +176,8 @@ function fromApiYearResult(dto: YearResultResponseDto, names: Map<string, string
     mention: MENTION_TO_DOMAIN[dto.mention] ?? 'insuffisant',
     decision: PROMOTION_TO_DOMAIN[dto.promotionResult] ?? 'redouble',
     matieres: (dto.subjects ?? []).map(fromApiSubjectAverage),
+    diplome: dto.diplome ?? false,
+    diplomaMention: dto.diplomaMention ? MENTION_TO_DOMAIN[dto.diplomaMention] : null,
     cloture: dto.closed ?? false,
   };
 }
@@ -375,6 +390,81 @@ export function createAcademicResultsApi(): AcademicResultsPort {
         resolveStudentNames(schoolId),
       ]);
       return dtos.map((dto) => fromApiYearResult(dto, names));
+    },
+
+    async getStudentYearResult(studentId: string): Promise<YearResult | null> {
+      const yearId = await resolveYearId();
+      try {
+        const dto = await request<YearResultResponseDto>(
+          `/api/v1/academic/results/student/${encodeURIComponent(studentId)}/annual`,
+          { query: { yearId } },
+        );
+        return dto ? fromApiYearResult(dto, new Map()) : null;
+      } catch (err) {
+        if (err instanceof AppError && err.kind === 'notFound') return null;
+        throw err;
+      }
+    },
+
+    async setDiploma(
+      studentId: string,
+      classId: string,
+      input: { diplome: boolean; diplomaMention: Mention | null },
+    ): Promise<void> {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      await request<void>(`/api/v1/academic/results/student/${encodeURIComponent(studentId)}/diploma`, {
+        method: 'PUT',
+        query: { yearId },
+        body: {
+          schoolId,
+          classId,
+          diplome: input.diplome,
+          diplomaMention: input.diplome && input.diplomaMention ? MENTION_TO_API[input.diplomaMention] : null,
+        },
+      });
+    },
+
+    async getGraduates(): Promise<YearResult[]> {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      const [dtos, names] = await Promise.all([
+        request<YearResultResponseDto[]>(
+          `/api/v1/academic/results/school/${encodeURIComponent(schoolId)}/year/${encodeURIComponent(yearId)}/graduates`,
+        ),
+        resolveStudentNames(schoolId),
+      ]);
+      return dtos.map((dto) => fromApiYearResult(dto, names));
+    },
+
+    async getClosureReadiness(): Promise<ClassClosureSummary[]> {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      const dtos = await request<ClassClosureSummaryResponseDto[]>(
+        `/api/v1/academic/results/school/${encodeURIComponent(schoolId)}/year/${encodeURIComponent(yearId)}/closure-readiness`,
+      );
+      return dtos.map((d) => ({
+        classId: d.classId,
+        decisions: d.decisions,
+        promoted: d.promoted,
+        retained: d.retained,
+        graduated: d.graduated,
+        excluded: d.excluded,
+      }));
+    },
+
+    async getPromotionDecisions(yearId: string): Promise<PromotionDecision[]> {
+      const { schoolId } = sessionContext();
+      const dtos = await request<StudentPromotionDecisionResponseDto[]>(
+        `/api/v1/academic/results/school/${encodeURIComponent(schoolId)}/year/${encodeURIComponent(yearId)}/decisions`,
+      );
+      return dtos.map((d) => ({
+        studentId: d.studentId,
+        classId: d.classId,
+        annualAverage: d.annualAverage,
+        promotionResult: PROMOTION_TO_DOMAIN[d.promotionResult] ?? 'redouble',
+        diplome: d.diplome,
+      }));
     },
 
     async closeResultsYear(overrides): Promise<void> {

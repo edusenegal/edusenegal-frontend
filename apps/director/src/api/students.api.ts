@@ -98,7 +98,7 @@ async function findClassInfoForStudent(schoolId: string, studentId: string): Pro
  * (payment-service, nouvel endpoint bulk), les deux agrégés au niveau
  * CLASSE plutôt que par élève.
  */
-export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'get' | 'create' | 'update' | 'remove' | 'getAbsenceCounts' | 'getAttendanceMarks' | 'getParents' | 'block' | 'unblock'> {
+export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'get' | 'create' | 'update' | 'remove' | 'getAbsenceCounts' | 'getAttendanceMarks' | 'getParents' | 'block' | 'unblock' | 'expel' | 'getExpelled'> {
   return {
     async list(classId?: string): Promise<Student[]> {
       const { schoolId } = sessionContext();
@@ -245,6 +245,20 @@ export function createStudentsApi(): Pick<StudentsPort, 'list' | 'listPage' | 'g
         method: 'PATCH',
         query: { schoolId },
       });
+    },
+
+    async expel(studentId: string, reason?: string): Promise<void> {
+      const { schoolId } = sessionContext();
+      await request<unknown>(`/api/v1/users/${encodeURIComponent(studentId)}/schools/${encodeURIComponent(schoolId)}/expel`, {
+        method: 'PATCH',
+        query: reason ? { reason } : undefined,
+      });
+    },
+
+    async getExpelled(): Promise<Student[]> {
+      const { schoolId } = sessionContext();
+      const dtos = await request<UserResponseDto[]>(`/api/v1/users/school/${encodeURIComponent(schoolId)}/expelled`);
+      return dtos.map((dto) => fromUserResponse(dto, undefined));
     },
 
     async getAbsenceCounts(studentIds: string[]): Promise<Record<string, number>> {

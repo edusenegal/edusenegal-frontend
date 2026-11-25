@@ -194,6 +194,20 @@ export interface StaffMember {
   email: string;
   statut: StaffStatus;
   photoUrl: string | null;
+  // Rémunération dans cet établissement (enrichie par `staff/full`). Optionnel :
+  // null si non configurée, absent/masqué pour une école publique.
+  salaryMode?: SalaryMode | null;
+  salaireFixe?: number | null;
+  tauxJournalier?: number | null;
+  tauxHoraire?: number | null;
+}
+
+/** Profil de rémunération d'un agent dans cet établissement (GET/PUT .../salary). */
+export interface StaffSalaryProfile {
+  salaryMode: SalaryMode | null;
+  salaireFixe: number | null;
+  tauxJournalier: number | null;
+  tauxHoraire: number | null;
 }
 
 export interface StudentParent {
@@ -714,6 +728,50 @@ export type Mention = 'excellent' | 'tres_bien' | 'bien' | 'assez_bien' | 'passa
 /** Traduit `PromotionResult` (academic-service) : PROMOTED, EXCEPTIONAL, RETAINED, EXCLUDED. */
 export type PromotionResult = 'admis' | 'admis_exceptionnel' | 'redouble' | 'exclu';
 
+/** Recouvrement global de l'école pour une année (bilan comptable de clôture). */
+export interface SchoolRecoveryStats {
+  totalStudents: number;
+  paidStudents: number;
+  overdueStudents: number;
+  pendingStudents: number;
+  totalExpectedFcfa: number;
+  totalCollectedFcfa: number;
+  totalRemainingFcfa: number;
+  collectionRate: number;
+  byChannel: Record<string, number>;
+  byLevel: Record<string, number>;
+}
+
+/** Décision de passage d'un élève (bascule N → N+1). */
+export interface PromotionDecision {
+  studentId: string;
+  classId: string;
+  annualAverage: number;
+  promotionResult: PromotionResult;
+  diplome: boolean;
+}
+
+/** Élève qu'aucune classe N+1 n'a accueilli automatiquement (file « à orienter »). */
+export interface UnplacedStudent {
+  studentId: string;
+  fromClassId: string;
+  fromClassName: string;
+  fromLevel: string;
+  fromSeries: string | null;
+  fromTag: string | null;
+  nextLevel: string | null;
+  reason: 'ORIENTATION_NEEDED' | 'NO_TARGET_CLASS' | 'LAST_LEVEL';
+  decision: PromotionResult;
+}
+
+/** Résultat de l'application des décisions de passage. */
+export interface PromotionReport {
+  promotedCount: number;
+  retainedCount: number;
+  unplacedCount: number;
+  unplaced: UnplacedStudent[];
+}
+
 /** Moyenne d'une matière pour un élève sur un semestre — traduit `SubjectAverage`. */
 export interface SubjectAverage {
   subjectId: string;
@@ -760,7 +818,23 @@ export interface YearResult {
   mention: Mention;
   decision: PromotionResult;
   matieres: SubjectAverage[];
+  // Fin de cycle (CM2/3ème/Terminale) — saisie directeur, à tout moment.
+  diplome?: boolean;
+  diplomaMention?: Mention | null;
   cloture: boolean;
+}
+
+/**
+ * Synthèse de pré-clôture pour UNE classe (tableau de bord « prêt à clôturer »).
+ * Décisions arrêtées = nombre de résultats annuels calculés pour la classe.
+ */
+export interface ClassClosureSummary {
+  classId: string;
+  decisions: number;
+  promoted: number;
+  retained: number;
+  graduated: number;
+  excluded: number;
 }
 
 /**

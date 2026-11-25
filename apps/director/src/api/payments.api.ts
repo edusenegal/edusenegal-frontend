@@ -2,7 +2,7 @@ import { request, sessionContext } from '@/api/client';
 import { resolveYearId } from '@/api/context';
 import { AppError } from '@/services/errors';
 import { isoToFR } from '@/utils/format';
-import type { ClassPaymentStatsDto } from '@/types/api';
+import type { ClassPaymentStatsDto, SchoolFinancialStatsDto } from '@/types/api';
 import type { PaymentConfigPort } from '@/services/ports';
 import type { PaymentChannel, PaymentConfig, PaymentType } from '@/types/domain';
 
@@ -87,7 +87,7 @@ function fromConfigResponse(dto: PaymentConfigResponseDto): PaymentConfig {
 
 export function createPaymentsApi(): Pick<
   PaymentConfigPort,
-  'get' | 'save' | 'getCollectionRateForStudents' | 'getPaymentRatesForStudents' | 'getClassStats'
+  'get' | 'save' | 'getCollectionRateForStudents' | 'getPaymentRatesForStudents' | 'getClassStats' | 'getSchoolRecovery'
 > {
   async function fetchStats(studentIds: string[], classId?: string): Promise<ClassPaymentStatsDto | null> {
     if (studentIds.length === 0) return null;
@@ -162,6 +162,27 @@ export function createPaymentsApi(): Pick<
         totalCollectedFcfa: stats.totalCollectedFcfa,
         totalRemainingFcfa: stats.totalRemainingFcfa,
         collectionRate: stats.collectionRate,
+      };
+    },
+
+    async getSchoolRecovery() {
+      const { schoolId } = sessionContext();
+      const yearId = await resolveYearId();
+      const dto = await request<SchoolFinancialStatsDto>(
+        `/api/v1/payments/stats/${encodeURIComponent(schoolId)}`,
+        { query: { yearId } },
+      );
+      return {
+        totalStudents: dto.totalStudents,
+        paidStudents: dto.paidStudents,
+        overdueStudents: dto.overdueStudents,
+        pendingStudents: dto.pendingStudents,
+        totalExpectedFcfa: dto.totalExpectedFcfa,
+        totalCollectedFcfa: dto.totalCollectedFcfa,
+        totalRemainingFcfa: dto.totalRemainingFcfa,
+        collectionRate: dto.collectionRate,
+        byChannel: dto.byChannel ?? {},
+        byLevel: dto.byLevel ?? {},
       };
     },
   };

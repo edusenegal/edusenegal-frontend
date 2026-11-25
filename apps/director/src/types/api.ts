@@ -129,6 +129,11 @@ export interface UserResponseDto {
   email?: string;
   role: UserRole;
   accountStatus?: string;
+  // Rémunération de l'école active (renvoyée par `staff/full`), null/absent sinon.
+  salaryMode?: ApiSalaryMode | null;
+  fixedAmountFcfa?: number | null;
+  dailyRateFcfa?: number | null;
+  hourlyRateFcfa?: number | null;
   mustChangePassword: boolean;
   studentCardId?: string;
   activeSchoolId?: string;
@@ -469,6 +474,23 @@ export interface StudentPaymentRateDto {
   status: 'PAID' | 'OVERDUE' | 'PENDING' | 'NONE';
 }
 
+/** GET /api/v1/payments/stats/{schoolId}?yearId= — SchoolFinancialStats (recouvrement global). */
+export interface SchoolFinancialStatsDto {
+  totalStudents: number;
+  paidStudents: number;
+  overdueStudents: number;
+  pendingStudents: number;
+  totalExpectedFcfa: number;
+  totalCollectedFcfa: number;
+  totalRemainingFcfa: number;
+  collectionRate: number;
+  scholarshipCount: number;
+  totalScholarshipFcfa: number;
+  totalScholarshipPaidFcfa: number;
+  byChannel: Record<string, number>;
+  byLevel: Record<string, number>;
+}
+
 /** GET /api/v1/payments/stats/by-students */
 export interface ClassPaymentStatsDto {
   totalStudents: number;
@@ -493,6 +515,56 @@ export type ApiMention = 'EXCELLENT' | 'TRES_BIEN' | 'BIEN' | 'ASSEZ_BIEN' | 'PA
 
 /** Calqué sur `PromotionResult` (academic-service). */
 export type ApiPromotionResult = 'PROMOTED' | 'EXCEPTIONAL' | 'RETAINED' | 'EXCLUDED';
+
+/** GET /api/v1/academic/results/school/{schoolId}/year/{yearId}/decisions — bascule N → N+1. */
+export interface StudentPromotionDecisionResponseDto {
+  studentId: string;
+  classId: string;
+  annualAverage: number;
+  promotionResult: ApiPromotionResult;
+  diplome: boolean;
+}
+
+/** Corps de POST /api/v1/classes/school/{schoolId}/year/{toYearId}/instantiate. */
+export interface InstantiateClassesRequestDto {
+  schoolId: string;
+  toYearId: string;
+  schoolType: ApiSchoolType;
+  classes: Array<{
+    level: string;
+    series: string | null;
+    tag: string | null;
+    capacity: number;
+    homeroomTeacherId?: string;
+  }>;
+}
+
+/** Corps de POST /api/v1/classes/school/{schoolId}/promote. */
+export interface PromotionApplyRequestDto {
+  schoolId: string;
+  fromYearId: string;
+  toYearId: string;
+  results: StudentPromotionResultDto[];
+}
+
+/** Réponse de POST /api/v1/classes/school/{schoolId}/promote. */
+export interface PromotionReportDto {
+  promotedCount: number;
+  retainedCount: number;
+  unplacedCount: number;
+  unplaced: UnplacedStudentDto[];
+}
+export interface UnplacedStudentDto {
+  studentId: string;
+  fromClassId: string;
+  fromClassName: string;
+  fromLevel: string;
+  fromSeries: string | null;
+  fromTag: string | null;
+  nextLevel: string | null;
+  reason: 'ORIENTATION_NEEDED' | 'NO_TARGET_CLASS' | 'LAST_LEVEL';
+  decision: ApiPromotionResult;
+}
 
 /** Moyenne d'une matière pour un élève — imbriqué dans `SemesterResultResponseDto.subjects`/`YearResultResponseDto.subjects`. */
 export interface SubjectAverageDto {
@@ -545,8 +617,20 @@ export interface YearResultResponseDto {
   promotionResult: ApiPromotionResult;
   subjects: SubjectAverageDto[];
   directorComment: string | null;
+  diplome?: boolean;
+  diplomaMention?: ApiMention | null;
   closed: boolean;
   createdAt: string;
+}
+
+/** Calqué sur `ClassClosureSummaryResponse` (academic-service) — synthèse de pré-clôture par classe. */
+export interface ClassClosureSummaryResponseDto {
+  classId: string;
+  decisions: number;
+  promoted: number;
+  retained: number;
+  graduated: number;
+  excluded: number;
 }
 
 /** Calqué sur `PeriodType` (academic-service). */
